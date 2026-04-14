@@ -1,0 +1,31 @@
+
+      * { box-sizing: border-box; margin: 0; padding: 0; font-family: sans-serif; }
+
+      body { background: #f5f5f5; height: 100vh; display: flex; flex-direction: column; }
+
+      .topbar { background: #25D366; color: white; padding: 14px 20px; font-size: 16px; font-weight: bold; }
+
+      .main { display: flex; flex: 1; overflow: hidden; }
+
+      .sidebar { width: 300px; background: white; border-right: 1px solid #e0e0e0; overflow-y: auto; }
+
+      .card { padding: 16px; border-bottom: 1px solid #e0e0e0; cursor: pointer; }
+      .card:hover { background: #f9f9f9; }
+      .card.active { background: #e8f5e9; }
+      .card h2 { font-size: 13px; color: #333; margin-bottom: 4px; }
+      .card p { font-size: 12px; color: #888; }
+
+      .chat { flex: 1; display: flex; flex-direction: column; }
+
+      .chat-header { padding: 16px 20px; border-bottom: 1px solid #e0e0e0; font-size: 14px; font-weight: bold; color: #333; }
+
+      .messages { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+
+      .bubble { max-width: 70%; padding: 10px 14px; border-radius: 10px; font-size: 13px; line-height: 1.5; }
+      .bubble.in { background: #f0f0f0; color: #333; align-self: flex-start; }
+      .bubble.out { background: #25D366; color: white; align-self: flex-end; }
+
+      .composer { padding: 14px 20px; border-top: 1px solid #e0e0e0; display: flex; gap: 10px; }
+      .composer input { flex: 1; padding: 10px 14px; border: 1px solid #e0e0e0; border-radius: 8px; font-size: 13px; }
+      .composer button { padding: 10px 20px; background: #25D366; color: white; border: none; border-radius: 8px; font-size: 13px; cursor: pointer; }
+    

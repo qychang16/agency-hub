@@ -2,37 +2,7 @@
 <html>
   <head>
     <title>Agency Hub</title>
-    <style>
-      * { box-sizing: border-box; margin: 0; padding: 0; font-family: sans-serif; }
-
-      body { background: #f5f5f5; height: 100vh; display: flex; flex-direction: column; }
-
-      .topbar { background: #25D366; color: white; padding: 14px 20px; font-size: 16px; font-weight: bold; }
-
-      .main { display: flex; flex: 1; overflow: hidden; }
-
-      .sidebar { width: 300px; background: white; border-right: 1px solid #e0e0e0; overflow-y: auto; }
-
-      .card { padding: 16px; border-bottom: 1px solid #e0e0e0; cursor: pointer; }
-      .card:hover { background: #f9f9f9; }
-      .card.active { background: #e8f5e9; }
-      .card h2 { font-size: 13px; color: #333; margin-bottom: 4px; }
-      .card p { font-size: 12px; color: #888; }
-
-      .chat { flex: 1; display: flex; flex-direction: column; }
-
-      .chat-header { padding: 16px 20px; border-bottom: 1px solid #e0e0e0; font-size: 14px; font-weight: bold; color: #333; }
-
-      .messages { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
-
-      .bubble { max-width: 70%; padding: 10px 14px; border-radius: 10px; font-size: 13px; line-height: 1.5; }
-      .bubble.in { background: #f0f0f0; color: #333; align-self: flex-start; }
-      .bubble.out { background: #25D366; color: white; align-self: flex-end; }
-
-      .composer { padding: 14px 20px; border-top: 1px solid #e0e0e0; display: flex; gap: 10px; }
-      .composer input { flex: 1; padding: 10px 14px; border: 1px solid #e0e0e0; border-radius: 8px; font-size: 13px; }
-      .composer button { padding: 10px 20px; background: #25D366; color: white; border: none; border-radius: 8px; font-size: 13px; cursor: pointer; }
-    </style>
+    <link rel="stylesheet" href="css/style.css">
   </head>
   <body>
 
@@ -53,81 +23,7 @@
 
     </div>
 
-    <script>
-      const conversations = [
-        {
-          id: 1,
-          name: 'Sarah Lim',
-          preview: 'Can I reschedule my interview?',
-          messages: [
-            { dir: 'out', text: 'Hi Sarah, your interview is confirmed for Wednesday 10am.' },
-            { dir: 'in',  text: 'Thank you! Can I reschedule to Thursday instead?' },
-            { dir: 'out', text: 'Of course, let me check with the client.' },
-          ]
-        },
-        {
-          id: 2,
-          name: 'Tech Corp HR',
-          preview: 'We need 2 candidates by Friday',
-          messages: [
-            { dir: 'in',  text: 'Good morning, we have an urgent requirement.' },
-            { dir: 'out', text: 'Good morning! Please share the job scope.' },
-            { dir: 'in',  text: 'We need 2 admin executives by Friday.' },
-          ]
-        },
-        {
-          id: 3,
-          name: 'David Wong',
-          preview: 'I will review the offer letter',
-          messages: [
-            { dir: 'out', text: 'Hi David, your offer letter is attached. Please confirm by Friday.' },
-            { dir: 'in',  text: 'Thank you, I will review and get back to you.' },
-          ]
-        }
-      ]
-
-      let activeId = null
-
-      function renderSidebar() {
-        const sidebar = document.getElementById('sidebar')
-        sidebar.innerHTML = conversations.map(c => `
-          <div class="card ${c.id === activeId ? 'active' : ''}" onclick="openConvo(${c.id})">
-            <h2>${c.name}</h2>
-            <p>${c.preview}</p>
-          </div>
-        `).join('')
-      }
-
-      function openConvo(id) {
-        activeId = id
-        const c = conversations.find(x => x.id === id)
-        document.getElementById('chat-header').textContent = c.name
-        const messages = document.getElementById('messages')
-        messages.innerHTML = c.messages.map(m => `
-          <div class="bubble ${m.dir}">${m.text}</div>
-        `).join('')
-        messages.scrollTop = messages.scrollHeight
-        renderSidebar()
-      }
-
-      function sendMessage() {
-        const input = document.getElementById('input')
-        const text = input.value.trim()
-        if (!text || !activeId) return
-        const c = conversations.find(x => x.id === activeId)
-        c.messages.push({ dir: 'out', text: text })
-        c.preview = text
-        input.value = ''
-        openConvo(activeId)
-        renderSidebar()
-      }
-
-      document.getElementById('input').addEventListener('keydown', function(e) {
-        if (e.key === 'Enter') sendMessage()
-      })
-
-      renderSidebar()
-    </script>
+    <script src="js/app.js"></script>
 
   </body>
 </html>

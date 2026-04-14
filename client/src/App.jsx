@@ -1,43 +1,17 @@
-import { useState } from 'react'
-
-const conversations = [
-  {
-    id: 1,
-    name: 'Sarah Lim',
-    preview: 'Can I reschedule my interview?',
-    messages: [
-      { dir: 'out', text: 'Hi Sarah, your interview is confirmed for Wednesday 10am.' },
-      { dir: 'in',  text: 'Thank you! Can I reschedule to Thursday instead?' },
-      { dir: 'out', text: 'Of course, let me check with the client.' },
-    ]
-  },
-  {
-    id: 2,
-    name: 'Tech Corp HR',
-    preview: 'We need 2 candidates by Friday',
-    messages: [
-      { dir: 'in',  text: 'Good morning, we have an urgent requirement.' },
-      { dir: 'out', text: 'Good morning! Please share the job scope.' },
-      { dir: 'in',  text: 'We need 2 admin executives by Friday.' },
-    ]
-  },
-  {
-    id: 3,
-    name: 'David Wong',
-    preview: 'I will review the offer letter',
-    messages: [
-      { dir: 'out', text: 'Hi David, your offer letter is attached. Please confirm by Friday.' },
-      { dir: 'in',  text: 'Thank you, I will review and get back to you.' },
-    ]
-  }
-]
+import { useState, useEffect } from 'react'
 
 export default function App() {
+  const [convos, setConvos] = useState([])
   const [activeId, setActiveId] = useState(null)
   const [input, setInput] = useState('')
-  const [convos, setConvos] = useState(conversations)
 
   const active = convos.find(c => c.id === activeId)
+
+  useEffect(function() {
+    fetch('http://localhost:4000/conversations')
+      .then(res => res.json())
+      .then(data => setConvos(data))
+  }, [])
 
   function openConvo(id) {
     setActiveId(id)

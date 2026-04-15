@@ -1,7 +1,14 @@
 const express = require('express')
-const app = express()
+const http = require('http')
+const { Server } = require('socket.io')
 const cors = require('cors')
 const { Pool } = require('pg')
+
+const app = express()
+const server = http.createServer(app)
+const io = new Server(server, {
+  cors: { origin: 'http://localhost:5173' }
+})
 
 const pool = new Pool({
   user: 'postgres',
@@ -77,9 +84,24 @@ app.post('/messages', async function(req, res) {
     'INSERT INTO messages (conversation_id, direction, text) VALUES ($1, $2, $3) RETURNING *',
     [conversation_id, direction, text]
   )
-  res.json(result.rows[0])
+  const newMessage = result.rows[0]
+  io.to('convo_' + conversation_id).emit('new_message', newMessage)
+  res.json(newMessage)
 })
 
-app.listen(4000, function() {
+io.on('connection', function(socket) {
+  console.log('Client connected:', socket.id)
+
+  socket.on('join_conversation', function(conversationId) {
+    socket.join('convo_' + conversationId)
+    console.log('Joined conversation:', conversationId)
+  })
+
+  socket.on('disconnect', function() {
+    console.log('Client disconnected:', socket.id)
+  })
+})
+
+server.listen(4000, function() {
   console.log('Server started on port 4000')
 })

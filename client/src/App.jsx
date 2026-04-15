@@ -1,10 +1,14 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { io } from 'socket.io-client'
+
+const socket = io('http://localhost:4000')
 
 export default function App() {
   const [convos, setConvos] = useState([])
   const [activeId, setActiveId] = useState(null)
   const [active, setActive] = useState(null)
   const [input, setInput] = useState('')
+  const messagesEndRef = useRef(null)
 
   useEffect(function() {
     fetch('http://localhost:4000/conversations')
@@ -12,8 +16,30 @@ export default function App() {
       .then(data => setConvos(data))
   }, [])
 
+  useEffect(function() {
+    socket.on('new_message', function(message) {
+      setActive(prev => {
+        if (!prev) return prev
+        return { ...prev, messages: [...prev.messages, message] }
+      })
+      setConvos(prev => prev.map(c =>
+        c.id === message.conversation_id
+          ? { ...c, preview: message.text }
+          : c
+      ))
+    })
+    return function() { socket.off('new_message') }
+  }, [])
+
+  useEffect(function() {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' })
+    }
+  }, [active])
+
   function openConvo(id) {
     setActiveId(id)
+    socket.emit('join_conversation', id)
     fetch('http://localhost:4000/conversations/' + id)
       .then(res => res.json())
       .then(data => setActive(data))
@@ -30,12 +56,6 @@ export default function App() {
         text: input
       })
     })
-    const newMsg = await res.json()
-    setActive(prev => ({
-      ...prev,
-      messages: [...prev.messages, newMsg]
-    }))
-    setConvos(convos.map(c => c.id === activeId ? { ...c, preview: input } : c))
     setInput('')
   }
 
@@ -92,6 +112,7 @@ export default function App() {
                 {m.text}
               </div>
             ))}
+            <div ref={messagesEndRef} />
           </div>
 
           <div style={{ padding: '14px 20px', borderTop: '1px solid #e0e0e0', display: 'flex', gap: '10px' }}>

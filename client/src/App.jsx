@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { io } from 'socket.io-client'
 
 export default function App() {
+  const [search, setSearch] = useState('')
   const [user, setUser] = useState(null)
   const [token, setToken] = useState(null)
   const [email, setEmail] = useState('')
@@ -163,10 +164,27 @@ export default function App() {
 
         <div className="w-72 bg-white border-r border-gray-100 flex flex-col overflow-hidden shrink-0">
           <div className="px-4 py-3 border-b border-gray-100">
-            <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Conversations</div>
-          </div>
+  <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Conversations</div>
+  <input
+    type="text"
+    value={search}
+    onChange={e => setSearch(e.target.value)}
+    placeholder="Search conversations..."
+    className="w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:border-green-400"
+  />
+</div>
           <div className="overflow-y-auto flex-1">
-            {convos.map(c => (
+            {convos
+  .filter(c => {
+    if (!search.trim()) return true
+    const q = search.toLowerCase().replace(/\s+/g, ' ').trim()
+    return (
+      c.name.toLowerCase().includes(q) ||
+      (c.preview && c.preview.toLowerCase().includes(q)) ||
+      (c.phone && c.phone.includes(q))
+    )
+  })
+  .map(c => (
               <div
                 key={c.id}
                 onClick={() => openConvo(c.id)}
@@ -215,7 +233,7 @@ export default function App() {
                   {m.text}
                 </div>
                 <div className="text-xs text-gray-300 mt-1 px-1">
-                  {new Date(m.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+                 {new Date(m.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
                   {m.direction === 'out' && ' · ✓✓'}
                 </div>
               </div>

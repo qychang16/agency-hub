@@ -3,9 +3,8 @@ import { useState, useEffect } from 'react'
 export default function App() {
   const [convos, setConvos] = useState([])
   const [activeId, setActiveId] = useState(null)
+  const [active, setActive] = useState(null)
   const [input, setInput] = useState('')
-
-  const active = convos.find(c => c.id === activeId)
 
   useEffect(function() {
     fetch('http://localhost:4000/conversations')
@@ -15,18 +14,28 @@ export default function App() {
 
   function openConvo(id) {
     setActiveId(id)
+    fetch('http://localhost:4000/conversations/' + id)
+      .then(res => res.json())
+      .then(data => setActive(data))
   }
 
-  function sendMessage() {
+  async function sendMessage() {
     if (!input.trim() || !activeId) return
-    setConvos(convos.map(c => {
-      if (c.id !== activeId) return c
-      return {
-        ...c,
-        preview: input,
-        messages: [...c.messages, { dir: 'out', text: input }]
-      }
+    const res = await fetch('http://localhost:4000/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        conversation_id: activeId,
+        direction: 'out',
+        text: input
+      })
+    })
+    const newMsg = await res.json()
+    setActive(prev => ({
+      ...prev,
+      messages: [...prev.messages, newMsg]
     }))
+    setConvos(convos.map(c => c.id === activeId ? { ...c, preview: input } : c))
     setInput('')
   }
 
@@ -52,7 +61,8 @@ export default function App() {
               }}
             >
               <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#333', marginBottom: '4px' }}>{c.name}</div>
-              <div style={{ fontSize: '12px', color: '#888' }}>{c.preview}</div>
+              <div style={{ fontSize: '12px', color: '#888', marginBottom: '4px' }}>{c.preview}</div>
+              <div style={{ fontSize: '11px', color: '#25D366', fontWeight: '500' }}>{c.assigned_to}</div>
             </div>
           ))}
         </div>
@@ -61,6 +71,7 @@ export default function App() {
 
           <div style={{ padding: '16px 20px', borderBottom: '1px solid #e0e0e0', fontSize: '14px', fontWeight: 'bold', color: '#333' }}>
             {active ? active.name : 'Select a conversation'}
+            {active && <span style={{ fontSize: '12px', color: '#888', fontWeight: 'normal', marginLeft: '10px' }}>{active.phone}</span>}
           </div>
 
           <div style={{ flex: 1, padding: '20px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -73,9 +84,9 @@ export default function App() {
                   borderRadius: '10px',
                   fontSize: '13px',
                   lineHeight: '1.5',
-                  background: m.dir === 'out' ? '#25D366' : '#f0f0f0',
-                  color: m.dir === 'out' ? 'white' : '#333',
-                  alignSelf: m.dir === 'out' ? 'flex-end' : 'flex-start'
+                  background: m.direction === 'out' ? '#25D366' : '#f0f0f0',
+                  color: m.direction === 'out' ? 'white' : '#333',
+                  alignSelf: m.direction === 'out' ? 'flex-end' : 'flex-start'
                 }}
               >
                 {m.text}

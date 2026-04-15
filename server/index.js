@@ -1,8 +1,17 @@
 const express = require('express')
 const app = express()
 const cors = require('cors')
-app.use(cors())
+const { Pool } = require('pg')
 
+const pool = new Pool({
+  user: 'postgres',
+  host: 'localhost',
+  database: 'agency_hub',
+  password: 'postgres123',
+  port: 5432,
+})
+
+app.use(cors())
 app.use(express.json())
 
 const conversations = [
@@ -39,6 +48,11 @@ const conversations = [
 
 app.get('/', function(req, res) {
   res.send('Agency Hub server is running')
+})
+
+app.get('/test-db', async function(req, res) {
+  const result = await pool.query('SELECT NOW()')
+  res.json({ time: result.rows[0].now })
 })
 
 app.get('/conversations', function(req, res) {

@@ -20,6 +20,10 @@ const pool = new Pool({
 
 app.use(cors())
 app.use(express.json())
+const bcrypt = require('bcrypt')
+const jwt = require('jsonwebtoken')
+
+const JWT_SECRET = 'agencyhub_secret_key'
 
 app.get('/', function(req, res) {
   res.send('Agency Hub server is running')
@@ -101,7 +105,26 @@ io.on('connection', function(socket) {
     console.log('Client disconnected:', socket.id)
   })
 })
+app.post('/register', async function(req, res) {
+  const { name, email, password, role } = req.body
+  const hashed = await bcrypt.hash(password, 10)
+  const result = await pool.query(
+    'INSERT INTO users (name, email, password, role) VALUES ($1, $2, $3, $4) RETURNING id, name, email, role',
+    [name, email, hashed, role || 'agent']
+  )
+  res.json(result.rows[0])
+})
 
+app.post('/login', async function(req, res) {
+  const { email, password } = req.body
+  const result = await pool.query('SELECT * FROM users WHERE email = $1', [email])
+  if (!result.rows.length) return res.status(401).json({ error: 'Invalid email or password' })
+  const user = result.rows[0]
+  const valid = await bcrypt.compare(password, user.password)
+  if (!valid) return res.status(401).json({ error: 'Invalid email or password' })
+  const token = jwt.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET)
+  res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role } })
+})
 server.listen(4000, function() {
   console.log('Server started on port 4000')
 })

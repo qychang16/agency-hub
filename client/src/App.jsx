@@ -1,22 +1,60 @@
 import { useState, useEffect, useRef } from 'react'
 import { io } from 'socket.io-client'
 
-const socket = io('http://localhost:4000')
-
 export default function App() {
+  const [user, setUser] = useState(null)
+  const [token, setToken] = useState(null)
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [loginError, setLoginError] = useState('')
   const [convos, setConvos] = useState([])
   const [activeId, setActiveId] = useState(null)
   const [active, setActive] = useState(null)
   const [input, setInput] = useState('')
   const messagesEndRef = useRef(null)
+  const socketRef = useRef(null)
+
+  async function login() {
+    setLoginError('')
+    const res = await fetch('http://localhost:4000/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
+    })
+    const data = await res.json()
+    if (!res.ok) return setLoginError(data.error)
+    setUser(data.user)
+    setToken(data.token)
+    localStorage.setItem('token', data.token)
+    localStorage.setItem('user', JSON.stringify(data.user))
+  }
+
+  function logout() {
+    setUser(null)
+    setToken(null)
+    localStorage.removeItem('token')
+    localStorage.removeItem('user')
+  }
 
   useEffect(function() {
-    fetch('http://localhost:4000/conversations')
-      .then(res => res.json())
-      .then(data => setConvos(data))
+    const savedToken = localStorage.getItem('token')
+    const savedUser = localStorage.getItem('user')
+    if (savedToken && savedUser) {
+      setToken(savedToken)
+      setUser(JSON.parse(savedUser))
+    }
   }, [])
 
   useEffect(function() {
+    if (!token) return
+    fetch('http://localhost:4000/conversations', {
+      headers: { Authorization: 'Bearer ' + token }
+    })
+      .then(res => res.json())
+      .then(data => setConvos(data))
+
+    const socket = io('http://localhost:4000')
+    socketRef.current = socket
     socket.on('new_message', function(message) {
       setActive(prev => {
         if (!prev) return prev
@@ -28,8 +66,8 @@ export default function App() {
           : c
       ))
     })
-    return function() { socket.off('new_message') }
-  }, [])
+    return function() { socket.disconnect() }
+  }, [token])
 
   useEffect(function() {
     if (messagesEndRef.current) {
@@ -39,17 +77,22 @@ export default function App() {
 
   function openConvo(id) {
     setActiveId(id)
-    socket.emit('join_conversation', id)
-    fetch('http://localhost:4000/conversations/' + id)
+    if (socketRef.current) socketRef.current.emit('join_conversation', id)
+    fetch('http://localhost:4000/conversations/' + id, {
+      headers: { Authorization: 'Bearer ' + token }
+    })
       .then(res => res.json())
       .then(data => setActive(data))
   }
 
   async function sendMessage() {
     if (!input.trim() || !activeId) return
-    const res = await fetch('http://localhost:4000/messages', {
+    await fetch('http://localhost:4000/messages', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer ' + token
+      },
       body: JSON.stringify({
         conversation_id: activeId,
         direction: 'out',
@@ -59,11 +102,59 @@ export default function App() {
     setInput('')
   }
 
+  if (!user) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: '#f5f5f5', fontFamily: 'sans-serif' }}>
+        <div style={{ background: 'white', padding: '40px', borderRadius: '12px', border: '1px solid #e0e0e0', width: '360px' }}>
+          <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#25D366', marginBottom: '8px' }}>Agency Hub</div>
+          <div style={{ fontSize: '13px', color: '#888', marginBottom: '24px' }}>Sign in to your account</div>
+
+          <div style={{ marginBottom: '12px' }}>
+            <div style={{ fontSize: '12px', color: '#555', marginBottom: '4px' }}>Email</div>
+            <input
+              type="email"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && login()}
+              placeholder="you@agencyhub.com"
+              style={{ width: '100%', padding: '10px 12px', border: '1px solid #e0e0e0', borderRadius: '8px', fontSize: '13px' }}
+            />
+          </div>
+
+          <div style={{ marginBottom: '20px' }}>
+            <div style={{ fontSize: '12px', color: '#555', marginBottom: '4px' }}>Password</div>
+            <input
+              type="password"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && login()}
+              placeholder="Enter your password"
+              style={{ width: '100%', padding: '10px 12px', border: '1px solid #e0e0e0', borderRadius: '8px', fontSize: '13px' }}
+            />
+          </div>
+
+          {loginError && <div style={{ fontSize: '12px', color: '#ef4444', marginBottom: '12px' }}>{loginError}</div>}
+
+          <button
+            onClick={login}
+            style={{ width: '100%', padding: '11px', background: '#25D366', color: 'white', border: 'none', borderRadius: '8px', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer' }}
+          >
+            Sign in
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', fontFamily: 'sans-serif' }}>
 
-      <div style={{ background: '#25D366', color: 'white', padding: '14px 20px', fontSize: '16px', fontWeight: 'bold' }}>
-        Agency Hub
+      <div style={{ background: '#25D366', color: 'white', padding: '14px 20px', fontSize: '16px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span>Agency Hub</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <span style={{ fontSize: '13px', fontWeight: 'normal' }}>{user.name} · {user.role}</span>
+          <button onClick={logout} style={{ padding: '5px 12px', background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: '6px', color: 'white', fontSize: '12px', cursor: 'pointer' }}>Sign out</button>
+        </div>
       </div>
 
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>

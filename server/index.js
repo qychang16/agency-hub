@@ -125,6 +125,16 @@ app.post('/login', async function(req, res) {
   const token = jwt.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET)
   res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role } })
 })
+app.post('/simulate-incoming', async function(req, res) {
+  const { conversation_id, text, from } = req.body
+  const result = await pool.query(
+    'INSERT INTO messages (conversation_id, direction, text) VALUES ($1, $2, $3) RETURNING *',
+    [conversation_id, 'in', text]
+  )
+  const newMessage = result.rows[0]
+  io.to('convo_' + conversation_id).emit('new_message', newMessage)
+  res.json(newMessage)
+})
 server.listen(4000, function() {
   console.log('Server started on port 4000')
 })

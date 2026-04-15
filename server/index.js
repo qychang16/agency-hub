@@ -114,13 +114,14 @@ app.post('/register', async function(req, res) {
   )
   res.json(result.rows[0])
 })
-
 app.post('/login', async function(req, res) {
+  console.log('login attempt:', req.body)
   const { email, password } = req.body
   const result = await pool.query('SELECT * FROM users WHERE email = $1', [email])
   if (!result.rows.length) return res.status(401).json({ error: 'Invalid email or password' })
   const user = result.rows[0]
   const valid = await bcrypt.compare(password, user.password)
+  console.log('password valid:', valid)
   if (!valid) return res.status(401).json({ error: 'Invalid email or password' })
   const token = jwt.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET)
   res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role } })

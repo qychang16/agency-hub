@@ -136,6 +136,15 @@ app.post('/simulate-incoming', async function(req, res) {
   io.to('convo_' + conversation_id).emit('new_message', newMessage)
   res.json(newMessage)
 })
+app.patch('/conversations/:id/assign', async function(req, res) {
+  const { id } = req.params
+  const { assigned_to } = req.body
+  const result = await pool.query(
+    'UPDATE conversations SET assigned_to = $1 WHERE id = $2 RETURNING *',
+    [assigned_to, id]
+  )
+  res.json(result.rows[0])
+})
 server.listen(4000, function() {
   console.log('Server started on port 4000')
 })

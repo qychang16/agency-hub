@@ -147,6 +147,19 @@ export default function App() {
     )
   }
 
+  async function reassign(id, newAgent) {
+    await fetch('http://localhost:4000/conversations/' + id + '/assign', {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer ' + token
+      },
+      body: JSON.stringify({ assigned_to: newAgent })
+    })
+    setActive(prev => ({ ...prev, assigned_to: newAgent }))
+    setConvos(prev => prev.map(c => c.id === id ? { ...c, assigned_to: newAgent } : c))
+  }
+
   return (
     <div className="flex flex-col h-screen bg-gray-50 font-sans">
 
@@ -215,15 +228,21 @@ export default function App() {
               {active && <div className="text-xs text-gray-400 mt-0.5">{active.phone}</div>}
             </div>
             {active && (
-              <div className="flex items-center gap-2">
-                <span className={`text-xs px-3 py-1 rounded-full font-medium ${active.status === 'open' ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                  {active.status}
-                </span>
-                <span className={`text-xs px-3 py-1 rounded-full font-medium ${active.assigned_to === 'Aisha' ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>
-                  {active.assigned_to}
-                </span>
-              </div>
-            )}
+  <div className="flex items-center gap-2">
+    <span className={`text-xs px-3 py-1 rounded-full font-medium ${active.status === 'open' ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+      {active.status}
+    </span>
+    <span className={`text-xs px-3 py-1 rounded-full font-medium ${active.assigned_to === 'Aisha' ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>
+      {active.assigned_to}
+    </span>
+    <button
+      onClick={() => reassign(active.id, active.assigned_to === 'Aisha' ? 'Ben' : 'Aisha')}
+      className="text-xs px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-full transition-colors"
+    >
+      Reassign
+    </button>
+  </div>
+)}
           </div>
 
           <div className="flex-1 overflow-y-auto px-6 py-4 flex flex-col gap-2">

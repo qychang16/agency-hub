@@ -103,6 +103,32 @@ export default function App() {
     setInput('')
   }
 
+  async function reassign(id, newAgent) {
+    await fetch('http://localhost:4000/conversations/' + id + '/assign', {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer ' + token
+      },
+      body: JSON.stringify({ assigned_to: newAgent })
+    })
+    setActive(prev => ({ ...prev, assigned_to: newAgent }))
+    setConvos(prev => prev.map(c => c.id === id ? { ...c, assigned_to: newAgent } : c))
+  }
+
+  async function resolveConvo(id, newStatus) {
+    await fetch('http://localhost:4000/conversations/' + id + '/status', {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer ' + token
+      },
+      body: JSON.stringify({ status: newStatus })
+    })
+    setActive(prev => ({ ...prev, status: newStatus }))
+    setConvos(prev => prev.map(c => c.id === id ? { ...c, status: newStatus } : c))
+  }
+
   if (!user) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -147,19 +173,6 @@ export default function App() {
     )
   }
 
-  async function reassign(id, newAgent) {
-    await fetch('http://localhost:4000/conversations/' + id + '/assign', {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: 'Bearer ' + token
-      },
-      body: JSON.stringify({ assigned_to: newAgent })
-    })
-    setActive(prev => ({ ...prev, assigned_to: newAgent }))
-    setConvos(prev => prev.map(c => c.id === id ? { ...c, assigned_to: newAgent } : c))
-  }
-
   return (
     <div className="flex flex-col h-screen bg-gray-50 font-sans">
 
@@ -177,44 +190,44 @@ export default function App() {
 
         <div className="w-72 bg-white border-r border-gray-100 flex flex-col overflow-hidden shrink-0">
           <div className="px-4 py-3 border-b border-gray-100">
-  <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Conversations</div>
-  <input
-    type="text"
-    value={search}
-    onChange={e => setSearch(e.target.value)}
-    placeholder="Search conversations..."
-    className="w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:border-green-400"
-  />
-</div>
+            <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Conversations</div>
+            <input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search conversations..."
+              className="w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:border-green-400"
+            />
+          </div>
           <div className="overflow-y-auto flex-1">
             {convos
-  .filter(c => {
-    if (!search.trim()) return true
-    const q = search.toLowerCase().replace(/\s+/g, ' ').trim()
-    return (
-      c.name.toLowerCase().includes(q) ||
-      (c.preview && c.preview.toLowerCase().includes(q)) ||
-      (c.phone && c.phone.includes(q))
-    )
-  })
-  .map(c => (
-              <div
-                key={c.id}
-                onClick={() => openConvo(c.id)}
-                className={`px-4 py-3.5 border-b border-gray-50 cursor-pointer transition-colors ${c.id === activeId ? 'bg-green-50 border-l-2 border-l-green-500' : 'hover:bg-gray-50'}`}
-              >
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-sm font-semibold text-gray-800">{c.name}</span>
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${c.assigned_to === 'Aisha' ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>
-                    {c.assigned_to}
-                  </span>
+              .filter(c => {
+                if (!search.trim()) return true
+                const q = search.toLowerCase().replace(/\s+/g, ' ').trim()
+                return (
+                  c.name.toLowerCase().includes(q) ||
+                  (c.preview && c.preview.toLowerCase().includes(q)) ||
+                  (c.phone && c.phone.includes(q))
+                )
+              })
+              .map(c => (
+                <div
+                  key={c.id}
+                  onClick={() => openConvo(c.id)}
+                  className={`px-4 py-3.5 border-b border-gray-50 cursor-pointer transition-colors ${c.id === activeId ? 'bg-green-50 border-l-2 border-l-green-500' : 'hover:bg-gray-50'}`}
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-sm font-semibold text-gray-800">{c.name}</span>
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${c.assigned_to === 'Aisha' ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>
+                      {c.assigned_to}
+                    </span>
+                  </div>
+                  <div className="text-xs text-gray-400 truncate">{c.preview}</div>
+                  <div className={`text-xs mt-1 font-medium ${c.status === 'open' ? 'text-green-500' : 'text-gray-400'}`}>
+                    {c.status}
+                  </div>
                 </div>
-                <div className="text-xs text-gray-400 truncate">{c.preview}</div>
-                <div className={`text-xs mt-1 font-medium ${c.status === 'open' ? 'text-green-500' : 'text-gray-400'}`}>
-                  {c.status}
-                </div>
-              </div>
-            ))}
+              ))}
           </div>
         </div>
 
@@ -228,21 +241,27 @@ export default function App() {
               {active && <div className="text-xs text-gray-400 mt-0.5">{active.phone}</div>}
             </div>
             {active && (
-  <div className="flex items-center gap-2">
-    <span className={`text-xs px-3 py-1 rounded-full font-medium ${active.status === 'open' ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-      {active.status}
-    </span>
-    <span className={`text-xs px-3 py-1 rounded-full font-medium ${active.assigned_to === 'Aisha' ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>
-      {active.assigned_to}
-    </span>
-    <button
-      onClick={() => reassign(active.id, active.assigned_to === 'Aisha' ? 'Ben' : 'Aisha')}
-      className="text-xs px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-full transition-colors"
-    >
-      Reassign
-    </button>
-  </div>
-)}
+              <div className="flex items-center gap-2">
+                <span className={`text-xs px-3 py-1 rounded-full font-medium ${active.status === 'open' ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                  {active.status}
+                </span>
+                <span className={`text-xs px-3 py-1 rounded-full font-medium ${active.assigned_to === 'Aisha' ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>
+                  {active.assigned_to}
+                </span>
+                <button
+                  onClick={() => reassign(active.id, active.assigned_to === 'Aisha' ? 'Ben' : 'Aisha')}
+                  className="text-xs px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-full transition-colors"
+                >
+                  Reassign
+                </button>
+                <button
+                  onClick={() => resolveConvo(active.id, active.status === 'open' ? 'resolved' : 'open')}
+                  className={`text-xs px-3 py-1 rounded-full transition-colors ${active.status === 'open' ? 'bg-red-50 hover:bg-red-100 text-red-600' : 'bg-green-50 hover:bg-green-100 text-green-600'}`}
+                >
+                  {active.status === 'open' ? 'Resolve' : 'Reopen'}
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="flex-1 overflow-y-auto px-6 py-4 flex flex-col gap-2">
@@ -252,7 +271,7 @@ export default function App() {
                   {m.text}
                 </div>
                 <div className="text-xs text-gray-300 mt-1 px-1">
-                 {new Date(m.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+                  {new Date(m.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
                   {m.direction === 'out' && ' · ✓✓'}
                 </div>
               </div>

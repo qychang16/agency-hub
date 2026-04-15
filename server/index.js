@@ -145,6 +145,15 @@ app.patch('/conversations/:id/assign', async function(req, res) {
   )
   res.json(result.rows[0])
 })
+app.patch('/conversations/:id/status', async function(req, res) {
+  const { id } = req.params
+  const { status } = req.body
+  const result = await pool.query(
+    'UPDATE conversations SET status = $1 WHERE id = $2 RETURNING *',
+    [status, id]
+  )
+  res.json(result.rows[0])
+})
 server.listen(4000, function() {
   console.log('Server started on port 4000')
 })

@@ -98,8 +98,7 @@ function IPhonePreview({ body, buttons }) {
   )
   return (
     <div style={{ width: 260, flexShrink: 0 }}>
-      {/* iPhone shell — fixed height */}
-      <div style={{ width: 260, background: '#111', borderRadius: 40, padding: '10px 5px 14px', boxShadow: '0 25px 50px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.08), inset 0 0 0 1px rgba(255,255,255,0.05)' }}>
+      <div style={{ width: 260, background: '#111', borderRadius: 40, padding: '10px 5px 14px', boxShadow: '0 25px 50px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.08)' }}>
         {/* Dynamic Island */}
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}>
           <div style={{ width: 90, height: 24, background: '#000', borderRadius: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
@@ -107,31 +106,26 @@ function IPhonePreview({ body, buttons }) {
             <div style={{ width: 40, height: 12, background: '#000', borderRadius: 6 }} />
           </div>
         </div>
-        {/* Screen — fixed height with overflow hidden */}
+        {/* Screen — always fixed 500px */}
         <div style={{ background: '#ece5dd', borderRadius: 28, overflow: 'hidden', height: 500, display: 'flex', flexDirection: 'column' }}>
-          {/* WhatsApp top bar */}
-          <div style={{ background: '#075e54', padding: '8px 12px 8px', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+          {/* WhatsApp header */}
+          <div style={{ background: '#075e54', padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="white" opacity="0.8"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
             <div style={{ width: 30, height: 30, borderRadius: '50%', background: '#128c7e', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               <span style={{ fontSize: 11, color: '#fff', fontWeight: 700 }}>AH</span>
             </div>
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 12, color: '#fff', fontWeight: 600, lineHeight: 1.2 }}>Agency Hub</div>
+              <div style={{ fontSize: 12, color: '#fff', fontWeight: 600 }}>Agency Hub</div>
               <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.75)' }}>online</div>
             </div>
-            <div style={{ display: 'flex', gap: 12 }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="white" opacity="0.8"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1-9.4 0-17-7.6-17-17 0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z"/></svg>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="white" opacity="0.8"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
-            </div>
           </div>
-          {/* Chat area — scrollable */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: '10px 8px 8px', display: 'flex', flexDirection: 'column', gap: 2 }}>
-            {/* Date chip */}
+          {/* Chat area — scrollable, fixed height */}
+          <div style={{ flex: 1, overflowY: 'auto', padding: '10px 8px 8px' }}>
             <div style={{ textAlign: 'center', marginBottom: 8 }}>
               <span style={{ background: 'rgba(0,0,0,0.18)', color: '#fff', fontSize: 10, padding: '3px 10px', borderRadius: 10 }}>Today</span>
             </div>
-            {/* Bubble */}
-            <div style={{ maxWidth: '88%', alignSelf: 'flex-start' }}>
+            {/* Message bubble — fixed width, message scrolls inside phone */}
+            <div style={{ maxWidth: '88%' }}>
               <div style={{ background: '#fff', borderRadius: 8, borderTopLeftRadius: 2, padding: '8px 10px', boxShadow: '0 1px 2px rgba(0,0,0,0.12)' }}>
                 {body ? (
                   <div style={{ fontSize: 12, color: '#111', lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }} dangerouslySetInnerHTML={{ __html: highlighted }} />
@@ -143,11 +137,10 @@ function IPhonePreview({ body, buttons }) {
                   <svg width="14" height="10" viewBox="0 0 18 10"><path d="M1 5l3 3 7-7" stroke="#53bdeb" strokeWidth="1.8" fill="none" strokeLinecap="round" strokeLinejoin="round"/><path d="M6 5l3 3 7-7" stroke="#53bdeb" strokeWidth="1.8" fill="none" strokeLinecap="round" strokeLinejoin="round"/></svg>
                 </div>
               </div>
-              {/* Buttons */}
               {buttons.length > 0 && (
                 <div style={{ marginTop: 3, display: 'flex', flexDirection: 'column', gap: 2 }}>
                   {buttons.map((b, i) => (
-                    <div key={i} style={{ background: '#fff', borderRadius: 8, padding: '9px 10px', textAlign: 'center', boxShadow: '0 1px 2px rgba(0,0,0,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, borderTop: '0.5px solid #f0f0f0' }}>
+                    <div key={i} style={{ background: '#fff', borderRadius: 8, padding: '9px 10px', textAlign: 'center', boxShadow: '0 1px 2px rgba(0,0,0,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
                       {b.type === 'call_to_action'
                         ? <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#128c7e" strokeWidth="2.5"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
                         : <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#128c7e" strokeWidth="2.5"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 00-4-4H4"/></svg>
@@ -161,14 +154,13 @@ function IPhonePreview({ body, buttons }) {
           </div>
           {/* Input bar */}
           <div style={{ background: '#f0f0f0', padding: '6px 8px', display: 'flex', alignItems: 'center', gap: 6, borderTop: '0.5px solid #ddd', flexShrink: 0 }}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="#888"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>
             <div style={{ flex: 1, background: '#fff', borderRadius: 18, padding: '5px 10px', fontSize: 10, color: '#aaa' }}>Message</div>
             <div style={{ width: 26, height: 26, borderRadius: '50%', background: '#075e54', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="white"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
             </div>
           </div>
         </div>
-        {/* Home indicator */}
+        {/* Home bar */}
         <div style={{ display: 'flex', justifyContent: 'center', marginTop: 8 }}>
           <div style={{ width: 90, height: 4, background: 'rgba(255,255,255,0.25)', borderRadius: 2 }} />
         </div>

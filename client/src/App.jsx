@@ -142,12 +142,12 @@ export default function App() {
   const [bcSent, setBcSent] = useState([])
   const [bcSending, setBcSending] = useState(false)
 
-  // Maintenance banner states
+  // Maintenance states
   const [maintenance, setMaintenance] = useState(null)
   const [showMaintenanceEditor, setShowMaintenanceEditor] = useState(false)
   const [maintDate, setMaintDate] = useState('')
-  const [maintTime, setMaintTime] = useState('')
-  const [maintDuration, setMaintDuration] = useState('')
+  const [maintStartTime, setMaintStartTime] = useState('')
+  const [maintEndTime, setMaintEndTime] = useState('')
   const [maintMessage, setMaintMessage] = useState('')
 
   const messagesEndRef = useRef(null)
@@ -320,7 +320,6 @@ export default function App() {
       type: bcType,
       agent: bcAgent,
       count: targets.length,
-      targets: targets.map(c => c.name),
       sentAt: fmtSGT(new Date().toISOString()),
       status: 'sent'
     }
@@ -333,15 +332,18 @@ export default function App() {
   }
 
   function saveMaintenance() {
-    if (!maintDate || !maintTime) return alert('Please set date and time.')
-    const dt = new Date(maintDate + 'T' + maintTime)
+    if (!maintDate || !maintStartTime || !maintEndTime) return alert('Please set date, start time and end time.')
+    const dtStart = new Date(maintDate + 'T' + maintStartTime)
+    const dtEnd = new Date(maintDate + 'T' + maintEndTime)
+    const dateStr = dtStart.toLocaleDateString('en-GB', { timeZone: 'Asia/Singapore', day: '2-digit', month: 'short', year: 'numeric' })
+    const startStr = dtStart.toLocaleTimeString('en-GB', { timeZone: 'Asia/Singapore', hour: '2-digit', minute: '2-digit', hour12: false })
+    const endStr = dtEnd.toLocaleTimeString('en-GB', { timeZone: 'Asia/Singapore', hour: '2-digit', minute: '2-digit', hour12: false })
     setMaintenance({
-      datetime: fmtSGT(dt.toISOString()),
-      duration: maintDuration || 'TBD',
+      datetime: `${dateStr}, ${startStr} – ${endStr} SGT`,
       message: maintMessage || 'Scheduled maintenance window.'
     })
     setShowMaintenanceEditor(false)
-    setMaintDate(''); setMaintTime(''); setMaintDuration(''); setMaintMessage('')
+    setMaintDate(''); setMaintStartTime(''); setMaintEndTime(''); setMaintMessage('')
   }
 
   const filteredConvos = convos
@@ -404,7 +406,7 @@ export default function App() {
         <div style={{ background: '#92400e', color: '#fff', padding: '8px 16px', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, gap: 10 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span>⚠️</span>
-            <span><strong>Scheduled Maintenance:</strong> {maintenance.datetime} · Duration: {maintenance.duration} · {maintenance.message}</span>
+            <span><strong>Scheduled Maintenance:</strong> {maintenance.datetime} · {maintenance.message}</span>
           </div>
           {isDirector && (
             <button onClick={() => setMaintenance(null)} style={{ background: 'transparent', border: '0.5px solid rgba(255,255,255,0.4)', color: '#fff', borderRadius: 5, padding: '2px 8px', fontSize: 10, cursor: 'pointer' }}>Dismiss</button>
@@ -457,10 +459,8 @@ export default function App() {
             <div style={{ maxWidth: 700, margin: '0 auto' }}>
               <div style={{ fontSize: 16, fontWeight: 500, color: '#111827', marginBottom: 4 }}>Broadcasts</div>
               <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 20 }}>Send a message to multiple contacts at once. Requires Meta WhatsApp API for live sending.</div>
-
               <div style={{ background: '#fff', borderRadius: 12, border: '0.5px solid #e5e7eb', padding: 20, marginBottom: 20 }}>
                 <div style={{ fontSize: 13, fontWeight: 500, color: '#111827', marginBottom: 14 }}>New Broadcast</div>
-
                 <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
                   <div style={{ flex: 1 }}>
                     <label style={{ fontSize: 11, color: '#6b7280', display: 'block', marginBottom: 4 }}>Contact type</label>
@@ -480,32 +480,25 @@ export default function App() {
                     </select>
                   </div>
                 </div>
-
-                <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 4 }}>
+                <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 10 }}>
                   Recipients: <strong style={{ color: '#111827' }}>
                     {convos.filter(c => (bcType === 'all' || c.type === bcType) && (bcAgent === 'all' || c.assigned_to === bcAgent)).length} contacts
                   </strong>
                 </div>
-
                 <div style={{ marginBottom: 12 }}>
                   <label style={{ fontSize: 11, color: '#6b7280', display: 'block', marginBottom: 4 }}>Message</label>
-                  <textarea value={bcMessage} onChange={e => setBcMessage(e.target.value)}
-                    placeholder="Type your broadcast message here…"
-                    rows={5}
+                  <textarea value={bcMessage} onChange={e => setBcMessage(e.target.value)} placeholder="Type your broadcast message here…" rows={5}
                     style={{ width: '100%', padding: '8px 10px', border: '0.5px solid #d1d5db', borderRadius: 8, fontSize: 12, background: '#f9fafb', color: '#111827', resize: 'vertical', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }} />
                   <div style={{ fontSize: 10, color: '#9ca3af', marginTop: 3 }}>{bcMessage.length} characters</div>
                 </div>
-
                 <div style={{ background: '#fef3c7', border: '0.5px solid #fcd34d', borderRadius: 7, padding: '7px 10px', fontSize: 11, color: '#92400e', marginBottom: 12 }}>
                   ⚠️ Live sending requires Meta WhatsApp API. Currently in simulation mode.
                 </div>
-
                 <button onClick={sendBroadcast} disabled={bcSending}
                   style={{ padding: '8px 20px', background: bcSending ? '#9ca3af' : ACCENT, color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 500, cursor: bcSending ? 'default' : 'pointer' }}>
                   {bcSending ? 'Sending…' : 'Send Broadcast'}
                 </button>
               </div>
-
               {bcSent.length > 0 && (
                 <div style={{ background: '#fff', borderRadius: 12, border: '0.5px solid #e5e7eb', padding: 20 }}>
                   <div style={{ fontSize: 13, fontWeight: 500, color: '#111827', marginBottom: 14 }}>Broadcast History</div>
@@ -597,7 +590,6 @@ export default function App() {
         {/* CHAT */}
         {(activeNav === 'inbox' || isMobile) && (
           <div style={{ flex: 1, display: isMobile ? (mobileView === 'chat' ? 'flex' : 'none') : 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative', background: '#fff' }}>
-
             <div style={{ padding: '10px 14px', borderBottom: '0.5px solid #e5e7eb', display: 'flex', alignItems: 'center', gap: 9, flexShrink: 0, background: '#fff' }}>
               {isMobile && <button onClick={() => setMobileView('inbox')} style={{ width: 30, height: 30, borderRadius: 7, border: '0.5px solid #d1d5db', background: 'transparent', cursor: 'pointer', fontSize: 18, color: '#6b7280', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, lineHeight: 1 }}>‹</button>}
               {active ? (
@@ -840,25 +832,25 @@ export default function App() {
       {/* MAINTENANCE EDITOR MODAL */}
       {showMaintenanceEditor && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60, padding: 16 }}>
-          <div style={{ background: '#fff', borderRadius: 14, padding: 24, width: '100%', maxWidth: 380 }}>
+          <div style={{ background: '#fff', borderRadius: 14, padding: 24, width: '100%', maxWidth: 400 }}>
             <div style={{ fontSize: 14, fontWeight: 500, color: '#111827', marginBottom: 4 }}>⚠️ Schedule Maintenance</div>
             <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 16 }}>This banner will be visible to all users.</div>
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ fontSize: 11, color: '#6b7280', display: 'block', marginBottom: 4 }}>Date (SGT)</label>
+              <input type="date" value={maintDate} onChange={e => setMaintDate(e.target.value)}
+                style={{ width: '100%', padding: '7px 10px', border: '0.5px solid #d1d5db', borderRadius: 7, fontSize: 12, outline: 'none', background: '#f9fafb', color: '#111827', boxSizing: 'border-box' }} />
+            </div>
             <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
               <div style={{ flex: 1 }}>
-                <label style={{ fontSize: 11, color: '#6b7280', display: 'block', marginBottom: 4 }}>Date (SGT)</label>
-                <input type="date" value={maintDate} onChange={e => setMaintDate(e.target.value)}
+                <label style={{ fontSize: 11, color: '#6b7280', display: 'block', marginBottom: 4 }}>Start time (SGT)</label>
+                <input type="time" value={maintStartTime} onChange={e => setMaintStartTime(e.target.value)}
                   style={{ width: '100%', padding: '7px 10px', border: '0.5px solid #d1d5db', borderRadius: 7, fontSize: 12, outline: 'none', background: '#f9fafb', color: '#111827', boxSizing: 'border-box' }} />
               </div>
               <div style={{ flex: 1 }}>
-                <label style={{ fontSize: 11, color: '#6b7280', display: 'block', marginBottom: 4 }}>Time (SGT)</label>
-                <input type="time" value={maintTime} onChange={e => setMaintTime(e.target.value)}
+                <label style={{ fontSize: 11, color: '#6b7280', display: 'block', marginBottom: 4 }}>End time (SGT)</label>
+                <input type="time" value={maintEndTime} onChange={e => setMaintEndTime(e.target.value)}
                   style={{ width: '100%', padding: '7px 10px', border: '0.5px solid #d1d5db', borderRadius: 7, fontSize: 12, outline: 'none', background: '#f9fafb', color: '#111827', boxSizing: 'border-box' }} />
               </div>
-            </div>
-            <div style={{ marginBottom: 12 }}>
-              <label style={{ fontSize: 11, color: '#6b7280', display: 'block', marginBottom: 4 }}>Expected duration (e.g. 2 hours)</label>
-              <input type="text" value={maintDuration} onChange={e => setMaintDuration(e.target.value)} placeholder="e.g. 2 hours"
-                style={{ width: '100%', padding: '7px 10px', border: '0.5px solid #d1d5db', borderRadius: 7, fontSize: 12, outline: 'none', background: '#f9fafb', color: '#111827', boxSizing: 'border-box' }} />
             </div>
             <div style={{ marginBottom: 16 }}>
               <label style={{ fontSize: 11, color: '#6b7280', display: 'block', marginBottom: 4 }}>Message (optional)</label>

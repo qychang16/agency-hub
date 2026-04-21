@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { io } from 'socket.io-client'
 
-const API = 'http://192.168.0.7:4000'
+const API = 'https://agency-hub-production-e5af.up.railway.app'
 
 const phoneRules = {
   '+65': { digits: 8, hint: '8 digits e.g. 8888 8888' },

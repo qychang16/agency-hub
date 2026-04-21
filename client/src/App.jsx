@@ -338,25 +338,32 @@ function AnalyticsDashboard({ convos, templates }) {
                   <div style={{ fontSize: 12 }}>No template data available</div>
                 </div>
               ) : (
-                tmplStats.map((t, i) => (
-                  <div key={t.name} style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: i < tmplStats.length - 1 ? 16 : 0 }}>
-                    {/* Rank badge */}
-                    <div style={{ width: 28, height: 28, borderRadius: 8, background: i < 3 ? ['#fef3c7','#f3f4f6','#fff7ed'][i] : '#f9fafb', border: `1px solid ${i < 3 ? ['#fde68a','#e5e7eb','#fed7aa'][i] : '#e5e7eb'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      {i < 3 ? <span style={{ fontSize: 14 }}>{RANK_ICONS[i]}</span> : <span style={{ fontSize: 11, fontWeight: 700, color: '#9ca3af' }}>{i + 1}</span>}
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      {/* Name — same font as rest of UI */}
-                      <div style={{ fontSize: 12, fontWeight: 500, color: '#374151', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginBottom: 6 }}>
-                        {t.name.replace(/_/g, ' ')}
+                tmplStats.map((t, i) => {
+                  const rankColors = [
+                    { bg: '#1a2332', text: '#fff' },
+                    { bg: '#2563eb', text: '#fff' },
+                    { bg: '#7c3aed', text: '#fff' },
+                    { bg: '#f1f4f9', text: '#6b7280' },
+                    { bg: '#f1f4f9', text: '#6b7280' },
+                  ]
+                  const rc = rankColors[i] || rankColors[4]
+                  return (
+                    <div key={t.name} style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: i < tmplStats.length - 1 ? 14 : 0 }}>
+                      <div style={{ width: 26, height: 26, borderRadius: 8, background: rc.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: rc.text }}>{i + 1}</span>
                       </div>
-                      <div style={{ height: 6, background: '#f1f4f9', borderRadius: 3, overflow: 'hidden' }}>
-                        <div style={{ height: '100%', width: `${Math.max(8, (t.uses / maxTmpl) * 100)}%`, background: `linear-gradient(90deg, ${ACCENT}, #7c3aed)`, borderRadius: 3, transition: 'width .5s ease' }} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 12, fontWeight: 500, color: '#374151', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginBottom: 5 }}>
+                          {t.name.replace(/_/g, ' ')}
+                        </div>
+                        <div style={{ height: 6, background: '#f1f4f9', borderRadius: 3, overflow: 'hidden' }}>
+                          <div style={{ height: '100%', width: `${Math.max(8, (t.uses / maxTmpl) * 100)}%`, background: i === 0 ? NAVY : i === 1 ? ACCENT : i === 2 ? '#7c3aed' : '#93c5fd', borderRadius: 3, transition: 'width .5s ease' }} />
+                        </div>
                       </div>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: '#111827', flexShrink: 0, minWidth: 24, textAlign: 'right' }}>{t.uses}</div>
                     </div>
-                    {/* Count badge */}
-                    <div style={{ fontSize: 12, fontWeight: 700, color: '#111827', flexShrink: 0, background: '#f1f4f9', borderRadius: 6, padding: '2px 8px', minWidth: 28, textAlign: 'center' }}>{t.uses}</div>
-                  </div>
-                ))
+                  )
+                })
               )}
             </div>
           </div>

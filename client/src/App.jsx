@@ -59,16 +59,6 @@ const ACCENT = '#2563eb'
 const ACCENT_LIGHT = '#eff6ff'
 const ACCENT_MID = '#dbeafe'
 
-const TEMPLATES = {
-  interview: 'Hi {{name}}, your interview is confirmed for {{date}} at {{time}}.\n\nVenue: {{venue}}\n\nPlease bring your IC and original certificates.',
-  offer: 'Congratulations {{name}}! Your offer letter for {{role}} at {{company}} is attached. Please confirm acceptance by {{deadline}}.',
-  followup: 'Hi {{name}}, are you still interested in the {{role}} opportunity? Please reply so we can assist.',
-  jobalert: 'Hi {{name}}, new {{role}} opening at {{company}} — salary {{salary}}. Reply YES to find out more.',
-  cvsubmit: 'Dear {{hr_name}}, please find attached the profile of {{candidate}} for the {{role}} role.',
-  reminder: 'Hi {{name}}, friendly reminder — interview tomorrow {{date}} at {{time}} at {{venue}}. See you then!',
-  placement: 'Congratulations {{name}}! You have been successfully placed as {{role}} at {{company}}. Welcome aboard!',
-}
-
 const EMOJIS = ['😀','😃','😄','😁','😆','😅','😂','🤣','😊','😇','🙂','😉','😌','😍','🥰','😘','😋','😛','😜','🤪','🤑','🤗','🤔','🤐','😐','😑','😏','😒','🙄','😬','😔','😪','😴','😷','🤒','🤢','🤮','🤧','😵','🤯','🤠','🥳','😎','🤓','😕','😟','🙁','😮','😲','😳','🥺','😧','😰','😢','😭','😱','😤','😡','😠','🤬','😈','💀','💩','🤖','👋','✋','👌','✌','🤞','🤙','👍','👎','✊','👊','👏','🙌','🤝','🙏','💪','❤','🧡','💛','💚','💙','💜','🖤','💔','💕','💞','✅','❌','⭕','🎉','🎊','🎈','🏆','🎯','🎤','🎵','📱','💻','📞','☎','📄','📝','📊','📈','💼','👔','🏢','🌍','✈','🚗','💰','💸','💳','⭐','🌟','🔥','👀','🎁']
 
 const ALL_AGENTS = ['Aisha', 'Ben', 'Marcus', 'Priya', 'Rachel', 'Zara']
@@ -78,6 +68,26 @@ const TEAMS = {
   client: { label: 'Client Relations Team', agents: ['Ben', 'Rachel'] },
   admin: { label: 'Admin Team', agents: ['Aisha', 'Ben', 'Zara'] },
 }
+
+const DEFAULT_TEMPLATES = [
+  { id: 1, name: 'interview_confirmation', category: 'utility', status: 'approved', body: 'Hi {{name}}, your interview is confirmed for {{date}} at {{time}}.\n\nVenue: {{venue}}\n\nPlease bring your IC and original certificates.', buttons: [], createdAt: '2026-04-01' },
+  { id: 2, name: 'offer_notification', category: 'utility', status: 'approved', body: 'Congratulations {{name}}! Your offer letter for {{role}} at {{company}} is ready. Please confirm acceptance by {{deadline}}.', buttons: [{ type: 'quick_reply', label: 'Accept Offer' }, { type: 'quick_reply', label: 'Request Changes' }], createdAt: '2026-04-01' },
+  { id: 3, name: 'candidate_followup', category: 'marketing', status: 'approved', body: 'Hi {{name}}, are you still interested in the {{role}} opportunity at {{company}}? We would love to assist you further.', buttons: [{ type: 'quick_reply', label: 'Yes, interested' }, { type: 'quick_reply', label: 'Not anymore' }], createdAt: '2026-04-01' },
+  { id: 4, name: 'job_vacancy_alert', category: 'marketing', status: 'approved', body: 'Hi {{name}}, exciting new {{role}} opening at {{company}} — salary {{salary}}. This matches your profile!\n\nReply YES to find out more.', buttons: [{ type: 'quick_reply', label: 'Yes, tell me more' }, { type: 'call_to_action', label: 'View Job Details', url: 'https://example.com/jobs' }], createdAt: '2026-04-01' },
+  { id: 5, name: 'interview_reminder', category: 'utility', status: 'approved', body: 'Hi {{name}}, friendly reminder — your interview is tomorrow {{date}} at {{time}} at {{venue}}.\n\nSee you then! 👋', buttons: [], createdAt: '2026-04-01' },
+  { id: 6, name: 'placement_congratulations', category: 'utility', status: 'approved', body: 'Congratulations {{name}}! 🎉\n\nYou have been successfully placed as {{role}} at {{company}}.\n\nStart date: {{start_date}}\n\nWelcome aboard!', buttons: [], createdAt: '2026-04-01' },
+]
+
+const COMMON_VARS = ['name', 'date', 'time', 'venue', 'role', 'company', 'salary', 'deadline', 'start_date', 'hr_name', 'candidate', 'phone', 'email']
+
+const STATUS_COLORS = {
+  draft: { bg: '#f1f4f9', color: '#6b7280', label: 'Draft' },
+  pending: { bg: '#fef3c7', color: '#92400e', label: 'Pending Approval' },
+  approved: { bg: '#dcfce7', color: '#16a34a', label: 'Approved' },
+  rejected: { bg: '#fee2e2', color: '#dc2626', label: 'Rejected' },
+}
+
+const CATEGORY_LABELS = { marketing: 'Marketing', utility: 'Utility', authentication: 'Authentication' }
 
 function DualRingsLogo() {
   return (
@@ -90,6 +100,32 @@ function DualRingsLogo() {
       <path d="M17 11.2c1.8 1.5 1.8 7.1 0 11.6" stroke="#93c5fd" strokeWidth="1.2"/>
       <path d="M17 11.2c-1.8 1.5-1.8 7.1 0 11.6" stroke="#93c5fd" strokeWidth="1.2"/>
     </svg>
+  )
+}
+
+function PhonePreview({ body, buttons }) {
+  const highlighted = body.replace(/\{\{(\w+)\}\}/g, (_, v) =>
+    `<span style="background:#dbeafe;color:#1e40af;padding:1px 4px;border-radius:3px;font-size:11px;">{{${v}}}</span>`
+  )
+  return (
+    <div style={{ background: '#e5ddd5', borderRadius: 16, padding: 16, minHeight: 200, fontFamily: 'system-ui', position: 'relative' }}>
+      <div style={{ position: 'absolute', top: 10, left: 0, right: 0, textAlign: 'center', fontSize: 10, color: '#667781' }}>Preview</div>
+      <div style={{ marginTop: 20 }}>
+        <div style={{ background: '#fff', borderRadius: 8, padding: '10px 12px', maxWidth: '85%', boxShadow: '0 1px 2px rgba(0,0,0,0.1)', borderBottomLeftRadius: 2 }}>
+          <div style={{ fontSize: 12, color: '#111827', lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }} dangerouslySetInnerHTML={{ __html: highlighted || '<span style="color:#9ca3af">Your message will appear here…</span>' }} />
+          <div style={{ fontSize: 9, color: '#667781', textAlign: 'right', marginTop: 4 }}>10:30 ✓✓</div>
+        </div>
+        {buttons.length > 0 && (
+          <div style={{ marginTop: 4, display: 'flex', flexDirection: 'column', gap: 3 }}>
+            {buttons.map((b, i) => (
+              <div key={i} style={{ background: '#fff', borderRadius: 8, padding: '8px 12px', textAlign: 'center', fontSize: 12, color: b.type === 'call_to_action' ? '#2563eb' : '#2563eb', boxShadow: '0 1px 2px rgba(0,0,0,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
+                {b.type === 'call_to_action' ? '🔗' : '↩️'} {b.label || (b.type === 'call_to_action' ? 'Button text' : 'Quick reply')}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
   )
 }
 
@@ -150,6 +186,21 @@ export default function App() {
   const [maintEndTime, setMaintEndTime] = useState('')
   const [maintMessage, setMaintMessage] = useState('')
 
+  // Template states
+  const [templates, setTemplates] = useState(DEFAULT_TEMPLATES)
+  const [showTemplateEditor, setShowTemplateEditor] = useState(false)
+  const [editingTemplate, setEditingTemplate] = useState(null)
+  const [tmplName, setTmplName] = useState('')
+  const [tmplCategory, setTmplCategory] = useState('utility')
+  const [tmplBody, setTmplBody] = useState('')
+  const [tmplButtons, setTmplButtons] = useState([])
+  const [tmplSearch, setTmplSearch] = useState('')
+  const [tmplFilterCat, setTmplFilterCat] = useState('all')
+  const [tmplFilterStatus, setTmplFilterStatus] = useState('all')
+  const [tmplFilterType, setTmplFilterType] = useState('all')
+  const [customVar, setCustomVar] = useState('')
+  const tmplBodyRef = useRef(null)
+
   const messagesEndRef = useRef(null)
   const messagesRef = useRef(null)
   const socketRef = useRef(null)
@@ -171,8 +222,7 @@ export default function App() {
       })
       const data = await res.json()
       if (!res.ok) return setLoginError(data.error)
-      setUser(data.user)
-      setToken(data.token)
+      setUser(data.user); setToken(data.token)
       localStorage.setItem('token', data.token)
       localStorage.setItem('user', JSON.stringify(data.user))
     } catch(e) {
@@ -298,8 +348,7 @@ export default function App() {
     const newEvent = {
       title: calTitle,
       date: new Date(calDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
-      time: calTime + ' SGT',
-      location: calLocation || '—'
+      time: calTime + ' SGT', location: calLocation || '—'
     }
     setCalEvents(prev => ({ ...prev, [activeId]: [newEvent, ...(prev[activeId] || [])] }))
     setCalTitle(''); setCalDate(''); setCalTime(''); setCalLocation(''); setCalTab('view')
@@ -307,26 +356,12 @@ export default function App() {
 
   function sendBroadcast() {
     if (!bcMessage.trim()) return alert('Please enter a message.')
-    const targets = convos.filter(c => {
-      const typeMatch = bcType === 'all' || c.type === bcType
-      const agentMatch = bcAgent === 'all' || c.assigned_to === bcAgent
-      return typeMatch && agentMatch
-    })
+    const targets = convos.filter(c => (bcType === 'all' || c.type === bcType) && (bcAgent === 'all' || c.assigned_to === bcAgent))
     if (targets.length === 0) return alert('No contacts match your filters.')
     setBcSending(true)
-    const result = {
-      id: Date.now(),
-      message: bcMessage,
-      type: bcType,
-      agent: bcAgent,
-      count: targets.length,
-      sentAt: fmtSGT(new Date().toISOString()),
-      status: 'sent'
-    }
+    const result = { id: Date.now(), message: bcMessage, type: bcType, agent: bcAgent, count: targets.length, sentAt: fmtSGT(new Date().toISOString()), status: 'sent' }
     setTimeout(() => {
-      setBcSent(prev => [result, ...prev])
-      setBcMessage('')
-      setBcSending(false)
+      setBcSent(prev => [result, ...prev]); setBcMessage(''); setBcSending(false)
       alert(`Broadcast sent to ${targets.length} contact${targets.length > 1 ? 's' : ''}.`)
     }, 1000)
   }
@@ -338,13 +373,77 @@ export default function App() {
     const dateStr = dtStart.toLocaleDateString('en-GB', { timeZone: 'Asia/Singapore', day: '2-digit', month: 'short', year: 'numeric' })
     const startStr = dtStart.toLocaleTimeString('en-GB', { timeZone: 'Asia/Singapore', hour: '2-digit', minute: '2-digit', hour12: false })
     const endStr = dtEnd.toLocaleTimeString('en-GB', { timeZone: 'Asia/Singapore', hour: '2-digit', minute: '2-digit', hour12: false })
-    setMaintenance({
-      datetime: `${dateStr}, ${startStr} – ${endStr} SGT`,
-      message: maintMessage || 'Scheduled maintenance window.'
-    })
+    setMaintenance({ datetime: `${dateStr}, ${startStr} – ${endStr} SGT`, message: maintMessage || 'Scheduled maintenance window.' })
     setShowMaintenanceEditor(false)
     setMaintDate(''); setMaintStartTime(''); setMaintEndTime(''); setMaintMessage('')
   }
+
+  function openNewTemplate() {
+    setEditingTemplate(null)
+    setTmplName(''); setTmplCategory('utility'); setTmplBody(''); setTmplButtons([])
+    setShowTemplateEditor(true)
+  }
+
+  function openEditTemplate(t) {
+    setEditingTemplate(t)
+    setTmplName(t.name); setTmplCategory(t.category); setTmplBody(t.body); setTmplButtons([...t.buttons])
+    setShowTemplateEditor(true)
+  }
+
+  function insertVar(v) {
+    const ta = tmplBodyRef.current
+    if (!ta) return
+    const start = ta.selectionStart
+    const tag = `{{${v}}}`
+    const newVal = tmplBody.slice(0, start) + tag + tmplBody.slice(start)
+    setTmplBody(newVal)
+    setTimeout(() => { ta.selectionStart = start + tag.length; ta.selectionEnd = start + tag.length; ta.focus() }, 0)
+  }
+
+  function addButton(type) {
+    if (tmplButtons.length >= 3) return alert('Maximum 3 buttons per template.')
+    setTmplButtons(prev => [...prev, { type, label: '', url: '' }])
+  }
+
+  function updateButton(i, field, val) {
+    setTmplButtons(prev => prev.map((b, idx) => idx === i ? { ...b, [field]: val } : b))
+  }
+
+  function removeButton(i) {
+    setTmplButtons(prev => prev.filter((_, idx) => idx !== i))
+  }
+
+  function saveTemplate() {
+    if (!tmplName.trim()) return alert('Please enter a template name.')
+    if (!tmplBody.trim()) return alert('Please enter a message body.')
+    if (tmplBody.length > 1024) return alert('Message body exceeds 1024 character limit.')
+    const nameClean = tmplName.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '')
+    if (editingTemplate) {
+      setTemplates(prev => prev.map(t => t.id === editingTemplate.id ? { ...t, name: nameClean, category: tmplCategory, body: tmplBody, buttons: tmplButtons } : t))
+    } else {
+      const newT = { id: Date.now(), name: nameClean, category: tmplCategory, status: 'draft', body: tmplBody, buttons: tmplButtons, createdAt: new Date().toISOString().split('T')[0] }
+      setTemplates(prev => [newT, ...prev])
+    }
+    setShowTemplateEditor(false)
+  }
+
+  function deleteTemplate(id) {
+    if (!confirm('Delete this template?')) return
+    setTemplates(prev => prev.filter(t => t.id !== id))
+  }
+
+  function submitForApproval(id) {
+    setTemplates(prev => prev.map(t => t.id === id ? { ...t, status: 'pending' } : t))
+    alert('Template submitted for Meta approval. This requires Meta WhatsApp API to be connected.')
+  }
+
+  const filteredTemplates = templates.filter(t => {
+    const matchSearch = !tmplSearch.trim() || t.name.includes(tmplSearch.toLowerCase()) || t.body.toLowerCase().includes(tmplSearch.toLowerCase())
+    const matchCat = tmplFilterCat === 'all' || t.category === tmplFilterCat
+    const matchStatus = tmplFilterStatus === 'all' || t.status === tmplFilterStatus
+    const matchType = tmplFilterType === 'all' || (tmplFilterType === 'with_buttons' ? t.buttons.length > 0 : t.buttons.length === 0)
+    return matchSearch && matchCat && matchStatus && matchType
+  })
 
   const filteredConvos = convos
     .filter(c => {
@@ -408,9 +507,7 @@ export default function App() {
             <span>⚠️</span>
             <span><strong>Scheduled Maintenance:</strong> {maintenance.datetime} · {maintenance.message}</span>
           </div>
-          {isDirector && (
-            <button onClick={() => setMaintenance(null)} style={{ background: 'transparent', border: '0.5px solid rgba(255,255,255,0.4)', color: '#fff', borderRadius: 5, padding: '2px 8px', fontSize: 10, cursor: 'pointer' }}>Dismiss</button>
-          )}
+          {isDirector && <button onClick={() => setMaintenance(null)} style={{ background: 'transparent', border: '0.5px solid rgba(255,255,255,0.4)', color: '#fff', borderRadius: 5, padding: '2px 8px', fontSize: 10, cursor: 'pointer' }}>Dismiss</button>}
         </div>
       )}
 
@@ -441,10 +538,7 @@ export default function App() {
               ⚠️ Maintenance
             </button>
           )}
-          <button onClick={() => setShowNewContact(true)}
-            style={{ padding: '5px 10px', borderRadius: 7, border: '0.5px solid rgba(255,255,255,0.25)', background: 'transparent', fontSize: 11, color: '#e2e8f0', cursor: 'pointer' }}>
-            + New
-          </button>
+          <button onClick={() => setShowNewContact(true)} style={{ padding: '5px 10px', borderRadius: 7, border: '0.5px solid rgba(255,255,255,0.25)', background: 'transparent', fontSize: 11, color: '#e2e8f0', cursor: 'pointer' }}>+ New</button>
           {!isMobile && <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)' }}>{user.name} · {user.role}</span>}
           <button onClick={logout} style={{ padding: '5px 9px', borderRadius: 7, border: '0.5px solid rgba(255,255,255,0.2)', background: 'transparent', fontSize: 11, color: '#cbd5e1', cursor: 'pointer' }}>Sign out</button>
         </div>
@@ -452,6 +546,110 @@ export default function App() {
 
       {/* MAIN */}
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+
+        {/* TEMPLATES SCREEN */}
+        {activeNav === 'templates' && !isMobile && (
+          <div style={{ flex: 1, overflowY: 'auto', padding: 24, background: '#f1f4f9' }}>
+            <div style={{ maxWidth: 960, margin: '0 auto' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
+                <div>
+                  <div style={{ fontSize: 16, fontWeight: 500, color: '#111827', marginBottom: 4 }}>Templates</div>
+                  <div style={{ fontSize: 12, color: '#6b7280' }}>Create and manage WhatsApp message templates. Templates require Meta approval before live use.</div>
+                </div>
+                <button onClick={openNewTemplate}
+                  style={{ padding: '8px 16px', background: ACCENT, color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 500, cursor: 'pointer', flexShrink: 0 }}>
+                  + New Template
+                </button>
+              </div>
+
+              {/* FILTERS */}
+              <div style={{ background: '#fff', borderRadius: 10, border: '0.5px solid #e5e7eb', padding: '12px 16px', marginBottom: 16, display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+                <div style={{ position: 'relative', flex: 1, minWidth: 180 }}>
+                  <svg style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', width: 12, height: 12, color: '#9ca3af', pointerEvents: 'none' }} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                    <circle cx="7" cy="7" r="4"/><path d="M10.5 10.5l3 3" strokeLinecap="round"/>
+                  </svg>
+                  <input value={tmplSearch} onChange={e => setTmplSearch(e.target.value)} placeholder="Search templates…"
+                    style={{ width: '100%', padding: '6px 9px 6px 27px', border: '0.5px solid #d1d5db', borderRadius: 7, fontSize: 11, background: '#f9fafb', color: '#111827', outline: 'none', boxSizing: 'border-box' }} />
+                </div>
+                <select value={tmplFilterCat} onChange={e => setTmplFilterCat(e.target.value)}
+                  style={{ padding: '6px 10px', border: '0.5px solid #d1d5db', borderRadius: 7, fontSize: 11, background: '#f9fafb', color: '#111827', outline: 'none' }}>
+                  <option value="all">All categories</option>
+                  <option value="marketing">Marketing</option>
+                  <option value="utility">Utility</option>
+                  <option value="authentication">Authentication</option>
+                </select>
+                <select value={tmplFilterStatus} onChange={e => setTmplFilterStatus(e.target.value)}
+                  style={{ padding: '6px 10px', border: '0.5px solid #d1d5db', borderRadius: 7, fontSize: 11, background: '#f9fafb', color: '#111827', outline: 'none' }}>
+                  <option value="all">All statuses</option>
+                  <option value="draft">Draft</option>
+                  <option value="pending">Pending</option>
+                  <option value="approved">Approved</option>
+                  <option value="rejected">Rejected</option>
+                </select>
+                <select value={tmplFilterType} onChange={e => setTmplFilterType(e.target.value)}
+                  style={{ padding: '6px 10px', border: '0.5px solid #d1d5db', borderRadius: 7, fontSize: 11, background: '#f9fafb', color: '#111827', outline: 'none' }}>
+                  <option value="all">All types</option>
+                  <option value="with_buttons">With buttons</option>
+                  <option value="no_buttons">No buttons</option>
+                </select>
+                <span style={{ fontSize: 11, color: '#9ca3af', marginLeft: 'auto' }}>{filteredTemplates.length} template{filteredTemplates.length !== 1 ? 's' : ''}</span>
+              </div>
+
+              {/* TEMPLATE CARDS */}
+              {filteredTemplates.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: 40, color: '#9ca3af', fontSize: 13 }}>No templates found</div>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 14 }}>
+                  {filteredTemplates.map(t => {
+                    const sc = STATUS_COLORS[t.status]
+                    return (
+                      <div key={t.id} style={{ background: '#fff', borderRadius: 12, border: '0.5px solid #e5e7eb', padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                          <div>
+                            <div style={{ fontSize: 12, fontWeight: 500, color: '#111827', fontFamily: 'monospace', marginBottom: 4 }}>{t.name}</div>
+                            <div style={{ display: 'flex', gap: 5 }}>
+                              <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 4, background: '#f1f4f9', color: '#6b7280', border: '0.5px solid #e5e7eb', fontWeight: 500 }}>{CATEGORY_LABELS[t.category]}</span>
+                              <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 4, background: sc.bg, color: sc.color, fontWeight: 500 }}>{sc.label}</span>
+                              {t.buttons.length > 0 && <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 4, background: '#ede9fe', color: '#5b21b6', fontWeight: 500 }}>{t.buttons.length} button{t.buttons.length > 1 ? 's' : ''}</span>}
+                            </div>
+                          </div>
+                          <div style={{ display: 'flex', gap: 4 }}>
+                            <button onClick={() => openEditTemplate(t)}
+                              style={{ padding: '4px 8px', border: '0.5px solid #d1d5db', borderRadius: 6, fontSize: 10, background: 'transparent', color: '#6b7280', cursor: 'pointer' }}>Edit</button>
+                            <button onClick={() => deleteTemplate(t.id)}
+                              style={{ padding: '4px 8px', border: '0.5px solid #fca5a5', borderRadius: 6, fontSize: 10, background: 'transparent', color: '#dc2626', cursor: 'pointer' }}>Delete</button>
+                          </div>
+                        </div>
+                        <div style={{ fontSize: 11, color: '#6b7280', lineHeight: 1.6, background: '#f9fafb', borderRadius: 7, padding: '8px 10px', whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 100, overflow: 'hidden', position: 'relative' }}>
+                          {t.body}
+                          <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 24, background: 'linear-gradient(transparent, #f9fafb)' }} />
+                        </div>
+                        {t.buttons.length > 0 && (
+                          <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+                            {t.buttons.map((b, i) => (
+                              <span key={i} style={{ fontSize: 10, padding: '3px 8px', borderRadius: 6, border: '0.5px solid #d1d5db', color: '#2563eb', background: '#eff6ff' }}>
+                                {b.type === 'call_to_action' ? '🔗' : '↩️'} {b.label || 'Untitled'}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto' }}>
+                          <span style={{ fontSize: 10, color: '#9ca3af' }}>{t.body.length}/1024 chars · {t.createdAt}</span>
+                          {t.status === 'draft' && (
+                            <button onClick={() => submitForApproval(t.id)}
+                              style={{ padding: '4px 10px', background: NAVY, color: '#fff', border: 'none', borderRadius: 6, fontSize: 10, cursor: 'pointer', fontWeight: 500 }}>
+                              Submit for approval
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* BROADCASTS SCREEN */}
         {activeNav === 'broadcasts' && !isMobile && (
@@ -481,9 +679,7 @@ export default function App() {
                   </div>
                 </div>
                 <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 10 }}>
-                  Recipients: <strong style={{ color: '#111827' }}>
-                    {convos.filter(c => (bcType === 'all' || c.type === bcType) && (bcAgent === 'all' || c.assigned_to === bcAgent)).length} contacts
-                  </strong>
+                  Recipients: <strong style={{ color: '#111827' }}>{convos.filter(c => (bcType === 'all' || c.type === bcType) && (bcAgent === 'all' || c.assigned_to === bcAgent)).length} contacts</strong>
                 </div>
                 <div style={{ marginBottom: 12 }}>
                   <label style={{ fontSize: 11, color: '#6b7280', display: 'block', marginBottom: 4 }}>Message</label>
@@ -770,16 +966,10 @@ export default function App() {
               </div>
               {compMode === 'note' && <div style={{ fontSize: 10, color: '#854d0e', background: '#fefce8', border: '0.5px solid #fcd34d', padding: '3px 8px', borderRadius: 6, marginBottom: 5 }}>Internal note — candidate will not see this</div>}
               {compMode === 'template' && (
-                <select onChange={e => { if (TEMPLATES[e.target.value]) setInput(TEMPLATES[e.target.value]) }}
+                <select onChange={e => { const t = templates.find(t => t.id === parseInt(e.target.value)); if (t) setInput(t.body) }}
                   style={{ width: '100%', padding: '5px 8px', border: '0.5px solid #d1d5db', borderRadius: 7, fontSize: 11, background: '#f9fafb', color: '#111827', marginBottom: 5, outline: 'none' }}>
                   <option value="">Select a template…</option>
-                  <option value="interview">Interview confirmation</option>
-                  <option value="offer">Offer letter notification</option>
-                  <option value="followup">Candidate follow-up</option>
-                  <option value="jobalert">Job vacancy alert</option>
-                  <option value="cvsubmit">CV submission to client</option>
-                  <option value="reminder">Interview reminder</option>
-                  <option value="placement">Placement congratulations</option>
+                  {templates.filter(t => t.status === 'approved').map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                 </select>
               )}
               {showEmoji && (
@@ -806,7 +996,7 @@ export default function App() {
         )}
 
         {/* PLACEHOLDER SCREENS */}
-        {activeNav !== 'inbox' && activeNav !== 'broadcasts' && !isMobile && (
+        {activeNav !== 'inbox' && activeNav !== 'broadcasts' && activeNav !== 'templates' && !isMobile && (
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f1f4f9' }}>
             <div style={{ textAlign: 'center', color: '#9ca3af' }}>
               <div style={{ fontSize: 32, marginBottom: 8 }}>🚧</div>
@@ -826,6 +1016,145 @@ export default function App() {
               <span style={{ fontSize: 20 }}>{icon}</span>{label}
             </button>
           ))}
+        </div>
+      )}
+
+      {/* TEMPLATE EDITOR MODAL */}
+      {showTemplateEditor && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 70, padding: 16 }}>
+          <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 860, maxHeight: '92vh', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ padding: '20px 24px', borderBottom: '0.5px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+              <div>
+                <div style={{ fontSize: 15, fontWeight: 500, color: '#111827' }}>{editingTemplate ? 'Edit Template' : 'New Template'}</div>
+                <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>Templates must be approved by Meta before use outside the 24hr window.</div>
+              </div>
+              <button onClick={() => setShowTemplateEditor(false)} style={{ width: 30, height: 30, borderRadius: 7, border: '0.5px solid #d1d5db', background: 'transparent', cursor: 'pointer', fontSize: 16, color: '#6b7280', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+            </div>
+
+            <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+              {/* LEFT — EDITOR */}
+              <div style={{ flex: 1, padding: 24, overflowY: 'auto', borderRight: '0.5px solid #e5e7eb' }}>
+                <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ fontSize: 11, color: '#6b7280', display: 'block', marginBottom: 4 }}>Template name <span style={{ color: '#9ca3af' }}>(lowercase, underscores only)</span></label>
+                    <input value={tmplName} onChange={e => setTmplName(e.target.value)} placeholder="e.g. interview_confirmation"
+                      style={{ width: '100%', padding: '8px 10px', border: '0.5px solid #d1d5db', borderRadius: 8, fontSize: 12, outline: 'none', background: '#f9fafb', color: '#111827', boxSizing: 'border-box' }} />
+                  </div>
+                  <div style={{ width: 160 }}>
+                    <label style={{ fontSize: 11, color: '#6b7280', display: 'block', marginBottom: 4 }}>Category</label>
+                    <select value={tmplCategory} onChange={e => setTmplCategory(e.target.value)}
+                      style={{ width: '100%', padding: '8px 10px', border: '0.5px solid #d1d5db', borderRadius: 8, fontSize: 12, background: '#f9fafb', color: '#111827', outline: 'none' }}>
+                      <option value="utility">Utility</option>
+                      <option value="marketing">Marketing</option>
+                      <option value="authentication">Authentication</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* VARIABLES */}
+                <div style={{ marginBottom: 12 }}>
+                  <label style={{ fontSize: 11, color: '#6b7280', display: 'block', marginBottom: 6 }}>Insert variable</label>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: 8 }}>
+                    {COMMON_VARS.map(v => (
+                      <button key={v} onClick={() => insertVar(v)}
+                        style={{ padding: '3px 9px', borderRadius: 6, border: '0.5px solid #d1d5db', fontSize: 10, background: '#f9fafb', color: '#2563eb', cursor: 'pointer', fontFamily: 'monospace' }}>
+                        {`{{${v}}}`}
+                      </button>
+                    ))}
+                    <div style={{ display: 'flex', gap: 5 }}>
+                      <input value={customVar} onChange={e => setCustomVar(e.target.value.replace(/\s/g,'_'))} placeholder="custom_var"
+                        style={{ padding: '3px 8px', border: '0.5px solid #d1d5db', borderRadius: 6, fontSize: 10, width: 100, outline: 'none', background: '#f9fafb', color: '#111827', fontFamily: 'monospace' }} />
+                      <button onClick={() => { if (customVar.trim()) { insertVar(customVar.trim()); setCustomVar('') } }}
+                        style={{ padding: '3px 9px', borderRadius: 6, border: '0.5px solid #d1d5db', fontSize: 10, background: ACCENT, color: '#fff', cursor: 'pointer' }}>
+                        + Add
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* BODY */}
+                <div style={{ marginBottom: 16 }}>
+                  <label style={{ fontSize: 11, color: '#6b7280', display: 'block', marginBottom: 4 }}>Message body</label>
+                  <textarea ref={tmplBodyRef} value={tmplBody} onChange={e => setTmplBody(e.target.value)} rows={8}
+                    placeholder="Type your message here. Use the variable buttons above to insert variables like {{name}}, {{date}} etc."
+                    style={{ width: '100%', padding: '10px 12px', border: `0.5px solid ${tmplBody.length > 1024 ? '#ef4444' : '#d1d5db'}`, borderRadius: 8, fontSize: 12, background: '#f9fafb', color: '#111827', resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.6, outline: 'none', boxSizing: 'border-box' }} />
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
+                    <span style={{ fontSize: 10, color: '#9ca3af' }}>Supports line breaks. Variables will be replaced when sending.</span>
+                    <span style={{ fontSize: 10, color: tmplBody.length > 1024 ? '#ef4444' : tmplBody.length > 900 ? '#d97706' : '#9ca3af', fontWeight: tmplBody.length > 900 ? 500 : 400 }}>{tmplBody.length}/1024</span>
+                  </div>
+                </div>
+
+                {/* BUTTONS */}
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                    <label style={{ fontSize: 11, color: '#6b7280' }}>Buttons <span style={{ color: '#9ca3af' }}>(max 3)</span></label>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button onClick={() => addButton('quick_reply')} disabled={tmplButtons.length >= 3}
+                        style={{ padding: '4px 10px', border: '0.5px solid #d1d5db', borderRadius: 6, fontSize: 10, background: 'transparent', color: tmplButtons.length >= 3 ? '#d1d5db' : '#6b7280', cursor: tmplButtons.length >= 3 ? 'default' : 'pointer' }}>
+                        + Quick Reply
+                      </button>
+                      <button onClick={() => addButton('call_to_action')} disabled={tmplButtons.length >= 3}
+                        style={{ padding: '4px 10px', border: '0.5px solid #d1d5db', borderRadius: 6, fontSize: 10, background: 'transparent', color: tmplButtons.length >= 3 ? '#d1d5db' : '#6b7280', cursor: tmplButtons.length >= 3 ? 'default' : 'pointer' }}>
+                        + Call to Action
+                      </button>
+                    </div>
+                  </div>
+                  {tmplButtons.length === 0 && <div style={{ fontSize: 11, color: '#9ca3af', padding: '10px', background: '#f9fafb', borderRadius: 7, textAlign: 'center' }}>No buttons added yet</div>}
+                  {tmplButtons.map((b, i) => (
+                    <div key={i} style={{ padding: '10px 12px', background: '#f9fafb', borderRadius: 8, border: '0.5px solid #e5e7eb', marginBottom: 8 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                        <span style={{ fontSize: 10, fontWeight: 500, color: b.type === 'call_to_action' ? '#2563eb' : '#5b21b6', background: b.type === 'call_to_action' ? ACCENT_MID : '#ede9fe', padding: '2px 7px', borderRadius: 4 }}>
+                          {b.type === 'call_to_action' ? '🔗 Call to Action' : '↩️ Quick Reply'}
+                        </span>
+                        <button onClick={() => removeButton(i)} style={{ fontSize: 10, color: '#dc2626', background: 'transparent', border: 'none', cursor: 'pointer' }}>Remove</button>
+                      </div>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <div style={{ flex: 1 }}>
+                          <label style={{ fontSize: 10, color: '#6b7280', display: 'block', marginBottom: 3 }}>Button label</label>
+                          <input value={b.label} onChange={e => updateButton(i, 'label', e.target.value)} placeholder="e.g. Learn More"
+                            style={{ width: '100%', padding: '6px 8px', border: '0.5px solid #d1d5db', borderRadius: 6, fontSize: 11, outline: 'none', background: '#fff', color: '#111827', boxSizing: 'border-box' }} />
+                        </div>
+                        {b.type === 'call_to_action' && (
+                          <div style={{ flex: 1 }}>
+                            <label style={{ fontSize: 10, color: '#6b7280', display: 'block', marginBottom: 3 }}>URL</label>
+                            <input value={b.url} onChange={e => updateButton(i, 'url', e.target.value)} placeholder="https://…"
+                              style={{ width: '100%', padding: '6px 8px', border: '0.5px solid #d1d5db', borderRadius: 6, fontSize: 11, outline: 'none', background: '#fff', color: '#111827', boxSizing: 'border-box' }} />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <button onClick={() => setShowTemplateEditor(false)}
+                    style={{ flex: 1, padding: '9px', border: '0.5px solid #d1d5db', borderRadius: 8, fontSize: 12, color: '#6b7280', background: 'transparent', cursor: 'pointer' }}>Cancel</button>
+                  <button onClick={saveTemplate}
+                    style={{ flex: 2, padding: '9px', background: ACCENT, color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 500, cursor: 'pointer' }}>
+                    {editingTemplate ? 'Save changes' : 'Create template'}
+                  </button>
+                </div>
+              </div>
+
+              {/* RIGHT — PREVIEW */}
+              <div style={{ width: 280, padding: 24, flexShrink: 0, background: '#f9fafb' }}>
+                <div style={{ fontSize: 11, fontWeight: 500, color: '#6b7280', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Live Preview</div>
+                <PhonePreview body={tmplBody} buttons={tmplButtons} />
+                <div style={{ marginTop: 12, padding: '10px 12px', background: '#fff', borderRadius: 8, border: '0.5px solid #e5e7eb' }}>
+                  <div style={{ fontSize: 10, color: '#9ca3af', marginBottom: 6 }}>Variables detected:</div>
+                  {(tmplBody.match(/\{\{(\w+)\}\}/g) || []).length === 0 ? (
+                    <div style={{ fontSize: 11, color: '#9ca3af' }}>None</div>
+                  ) : (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                      {[...new Set(tmplBody.match(/\{\{(\w+)\}\}/g) || [])].map(v => (
+                        <span key={v} style={{ fontSize: 10, padding: '2px 6px', borderRadius: 4, background: ACCENT_MID, color: '#1e40af', fontFamily: 'monospace' }}>{v}</span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

@@ -12,15 +12,82 @@ const io = new Server(server, {
   cors: { origin: '*' }
 })
 
-const pool = new Pool({
-  user: 'postgres',
-  host: 'localhost',
-  database: 'agency_hub',
-  password: 'postgres123',
-  port: 5432,
-})
+const pool = new Pool(
+  process.env.DATABASE_URL
+    ? {
+        connectionString: process.env.DATABASE_URL,
+        ssl: { rejectUnauthorized: false }
+      }
+    : {
+        user: 'postgres',
+        host: 'localhost',
+        database: 'agency_hub',
+        password: 'postgres123',
+        port: 5432,
+      }
+)
 
-const JWT_SECRET = 'agencyhub_secret_key'
+const JWT_SECRET = process.env.JWT_SECRET || 'agencyhub_secret_key'
+const PORT = process.env.PORT || 4000
+
+async function initDB() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS users (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(255) NOT NULL,
+      email VARCHAR(255) UNIQUE NOT NULL,
+      password VARCHAR(255) NOT NULL,
+      role VARCHAR(50) DEFAULT 'agent',
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS contacts (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(255) NOT NULL,
+      phone VARCHAR(50),
+      type VARCHAR(50) DEFAULT 'candidate',
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS conversations (
+      id SERIAL PRIMARY KEY,
+      contact_id INTEGER REFERENCES contacts(id),
+      status VARCHAR(50) DEFAULT 'open',
+      assigned_to VARCHAR(255),
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS messages (
+      id SERIAL PRIMARY KEY,
+      conversation_id INTEGER REFERENCES conversations(id),
+      direction VARCHAR(10),
+      text TEXT,
+      status VARCHAR(50) DEFAULT 'sent',
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `)
+
+  const existing = await pool.query('SELECT COUNT(*) FROM users')
+  if (parseInt(existing.rows[0].count) === 0) {
+    const users = [
+      { name: 'Director', email: 'director@agencyhub.com', password: 'admin123', role: 'director' },
+      { name: 'Aisha', email: 'aisha@agencyhub.com', password: 'aisha123', role: 'agent' },
+      { name: 'Ben', email: 'ben@agencyhub.com', password: 'ben123', role: 'agent' },
+    ]
+    for (const u of users) {
+      const hashed = await bcrypt.hash(u.password, 10)
+      await pool.query(
+        'INSERT INTO users (name, email, password, role) VALUES ($1, $2, $3, $4)',
+        [u.name, u.email, hashed, u.role]
+      )
+    }
+    console.log('Default users seeded')
+  }
+  console.log('Database initialised')
+}
 
 app.use(cors())
 app.use(express.json())
@@ -157,6 +224,11 @@ io.on('connection', function(socket) {
   })
 })
 
-server.listen(4000, function() {
-  console.log('Server started on port 4000')
+initDB().then(() => {
+  server.listen(PORT, function() {
+    console.log('Server started on port ' + PORT)
+  })
+}).catch(err => {
+  console.error('DB init failed:', err)
+  process.exit(1)
 })

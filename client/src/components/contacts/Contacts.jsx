@@ -1,0 +1,3 @@
+export default function Contacts() {
+  return <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f1f4f9' }}><div style={{ textAlign: 'center' }}><div style={{ fontSize: 36, marginBottom: 10 }}>👥</div><div style={{ fontSize: 14, fontWeight: 500, color: '#6b7280' }}>Contacts</div><div style={{ fontSize: 12, color: '#9ca3af', marginTop: 4 }}>Coming soon</div></div></div>
+}

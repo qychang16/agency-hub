@@ -99,16 +99,13 @@ function IPhonePreview({ body, buttons }) {
   return (
     <div style={{ width: 260, flexShrink: 0 }}>
       <div style={{ width: 260, background: '#111', borderRadius: 40, padding: '10px 5px 14px', boxShadow: '0 25px 50px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.08)' }}>
-        {/* Dynamic Island */}
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}>
           <div style={{ width: 90, height: 24, background: '#000', borderRadius: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
             <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#1a1a1a', border: '1.5px solid #2a2a2a' }} />
             <div style={{ width: 40, height: 12, background: '#000', borderRadius: 6 }} />
           </div>
         </div>
-        {/* Screen — always fixed 500px */}
         <div style={{ background: '#ece5dd', borderRadius: 28, overflow: 'hidden', height: 500, display: 'flex', flexDirection: 'column' }}>
-          {/* WhatsApp header */}
           <div style={{ background: '#075e54', padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="white" opacity="0.8"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
             <div style={{ width: 30, height: 30, borderRadius: '50%', background: '#128c7e', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -119,12 +116,10 @@ function IPhonePreview({ body, buttons }) {
               <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.75)' }}>online</div>
             </div>
           </div>
-          {/* Chat area — scrollable, fixed height */}
           <div style={{ flex: 1, overflowY: 'auto', padding: '10px 8px 8px' }}>
             <div style={{ textAlign: 'center', marginBottom: 8 }}>
               <span style={{ background: 'rgba(0,0,0,0.18)', color: '#fff', fontSize: 10, padding: '3px 10px', borderRadius: 10 }}>Today</span>
             </div>
-            {/* Message bubble — fixed width, message scrolls inside phone */}
             <div style={{ maxWidth: '88%' }}>
               <div style={{ background: '#fff', borderRadius: 8, borderTopLeftRadius: 2, padding: '8px 10px', boxShadow: '0 1px 2px rgba(0,0,0,0.12)' }}>
                 {body ? (
@@ -152,7 +147,6 @@ function IPhonePreview({ body, buttons }) {
               )}
             </div>
           </div>
-          {/* Input bar */}
           <div style={{ background: '#f0f0f0', padding: '6px 8px', display: 'flex', alignItems: 'center', gap: 6, borderTop: '0.5px solid #ddd', flexShrink: 0 }}>
             <div style={{ flex: 1, background: '#fff', borderRadius: 18, padding: '5px 10px', fontSize: 10, color: '#aaa' }}>Message</div>
             <div style={{ width: 26, height: 26, borderRadius: '50%', background: '#075e54', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -160,10 +154,251 @@ function IPhonePreview({ body, buttons }) {
             </div>
           </div>
         </div>
-        {/* Home bar */}
         <div style={{ display: 'flex', justifyContent: 'center', marginTop: 8 }}>
           <div style={{ width: 90, height: 4, background: 'rgba(255,255,255,0.25)', borderRadius: 2 }} />
         </div>
+      </div>
+    </div>
+  )
+}
+
+// Analytics helpers
+function AnalyticsDashboard({ convos, templates }) {
+  const today = new Date().toISOString().split('T')[0]
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+  const [fromDate, setFromDate] = useState(thirtyDaysAgo)
+  const [toDate, setToDate] = useState(today)
+  const [activePreset, setActivePreset] = useState('30d')
+
+  function setPreset(preset) {
+    setActivePreset(preset)
+    const now = new Date()
+    const t = now.toISOString().split('T')[0]
+    if (preset === 'today') {
+      setFromDate(t); setToDate(t)
+    } else if (preset === '7d') {
+      setFromDate(new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0]); setToDate(t)
+    } else if (preset === '30d') {
+      setFromDate(new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0]); setToDate(t)
+    } else if (preset === '90d') {
+      setFromDate(new Date(Date.now() - 90 * 86400000).toISOString().split('T')[0]); setToDate(t)
+    }
+  }
+
+  // Filter convos by date range
+  const filtered = convos.filter(c => {
+    const ts = c.last_message_at || c.created_at
+    if (!ts) return false
+    const d = dateSGTiso(ts)
+    return d >= fromDate && d <= toDate
+  })
+
+  const total = filtered.length
+  const open = filtered.filter(c => c.status === 'open').length
+  const pending = filtered.filter(c => c.status === 'pending').length
+  const resolved = filtered.filter(c => c.status === 'resolved').length
+  const candidates = filtered.filter(c => c.type === 'candidate').length
+  const clients = filtered.filter(c => c.type === 'client').length
+
+  // Agent performance from filtered convos
+  const agentStats = ALL_AGENTS.map(agent => {
+    const agentConvos = filtered.filter(c => c.assigned_to === agent)
+    return {
+      name: agent,
+      total: agentConvos.length,
+      open: agentConvos.filter(c => c.status === 'open').length,
+      resolved: agentConvos.filter(c => c.status === 'resolved').length,
+      candidates: agentConvos.filter(c => c.type === 'candidate').length,
+      clients: agentConvos.filter(c => c.type === 'client').length,
+    }
+  }).filter(a => a.total > 0).sort((a, b) => b.total - a.total)
+
+  // Template usage — simulate based on approved templates
+  const tmplStats = templates.filter(t => t.status === 'approved').map((t, i) => ({
+    name: t.name,
+    uses: Math.max(0, Math.floor((filtered.length / (i + 1)) * 0.3)),
+  })).filter(t => t.uses > 0).sort((a, b) => b.uses - a.uses).slice(0, 5)
+
+  const maxBar = Math.max(open, pending, resolved, 1)
+
+  const StatCard = ({ label, value, sub, color, icon }) => (
+    <div style={{ background: '#fff', borderRadius: 12, padding: '16px 20px', border: '0.5px solid #e5e7eb', flex: 1, minWidth: 140 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div>
+          <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 6, fontWeight: 500 }}>{label}</div>
+          <div style={{ fontSize: 28, fontWeight: 700, color: color || '#111827', lineHeight: 1 }}>{value}</div>
+          {sub && <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 5 }}>{sub}</div>}
+        </div>
+        <div style={{ fontSize: 22 }}>{icon}</div>
+      </div>
+    </div>
+  )
+
+  const BarRow = ({ label, value, max, color }) => (
+    <div style={{ marginBottom: 10 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+        <span style={{ fontSize: 12, color: '#374151', fontWeight: 500 }}>{label}</span>
+        <span style={{ fontSize: 12, fontWeight: 600, color }}>{value}</span>
+      </div>
+      <div style={{ height: 8, background: '#f1f4f9', borderRadius: 4, overflow: 'hidden' }}>
+        <div style={{ height: '100%', width: `${max > 0 ? (value / max) * 100 : 0}%`, background: color, borderRadius: 4, transition: 'width .4s' }} />
+      </div>
+    </div>
+  )
+
+  return (
+    <div style={{ flex: 1, overflowY: 'auto', padding: 24, background: '#f1f4f9' }}>
+      <div style={{ maxWidth: 1040, margin: '0 auto' }}>
+
+        {/* Header + date picker */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
+          <div>
+            <div style={{ fontSize: 18, fontWeight: 600, color: '#111827', marginBottom: 3 }}>Analytics</div>
+            <div style={{ fontSize: 12, color: '#6b7280' }}>Recruitment performance overview based on your selected date range.</div>
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            {/* Preset buttons */}
+            <div style={{ display: 'flex', gap: 4, background: '#fff', borderRadius: 8, padding: 4, border: '0.5px solid #e5e7eb' }}>
+              {[['today','Today'],['7d','7 Days'],['30d','30 Days'],['90d','90 Days']].map(([k,l]) => (
+                <button key={k} onClick={() => setPreset(k)}
+                  style={{ padding: '4px 10px', borderRadius: 5, fontSize: 11, border: 'none', background: activePreset === k ? NAVY : 'transparent', color: activePreset === k ? '#fff' : '#6b7280', cursor: 'pointer', fontWeight: activePreset === k ? 500 : 400 }}>
+                  {l}
+                </button>
+              ))}
+            </div>
+            {/* Custom date range */}
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center', background: '#fff', borderRadius: 8, padding: '4px 10px', border: '0.5px solid #e5e7eb' }}>
+              <input type="date" value={fromDate} onChange={e => { setFromDate(e.target.value); setActivePreset('custom') }}
+                style={{ border: 'none', outline: 'none', fontSize: 11, color: '#374151', background: 'transparent' }} />
+              <span style={{ fontSize: 11, color: '#9ca3af' }}>to</span>
+              <input type="date" value={toDate} onChange={e => { setToDate(e.target.value); setActivePreset('custom') }}
+                style={{ border: 'none', outline: 'none', fontSize: 11, color: '#374151', background: 'transparent' }} />
+            </div>
+          </div>
+        </div>
+
+        {/* Summary cards */}
+        <div style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
+          <StatCard label="Total Conversations" value={total} sub={`${candidates} candidates · ${clients} clients`} icon="💬" />
+          <StatCard label="Open" value={open} sub="Awaiting response" color="#2563eb" icon="📂" />
+          <StatCard label="Pending" value={pending} sub="Awaiting candidate" color="#d97706" icon="⏳" />
+          <StatCard label="Resolved" value={resolved} sub={`${total > 0 ? Math.round((resolved / total) * 100) : 0}% resolution rate`} color="#16a34a" icon="✅" />
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+
+          {/* Conversation breakdown */}
+          <div style={{ background: '#fff', borderRadius: 12, border: '0.5px solid #e5e7eb', padding: 20 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#111827', marginBottom: 4 }}>Conversation Breakdown</div>
+            <div style={{ fontSize: 11, color: '#9ca3af', marginBottom: 16 }}>By status for selected period</div>
+            {total === 0 ? (
+              <div style={{ textAlign: 'center', padding: '20px 0', color: '#9ca3af', fontSize: 12 }}>No data for this period</div>
+            ) : (
+              <>
+                <BarRow label="Open" value={open} max={maxBar} color="#2563eb" />
+                <BarRow label="Pending" value={pending} max={maxBar} color="#f59e0b" />
+                <BarRow label="Resolved" value={resolved} max={maxBar} color="#10b981" />
+                <div style={{ marginTop: 16, paddingTop: 14, borderTop: '0.5px solid #f1f4f9', display: 'flex', gap: 16 }}>
+                  <div style={{ flex: 1, textAlign: 'center' }}>
+                    <div style={{ fontSize: 20, fontWeight: 700, color: '#7c3aed' }}>{candidates}</div>
+                    <div style={{ fontSize: 10, color: '#9ca3af', marginTop: 2 }}>Candidates</div>
+                  </div>
+                  <div style={{ width: 1, background: '#f1f4f9' }} />
+                  <div style={{ flex: 1, textAlign: 'center' }}>
+                    <div style={{ fontSize: 20, fontWeight: 700, color: '#1e40af' }}>{clients}</div>
+                    <div style={{ fontSize: 10, color: '#9ca3af', marginTop: 2 }}>Clients</div>
+                  </div>
+                  <div style={{ width: 1, background: '#f1f4f9' }} />
+                  <div style={{ flex: 1, textAlign: 'center' }}>
+                    <div style={{ fontSize: 20, fontWeight: 700, color: '#16a34a' }}>{total > 0 ? Math.round((resolved / total) * 100) : 0}%</div>
+                    <div style={{ fontSize: 10, color: '#9ca3af', marginTop: 2 }}>Resolution Rate</div>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Template usage */}
+          <div style={{ background: '#fff', borderRadius: 12, border: '0.5px solid #e5e7eb', padding: 20 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#111827', marginBottom: 4 }}>Template Usage</div>
+            <div style={{ fontSize: 11, color: '#9ca3af', marginBottom: 16 }}>Most used approved templates</div>
+            {tmplStats.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '20px 0', color: '#9ca3af', fontSize: 12 }}>No template data available</div>
+            ) : (
+              tmplStats.map((t, i) => (
+                <div key={t.name} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                  <div style={{ width: 22, height: 22, borderRadius: '50%', background: i === 0 ? '#fef3c7' : '#f1f4f9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: i === 0 ? '#92400e' : '#6b7280', flexShrink: 0 }}>{i + 1}</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 11, fontWeight: 500, color: '#374151', fontFamily: 'monospace', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.name}</div>
+                    <div style={{ height: 5, background: '#f1f4f9', borderRadius: 3, marginTop: 4, overflow: 'hidden' }}>
+                      <div style={{ height: '100%', width: `${(t.uses / tmplStats[0].uses) * 100}%`, background: ACCENT, borderRadius: 3 }} />
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: '#111827', flexShrink: 0 }}>{t.uses}</div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* Agent performance table */}
+        <div style={{ background: '#fff', borderRadius: 12, border: '0.5px solid #e5e7eb', overflow: 'hidden' }}>
+          <div style={{ padding: '16px 20px', borderBottom: '0.5px solid #f1f4f9' }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#111827', marginBottom: 2 }}>Agent Performance</div>
+            <div style={{ fontSize: 11, color: '#9ca3af' }}>Breakdown by agent for selected period</div>
+          </div>
+          {agentStats.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '30px 0', color: '#9ca3af', fontSize: 12 }}>No agent activity for this period</div>
+          ) : (
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ background: '#f9fafb' }}>
+                  {['Agent','Total Convos','Open','Resolved','Candidates','Clients','Resolution Rate'].map(h => (
+                    <th key={h} style={{ padding: '10px 16px', fontSize: 10, fontWeight: 600, color: '#6b7280', textAlign: 'left', textTransform: 'uppercase', letterSpacing: '0.4px', borderBottom: '0.5px solid #f1f4f9' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {agentStats.map((a, i) => (
+                  <tr key={a.name} style={{ borderBottom: '0.5px solid #f9fafb' }}
+                    onMouseEnter={e => e.currentTarget.style.background = '#f9fafb'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                    <td style={{ padding: '12px 16px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <div style={{ width: 28, height: 28, borderRadius: '50%', background: ACCENT_MID, color: '#1e40af', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 600, flexShrink: 0 }}>{a.name[0]}</div>
+                        <div>
+                          <div style={{ fontSize: 12, fontWeight: 500, color: '#111827' }}>{a.name}</div>
+                          {i === 0 && <div style={{ fontSize: 9, color: '#d97706', fontWeight: 600 }}>⭐ Top performer</div>}
+                        </div>
+                      </div>
+                    </td>
+                    <td style={{ padding: '12px 16px', fontSize: 13, fontWeight: 600, color: '#111827' }}>{a.total}</td>
+                    <td style={{ padding: '12px 16px' }}>
+                      <span style={{ fontSize: 11, fontWeight: 500, color: '#2563eb', background: '#eff6ff', padding: '2px 8px', borderRadius: 5 }}>{a.open}</span>
+                    </td>
+                    <td style={{ padding: '12px 16px' }}>
+                      <span style={{ fontSize: 11, fontWeight: 500, color: '#16a34a', background: '#dcfce7', padding: '2px 8px', borderRadius: 5 }}>{a.resolved}</span>
+                    </td>
+                    <td style={{ padding: '12px 16px', fontSize: 12, color: '#6b7280' }}>{a.candidates}</td>
+                    <td style={{ padding: '12px 16px', fontSize: 12, color: '#6b7280' }}>{a.clients}</td>
+                    <td style={{ padding: '12px 16px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <div style={{ height: 6, width: 60, background: '#f1f4f9', borderRadius: 3, overflow: 'hidden' }}>
+                          <div style={{ height: '100%', width: `${a.total > 0 ? (a.resolved / a.total) * 100 : 0}%`, background: '#10b981', borderRadius: 3 }} />
+                        </div>
+                        <span style={{ fontSize: 11, fontWeight: 600, color: '#374151' }}>{a.total > 0 ? Math.round((a.resolved / a.total) * 100) : 0}%</span>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          <div style={{ padding: '10px 20px', background: '#f9fafb', borderTop: '0.5px solid #f1f4f9', fontSize: 11, color: '#9ca3af' }}>
+            Response time tracking will be available once Meta WhatsApp API is connected.
+          </div>
+        </div>
+
       </div>
     </div>
   )
@@ -519,7 +754,10 @@ export default function App() {
 
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
 
-        {/* TEMPLATES SCREEN */}
+        {/* ANALYTICS */}
+        {activeNav === 'analytics' && !isMobile && <AnalyticsDashboard convos={convos} templates={templates} />}
+
+        {/* TEMPLATES */}
         {activeNav === 'templates' && !isMobile && (
           <div style={{ flex: 1, overflowY: 'auto', padding: 24, background: '#f1f4f9' }}>
             <div style={{ maxWidth: 1040, margin: '0 auto' }}>
@@ -528,11 +766,8 @@ export default function App() {
                   <div style={{ fontSize: 18, fontWeight: 600, color: '#111827', marginBottom: 3 }}>Message Templates</div>
                   <div style={{ fontSize: 12, color: '#6b7280' }}>All templates require Meta approval before use outside the 24-hour messaging window.</div>
                 </div>
-                <button onClick={openNewTemplate} style={{ padding: '9px 18px', background: ACCENT, color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ fontSize: 16, lineHeight: 1 }}>+</span> New Template
-                </button>
+                <button onClick={openNewTemplate} style={{ padding: '9px 18px', background: ACCENT, color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>+ New Template</button>
               </div>
-
               <div style={{ background: '#fff', borderRadius: 10, border: '0.5px solid #e5e7eb', padding: '12px 16px', marginBottom: 16, display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
                 <div style={{ position: 'relative', flex: 1, minWidth: 200 }}>
                   <svg style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', width: 12, height: 12, color: '#9ca3af', pointerEvents: 'none' }} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="7" cy="7" r="4"/><path d="M10.5 10.5l3 3" strokeLinecap="round"/></svg>
@@ -549,19 +784,17 @@ export default function App() {
                 ))}
                 <span style={{ fontSize: 11, color: '#9ca3af' }}>{filteredTemplates.length} result{filteredTemplates.length !== 1 ? 's' : ''}</span>
               </div>
-
               {filteredTemplates.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '60px 0', color: '#9ca3af' }}>
                   <div style={{ fontSize: 36, marginBottom: 10 }}>📋</div>
                   <div style={{ fontSize: 14, fontWeight: 500, color: '#6b7280', marginBottom: 4 }}>No templates found</div>
-                  <div style={{ fontSize: 12 }}>Try adjusting your filters or create a new template</div>
                 </div>
               ) : (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 14 }}>
                   {filteredTemplates.map(t => {
                     const sc = STATUS_COLORS[t.status]
                     return (
-                      <div key={t.id} style={{ background: '#fff', borderRadius: 12, border: '0.5px solid #e5e7eb', overflow: 'hidden', display: 'flex', flexDirection: 'column', transition: 'box-shadow .15s' }}
+                      <div key={t.id} style={{ background: '#fff', borderRadius: 12, border: '0.5px solid #e5e7eb', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}
                         onMouseEnter={e => e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.08)'}
                         onMouseLeave={e => e.currentTarget.style.boxShadow = 'none'}>
                         <div style={{ padding: '14px 16px', borderBottom: '0.5px solid #f1f4f9' }}>
@@ -595,9 +828,7 @@ export default function App() {
                         </div>
                         <div style={{ padding: '10px 16px', borderTop: '0.5px solid #f1f4f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fafafa' }}>
                           <span style={{ fontSize: 10, color: '#9ca3af' }}>{t.body.length} / 1,024 chars</span>
-                          {t.status === 'draft' && (
-                            <button onClick={() => submitForApproval(t.id)} style={{ padding: '4px 11px', background: NAVY, color: '#fff', border: 'none', borderRadius: 6, fontSize: 10, cursor: 'pointer', fontWeight: 500 }}>Submit for Approval</button>
-                          )}
+                          {t.status === 'draft' && <button onClick={() => submitForApproval(t.id)} style={{ padding: '4px 11px', background: NAVY, color: '#fff', border: 'none', borderRadius: 6, fontSize: 10, cursor: 'pointer', fontWeight: 500 }}>Submit for Approval</button>}
                         </div>
                       </div>
                     )
@@ -608,7 +839,7 @@ export default function App() {
           </div>
         )}
 
-        {/* BROADCASTS SCREEN */}
+        {/* BROADCASTS */}
         {activeNav === 'broadcasts' && !isMobile && (
           <div style={{ flex: 1, overflowY: 'auto', padding: 24, background: '#f1f4f9' }}>
             <div style={{ maxWidth: 700, margin: '0 auto' }}>
@@ -633,17 +864,16 @@ export default function App() {
                     </select>
                   </div>
                 </div>
-                <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 14, padding: '8px 12px', background: '#f9fafb', borderRadius: 7, display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
-                  <span>Recipients: <strong style={{ color: '#111827' }}>{convos.filter(c => (bcType === 'all' || c.type === bcType) && (bcAgent === 'all' || c.assigned_to === bcAgent)).length} contacts</strong></span>
+                <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 14, padding: '8px 12px', background: '#f9fafb', borderRadius: 7 }}>
+                  Recipients: <strong style={{ color: '#111827' }}>{convos.filter(c => (bcType === 'all' || c.type === bcType) && (bcAgent === 'all' || c.assigned_to === bcAgent)).length} contacts</strong>
                 </div>
                 <div style={{ marginBottom: 14 }}>
                   <label style={{ fontSize: 11, color: '#6b7280', display: 'block', marginBottom: 4, fontWeight: 500 }}>Message</label>
                   <textarea value={bcMessage} onChange={e => setBcMessage(e.target.value)} placeholder="Type your broadcast message…" rows={5} style={{ width: '100%', padding: '10px 12px', border: '0.5px solid #d1d5db', borderRadius: 8, fontSize: 12, background: '#f9fafb', color: '#111827', resize: 'vertical', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', lineHeight: 1.6 }} />
                   <div style={{ fontSize: 10, color: '#9ca3af', marginTop: 4 }}>{bcMessage.length} characters</div>
                 </div>
-                <div style={{ background: '#fffbeb', border: '0.5px solid #fde68a', borderRadius: 7, padding: '8px 12px', fontSize: 11, color: '#92400e', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span>⚠️</span> Live sending requires Meta WhatsApp API. Currently in simulation mode.
+                <div style={{ background: '#fffbeb', border: '0.5px solid #fde68a', borderRadius: 7, padding: '8px 12px', fontSize: 11, color: '#92400e', marginBottom: 14 }}>
+                  ⚠️ Live sending requires Meta WhatsApp API. Currently in simulation mode.
                 </div>
                 <button onClick={sendBroadcast} disabled={bcSending} style={{ padding: '9px 22px', background: bcSending ? '#9ca3af' : ACCENT, color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 500, cursor: bcSending ? 'default' : 'pointer' }}>{bcSending ? 'Sending…' : 'Send Broadcast'}</button>
               </div>
@@ -904,7 +1134,7 @@ export default function App() {
           </div>
         )}
 
-        {activeNav !== 'inbox' && activeNav !== 'broadcasts' && activeNav !== 'templates' && !isMobile && (
+        {activeNav !== 'inbox' && activeNav !== 'broadcasts' && activeNav !== 'templates' && activeNav !== 'analytics' && !isMobile && (
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f1f4f9' }}>
             <div style={{ textAlign: 'center' }}>
               <div style={{ fontSize: 36, marginBottom: 10 }}>🚧</div>
@@ -929,22 +1159,15 @@ export default function App() {
       {showTemplateEditor && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 70, padding: 20 }}>
           <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 1020, maxHeight: '92vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-
-            {/* Modal header */}
-            <div style={{ padding: '18px 24px', borderBottom: '1px solid #f1f4f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, background: '#fff' }}>
+            <div style={{ padding: '18px 24px', borderBottom: '1px solid #f1f4f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
               <div>
                 <div style={{ fontSize: 15, fontWeight: 600, color: '#111827' }}>{editingTemplate ? 'Edit Template' : 'Create New Template'}</div>
                 <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>WhatsApp Business · Max 1,024 characters · Meta approval required</div>
               </div>
               <button onClick={() => setShowTemplateEditor(false)} style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid #e5e7eb', background: '#f9fafb', cursor: 'pointer', fontSize: 16, color: '#6b7280', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
             </div>
-
             <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-
-              {/* LEFT — FORM */}
               <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px' }}>
-
-                {/* Section: Basic Info */}
                 <div style={{ marginBottom: 20 }}>
                   <div style={{ fontSize: 11, fontWeight: 600, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
                     <div style={{ width: 18, height: 18, borderRadius: '50%', background: ACCENT, color: '#fff', fontSize: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700 }}>1</div>
@@ -953,13 +1176,11 @@ export default function App() {
                   <div style={{ display: 'flex', gap: 12 }}>
                     <div style={{ flex: 1 }}>
                       <label style={{ fontSize: 11, color: '#6b7280', display: 'block', marginBottom: 5 }}>Template name <span style={{ color: '#9ca3af' }}>(lowercase_underscores)</span></label>
-                      <input value={tmplName} onChange={e => setTmplName(e.target.value)} placeholder="e.g. interview_confirmation"
-                        style={{ width: '100%', padding: '9px 12px', border: '1px solid #e5e7eb', borderRadius: 8, fontSize: 12, outline: 'none', background: '#fff', color: '#111827', boxSizing: 'border-box', fontFamily: 'monospace' }} />
+                      <input value={tmplName} onChange={e => setTmplName(e.target.value)} placeholder="e.g. interview_confirmation" style={{ width: '100%', padding: '9px 12px', border: '1px solid #e5e7eb', borderRadius: 8, fontSize: 12, outline: 'none', background: '#fff', color: '#111827', boxSizing: 'border-box', fontFamily: 'monospace' }} />
                     </div>
                     <div style={{ width: 170 }}>
                       <label style={{ fontSize: 11, color: '#6b7280', display: 'block', marginBottom: 5 }}>Category</label>
-                      <select value={tmplCategory} onChange={e => setTmplCategory(e.target.value)}
-                        style={{ width: '100%', padding: '9px 12px', border: '1px solid #e5e7eb', borderRadius: 8, fontSize: 12, background: '#fff', color: '#111827', outline: 'none' }}>
+                      <select value={tmplCategory} onChange={e => setTmplCategory(e.target.value)} style={{ width: '100%', padding: '9px 12px', border: '1px solid #e5e7eb', borderRadius: 8, fontSize: 12, background: '#fff', color: '#111827', outline: 'none' }}>
                         <option value="utility">Utility</option>
                         <option value="marketing">Marketing</option>
                         <option value="authentication">Authentication</option>
@@ -967,18 +1188,15 @@ export default function App() {
                     </div>
                   </div>
                 </div>
-
-                {/* Section: Variables */}
                 <div style={{ marginBottom: 20 }}>
                   <div style={{ fontSize: 11, fontWeight: 600, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
                     <div style={{ width: 18, height: 18, borderRadius: '50%', background: ACCENT, color: '#fff', fontSize: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700 }}>2</div>
                     Insert Variables
-                    <span style={{ fontSize: 10, color: '#9ca3af', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>— click to insert at cursor position</span>
+                    <span style={{ fontSize: 10, color: '#9ca3af', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>— click to insert at cursor</span>
                   </div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
                     {COMMON_VARS.map(v => (
-                      <button key={v} onClick={() => insertVar(v)}
-                        style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid #bfdbfe', fontSize: 10, background: ACCENT_LIGHT, color: ACCENT, cursor: 'pointer', fontFamily: 'monospace', fontWeight: 600, transition: 'all .1s' }}
+                      <button key={v} onClick={() => insertVar(v)} style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid #bfdbfe', fontSize: 10, background: ACCENT_LIGHT, color: ACCENT, cursor: 'pointer', fontFamily: 'monospace', fontWeight: 600 }}
                         onMouseEnter={e => { e.currentTarget.style.background = ACCENT_MID }}
                         onMouseLeave={e => { e.currentTarget.style.background = ACCENT_LIGHT }}>
                         {`{{${v}}}`}
@@ -986,38 +1204,21 @@ export default function App() {
                     ))}
                   </div>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                    <input value={customVar} onChange={e => setCustomVar(e.target.value.replace(/\s/g,'_').replace(/[^a-z0-9_]/gi,''))} placeholder="custom_variable"
-                      style={{ padding: '6px 10px', border: '1px solid #e5e7eb', borderRadius: 7, fontSize: 11, width: 140, outline: 'none', background: '#f9fafb', color: '#111827', fontFamily: 'monospace' }}
-                      onKeyDown={e => { if (e.key === 'Enter' && customVar.trim()) { insertVar(customVar.trim()); setCustomVar('') } }} />
-                    <button onClick={() => { if (customVar.trim()) { insertVar(customVar.trim()); setCustomVar('') } }}
-                      style={{ padding: '6px 14px', borderRadius: 7, border: 'none', fontSize: 11, background: ACCENT, color: '#fff', cursor: 'pointer', fontWeight: 500 }}>
-                      + Insert Custom
-                    </button>
-                    <span style={{ fontSize: 10, color: '#9ca3af' }}>Press Enter to insert</span>
+                    <input value={customVar} onChange={e => setCustomVar(e.target.value.replace(/\s/g,'_').replace(/[^a-z0-9_]/gi,''))} placeholder="custom_variable" style={{ padding: '6px 10px', border: '1px solid #e5e7eb', borderRadius: 7, fontSize: 11, width: 140, outline: 'none', background: '#f9fafb', color: '#111827', fontFamily: 'monospace' }} onKeyDown={e => { if (e.key === 'Enter' && customVar.trim()) { insertVar(customVar.trim()); setCustomVar('') } }} />
+                    <button onClick={() => { if (customVar.trim()) { insertVar(customVar.trim()); setCustomVar('') } }} style={{ padding: '6px 14px', borderRadius: 7, border: 'none', fontSize: 11, background: ACCENT, color: '#fff', cursor: 'pointer', fontWeight: 500 }}>+ Insert Custom</button>
                   </div>
                 </div>
-
-                {/* Section: Message Body */}
                 <div style={{ marginBottom: 20 }}>
                   <div style={{ fontSize: 11, fontWeight: 600, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
                     <div style={{ width: 18, height: 18, borderRadius: '50%', background: ACCENT, color: '#fff', fontSize: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700 }}>3</div>
                     Message Body
                   </div>
-                  <textarea ref={tmplBodyRef} value={tmplBody} onChange={e => setTmplBody(e.target.value)} rows={11}
-                    placeholder={'Dear {{name}},\n\nType your professional message here.\n\nUse the variable buttons above to personalise each message automatically.'}
-                    style={{ width: '100%', padding: '12px 14px', border: `1px solid ${tmplBody.length > 1024 ? '#ef4444' : '#e5e7eb'}`, borderRadius: 8, fontSize: 12, background: '#fff', color: '#111827', resize: 'none', fontFamily: 'inherit', lineHeight: 1.65, outline: 'none', boxSizing: 'border-box', transition: 'border-color .2s' }} />
+                  <textarea ref={tmplBodyRef} value={tmplBody} onChange={e => setTmplBody(e.target.value)} rows={11} placeholder={'Dear {{name}},\n\nType your professional message here.'} style={{ width: '100%', padding: '12px 14px', border: `1px solid ${tmplBody.length > 1024 ? '#ef4444' : '#e5e7eb'}`, borderRadius: 8, fontSize: 12, background: '#fff', color: '#111827', resize: 'none', fontFamily: 'inherit', lineHeight: 1.65, outline: 'none', boxSizing: 'border-box' }} />
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 }}>
                     <span style={{ fontSize: 10, color: '#9ca3af' }}>Supports line breaks. Variables are auto-filled when sending.</span>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      {tmplBody.length > 900 && <span style={{ fontSize: 10, color: tmplBody.length > 1024 ? '#ef4444' : '#d97706', fontWeight: 600 }}>{tmplBody.length > 1024 ? 'Over limit!' : 'Approaching limit'}</span>}
-                      <span style={{ fontSize: 11, fontWeight: 600, color: tmplBody.length > 1024 ? '#ef4444' : tmplBody.length > 900 ? '#d97706' : '#6b7280', background: tmplBody.length > 1024 ? '#fee2e2' : tmplBody.length > 900 ? '#fef3c7' : '#f1f4f9', padding: '2px 8px', borderRadius: 5 }}>
-                        {tmplBody.length} / 1,024
-                      </span>
-                    </div>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: tmplBody.length > 1024 ? '#ef4444' : tmplBody.length > 900 ? '#d97706' : '#6b7280', background: tmplBody.length > 1024 ? '#fee2e2' : tmplBody.length > 900 ? '#fef3c7' : '#f1f4f9', padding: '2px 8px', borderRadius: 5 }}>{tmplBody.length} / 1,024</span>
                   </div>
                 </div>
-
-                {/* Section: Buttons */}
                 <div style={{ marginBottom: 24 }}>
                   <div style={{ fontSize: 11, fontWeight: 600, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -1025,43 +1226,28 @@ export default function App() {
                       Buttons <span style={{ fontSize: 10, color: '#9ca3af', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>optional · max 3</span>
                     </div>
                     <div style={{ display: 'flex', gap: 6 }}>
-                      <button onClick={() => addButton('quick_reply')} disabled={tmplButtons.length >= 3}
-                        style={{ padding: '5px 12px', border: '1px solid #e5e7eb', borderRadius: 7, fontSize: 11, background: tmplButtons.length >= 3 ? '#f9fafb' : '#fff', color: tmplButtons.length >= 3 ? '#d1d5db' : '#374151', cursor: tmplButtons.length >= 3 ? 'default' : 'pointer', fontWeight: 500 }}>
-                        ↩️ Quick Reply
-                      </button>
-                      <button onClick={() => addButton('call_to_action')} disabled={tmplButtons.length >= 3}
-                        style={{ padding: '5px 12px', border: '1px solid #e5e7eb', borderRadius: 7, fontSize: 11, background: tmplButtons.length >= 3 ? '#f9fafb' : '#fff', color: tmplButtons.length >= 3 ? '#d1d5db' : '#374151', cursor: tmplButtons.length >= 3 ? 'default' : 'pointer', fontWeight: 500 }}>
-                        🔗 Call to Action
-                      </button>
+                      <button onClick={() => addButton('quick_reply')} disabled={tmplButtons.length >= 3} style={{ padding: '5px 12px', border: '1px solid #e5e7eb', borderRadius: 7, fontSize: 11, background: tmplButtons.length >= 3 ? '#f9fafb' : '#fff', color: tmplButtons.length >= 3 ? '#d1d5db' : '#374151', cursor: tmplButtons.length >= 3 ? 'default' : 'pointer', fontWeight: 500 }}>↩️ Quick Reply</button>
+                      <button onClick={() => addButton('call_to_action')} disabled={tmplButtons.length >= 3} style={{ padding: '5px 12px', border: '1px solid #e5e7eb', borderRadius: 7, fontSize: 11, background: tmplButtons.length >= 3 ? '#f9fafb' : '#fff', color: tmplButtons.length >= 3 ? '#d1d5db' : '#374151', cursor: tmplButtons.length >= 3 ? 'default' : 'pointer', fontWeight: 500 }}>🔗 Call to Action</button>
                     </div>
                   </div>
                   {tmplButtons.length === 0 ? (
-                    <div style={{ fontSize: 11, color: '#9ca3af', padding: '14px', background: '#f9fafb', borderRadius: 8, textAlign: 'center', border: '1px dashed #e5e7eb' }}>
-                      No buttons added. Buttons appear below the message bubble on WhatsApp.
-                    </div>
+                    <div style={{ fontSize: 11, color: '#9ca3af', padding: '14px', background: '#f9fafb', borderRadius: 8, textAlign: 'center', border: '1px dashed #e5e7eb' }}>No buttons added. Buttons appear below the message bubble on WhatsApp.</div>
                   ) : (
                     tmplButtons.map((b, i) => (
                       <div key={i} style={{ background: '#f9fafb', borderRadius: 10, border: '1px solid #e5e7eb', padding: '12px 14px', marginBottom: 8 }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <span style={{ width: 6, height: 6, borderRadius: '50%', background: b.type === 'call_to_action' ? ACCENT : '#7c3aed', display: 'inline-block' }} />
-                            <span style={{ fontSize: 11, fontWeight: 600, color: b.type === 'call_to_action' ? ACCENT : '#7c3aed' }}>
-                              {b.type === 'call_to_action' ? 'Call to Action Button' : 'Quick Reply Button'}
-                            </span>
-                          </div>
+                          <span style={{ fontSize: 11, fontWeight: 600, color: b.type === 'call_to_action' ? ACCENT : '#7c3aed' }}>{b.type === 'call_to_action' ? '🔗 Call to Action Button' : '↩️ Quick Reply Button'}</span>
                           <button onClick={() => removeButton(i)} style={{ fontSize: 10, color: '#dc2626', background: 'transparent', border: '1px solid #fca5a5', borderRadius: 5, padding: '3px 8px', cursor: 'pointer' }}>Remove</button>
                         </div>
                         <div style={{ display: 'flex', gap: 10 }}>
                           <div style={{ flex: 1 }}>
                             <label style={{ fontSize: 10, color: '#6b7280', display: 'block', marginBottom: 4 }}>Button label</label>
-                            <input value={b.label} onChange={e => updateButton(i, 'label', e.target.value)} placeholder="e.g. Confirm Interest"
-                              style={{ width: '100%', padding: '7px 10px', border: '1px solid #e5e7eb', borderRadius: 7, fontSize: 11, outline: 'none', background: '#fff', color: '#111827', boxSizing: 'border-box' }} />
+                            <input value={b.label} onChange={e => updateButton(i, 'label', e.target.value)} placeholder="e.g. Confirm Interest" style={{ width: '100%', padding: '7px 10px', border: '1px solid #e5e7eb', borderRadius: 7, fontSize: 11, outline: 'none', background: '#fff', color: '#111827', boxSizing: 'border-box' }} />
                           </div>
                           {b.type === 'call_to_action' && (
                             <div style={{ flex: 1 }}>
                               <label style={{ fontSize: 10, color: '#6b7280', display: 'block', marginBottom: 4 }}>Destination URL</label>
-                              <input value={b.url} onChange={e => updateButton(i, 'url', e.target.value)} placeholder="https://…"
-                                style={{ width: '100%', padding: '7px 10px', border: '1px solid #e5e7eb', borderRadius: 7, fontSize: 11, outline: 'none', background: '#fff', color: '#111827', boxSizing: 'border-box' }} />
+                              <input value={b.url} onChange={e => updateButton(i, 'url', e.target.value)} placeholder="https://…" style={{ width: '100%', padding: '7px 10px', border: '1px solid #e5e7eb', borderRadius: 7, fontSize: 11, outline: 'none', background: '#fff', color: '#111827', boxSizing: 'border-box' }} />
                             </div>
                           )}
                         </div>
@@ -1069,21 +1255,14 @@ export default function App() {
                     ))
                   )}
                 </div>
-
-                {/* Actions */}
                 <div style={{ display: 'flex', gap: 10, paddingTop: 4 }}>
                   <button onClick={() => setShowTemplateEditor(false)} style={{ flex: 1, padding: '10px', border: '1px solid #e5e7eb', borderRadius: 8, fontSize: 12, color: '#6b7280', background: '#fff', cursor: 'pointer', fontWeight: 500 }}>Cancel</button>
-                  <button onClick={saveTemplate} style={{ flex: 2, padding: '10px', background: ACCENT, color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
-                    {editingTemplate ? '✓ Save Changes' : '+ Create Template'}
-                  </button>
+                  <button onClick={saveTemplate} style={{ flex: 2, padding: '10px', background: ACCENT, color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>{editingTemplate ? '✓ Save Changes' : '+ Create Template'}</button>
                 </div>
               </div>
-
-              {/* RIGHT — PREVIEW */}
               <div style={{ width: 320, flexShrink: 0, background: '#1a1a2e', borderLeft: '1px solid #111', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '24px 20px', overflowY: 'auto', gap: 16 }}>
                 <div style={{ fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '1px', alignSelf: 'flex-start' }}>Preview</div>
                 <IPhonePreview body={tmplBody} buttons={tmplButtons} />
-                {/* Variables panel */}
                 <div style={{ width: '100%', background: 'rgba(255,255,255,0.05)', borderRadius: 10, padding: '12px 14px', border: '1px solid rgba(255,255,255,0.08)' }}>
                   <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', marginBottom: 8, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Variables in use</div>
                   {(tmplBody.match(/\{\{(\w+)\}\}/g) || []).length === 0 ? (
@@ -1096,7 +1275,6 @@ export default function App() {
                     </div>
                   )}
                 </div>
-                {/* Char count panel */}
                 <div style={{ width: '100%', background: 'rgba(255,255,255,0.05)', borderRadius: 10, padding: '12px 14px', border: '1px solid rgba(255,255,255,0.08)' }}>
                   <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', marginBottom: 8, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Character count</div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>

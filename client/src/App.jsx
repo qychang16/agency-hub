@@ -24,11 +24,7 @@ const phoneRules = {
   '+971': { digits: 9, hint: '9 digits e.g. 50 123 4567' },
   '+966': { digits: 9, hint: '9 digits e.g. 50 123 4567' },
 }
-
-function phonePlaceholder(code) {
-  return phoneRules[code] ? phoneRules[code].hint : 'Enter number'
-}
-
+function phonePlaceholder(code) { return phoneRules[code] ? phoneRules[code].hint : 'Enter number' }
 function validatePhone(code, phone) {
   const digits = phone.replace(/[\s\-]/g, '')
   const rule = phoneRules[code]
@@ -38,17 +34,11 @@ function validatePhone(code, phone) {
   if (digits.length > rule.digits + 1) return `Too long — ${code} numbers need ${rule.digits} digits (you entered ${digits.length})`
   return ''
 }
-
 function fmtSGT(isoString) {
   if (!isoString) return ''
   const d = new Date(isoString)
-  return d.toLocaleString('en-GB', {
-    timeZone: 'Asia/Singapore',
-    day: '2-digit', month: 'short', year: 'numeric',
-    hour: '2-digit', minute: '2-digit', hour12: false
-  }) + ' SGT'
+  return d.toLocaleString('en-GB', { timeZone: 'Asia/Singapore', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }) + ' SGT'
 }
-
 function dateSGTiso(isoString) {
   if (!isoString) return ''
   return new Date(isoString).toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' })
@@ -62,7 +52,6 @@ const ACCENT_MID = '#dbeafe'
 const EMOJIS = ['😀','😃','😄','😁','😆','😅','😂','🤣','😊','😇','🙂','😉','😌','😍','🥰','😘','😋','😛','😜','🤪','🤑','🤗','🤔','🤐','😐','😑','😏','😒','🙄','😬','😔','😪','😴','😷','🤒','🤢','🤮','🤧','😵','🤯','🤠','🥳','😎','🤓','😕','😟','🙁','😮','😲','😳','🥺','😧','😰','😢','😭','😱','😤','😡','😠','🤬','😈','💀','💩','🤖','👋','✋','👌','✌','🤞','🤙','👍','👎','✊','👊','👏','🙌','🤝','🙏','💪','❤','🧡','💛','💚','💙','💜','🖤','💔','💕','💞','✅','❌','⭕','🎉','🎊','🎈','🏆','🎯','🎤','🎵','📱','💻','📞','☎','📄','📝','📊','📈','💼','👔','🏢','🌍','✈','🚗','💰','💸','💳','⭐','🌟','🔥','👀','🎁']
 
 const ALL_AGENTS = ['Aisha', 'Ben', 'Marcus', 'Priya', 'Rachel', 'Zara']
-
 const TEAMS = {
   recruitment: { label: 'Recruitment Team', agents: ['Aisha', 'Marcus', 'Priya'] },
   client: { label: 'Client Relations Team', agents: ['Ben', 'Rachel'] },
@@ -70,55 +59,22 @@ const TEAMS = {
 }
 
 const DEFAULT_TEMPLATES = [
-  {
-    id: 1, name: 'interview_confirmation', category: 'utility', status: 'approved',
-    body: 'Dear {{name}},\n\nWe are pleased to confirm your interview for the position of {{role}} at {{company}}.\n\nDate: {{date}}\nTime: {{time}}\nVenue: {{venue}}\n\nKindly bring along your NRIC/Passport and original copies of all relevant certificates.\n\nShould you require any clarification, please do not hesitate to contact us.\n\nWe look forward to meeting you.',
-    buttons: [], createdAt: '2026-04-01'
-  },
-  {
-    id: 2, name: 'offer_letter_notification', category: 'utility', status: 'approved',
-    body: 'Dear {{name}},\n\nWe are delighted to inform you that your offer letter for the position of {{role}} at {{company}} has been prepared.\n\nPlease review the terms and conditions carefully and confirm your acceptance by {{deadline}}.\n\nShould you have any questions regarding the offer, please feel free to reach out to us.\n\nWe look forward to welcoming you to the team.',
-    buttons: [{ type: 'quick_reply', label: 'Accept Offer' }, { type: 'quick_reply', label: 'Request Clarification' }],
-    createdAt: '2026-04-01'
-  },
-  {
-    id: 3, name: 'candidate_status_followup', category: 'utility', status: 'approved',
-    body: 'Dear {{name}},\n\nWe refer to your earlier application for the position of {{role}} at {{company}}.\n\nWe would like to check in on your availability and interest in proceeding with the application. Kindly advise us of your current status at your earliest convenience.\n\nThank you for your time.',
-    buttons: [{ type: 'quick_reply', label: 'Still Interested' }, { type: 'quick_reply', label: 'No Longer Available' }],
-    createdAt: '2026-04-01'
-  },
-  {
-    id: 4, name: 'job_opportunity_alert', category: 'marketing', status: 'approved',
-    body: 'Dear {{name}},\n\nWe would like to bring to your attention a new career opportunity that closely matches your profile.\n\nPosition: {{role}}\nCompany: {{company}}\nRemuneration: {{salary}} per month\n\nShould you be interested in exploring this opportunity further, please reply to this message and our consultant will be in touch shortly.',
-    buttons: [{ type: 'quick_reply', label: 'I Am Interested' }, { type: 'call_to_action', label: 'View Job Details', url: 'https://example.com/jobs' }],
-    createdAt: '2026-04-01'
-  },
-  {
-    id: 5, name: 'interview_reminder', category: 'utility', status: 'approved',
-    body: 'Dear {{name}},\n\nThis is a courtesy reminder of your scheduled interview tomorrow.\n\nDate: {{date}}\nTime: {{time}}\nVenue: {{venue}}\n\nPlease ensure you arrive at least 10 minutes prior to your appointment. Should you need to reschedule, kindly notify us as soon as possible.\n\nWe look forward to seeing you.',
-    buttons: [], createdAt: '2026-04-01'
-  },
-  {
-    id: 6, name: 'successful_placement', category: 'utility', status: 'approved',
-    body: 'Dear {{name}},\n\nWe are pleased to inform you that your placement has been successfully confirmed.\n\nPosition: {{role}}\nCompany: {{company}}\nCommencement Date: {{start_date}}\n\nPlease ensure you report to the HR department on your first day with the required documentation.\n\nWe wish you every success in your new role.',
-    buttons: [], createdAt: '2026-04-01'
-  },
-  {
-    id: 7, name: 'cv_submission_to_client', category: 'utility', status: 'approved',
-    body: 'Dear {{hr_name}},\n\nThank you for the opportunity to assist with your recruitment needs.\n\nPlease find attached the professional profile of {{candidate}} for your consideration for the position of {{role}}.\n\nWe believe the candidate\'s background and experience are well-aligned with your requirements. Should you wish to arrange an interview or require any further information, please do not hesitate to contact us.\n\nWe look forward to your valued feedback.',
-    buttons: [], createdAt: '2026-04-01'
-  },
+  { id: 1, name: 'interview_confirmation', category: 'utility', status: 'approved', body: 'Dear {{name}},\n\nWe are pleased to confirm your interview for the position of {{role}} at {{company}}.\n\nDate: {{date}}\nTime: {{time}}\nVenue: {{venue}}\n\nKindly bring along your NRIC/Passport and original copies of all relevant certificates.\n\nShould you require any clarification, please do not hesitate to contact us.\n\nWe look forward to meeting you.', buttons: [], createdAt: '2026-04-01' },
+  { id: 2, name: 'offer_letter_notification', category: 'utility', status: 'approved', body: 'Dear {{name}},\n\nWe are delighted to inform you that your offer letter for the position of {{role}} at {{company}} has been prepared.\n\nPlease review the terms and conditions carefully and confirm your acceptance by {{deadline}}.\n\nShould you have any questions regarding the offer, please feel free to reach out to us.\n\nWe look forward to welcoming you to the team.', buttons: [{ type: 'quick_reply', label: 'Accept Offer' }, { type: 'quick_reply', label: 'Request Clarification' }], createdAt: '2026-04-01' },
+  { id: 3, name: 'candidate_status_followup', category: 'utility', status: 'approved', body: 'Dear {{name}},\n\nWe refer to your earlier application for the position of {{role}} at {{company}}.\n\nWe would like to check in on your availability and interest in proceeding with the application. Kindly advise us of your current status at your earliest convenience.\n\nThank you for your time.', buttons: [{ type: 'quick_reply', label: 'Still Interested' }, { type: 'quick_reply', label: 'No Longer Available' }], createdAt: '2026-04-01' },
+  { id: 4, name: 'job_opportunity_alert', category: 'marketing', status: 'approved', body: 'Dear {{name}},\n\nWe would like to bring to your attention a new career opportunity that closely matches your profile.\n\nPosition: {{role}}\nCompany: {{company}}\nRemuneration: {{salary}} per month\n\nShould you be interested in exploring this opportunity further, please reply to this message and our consultant will be in touch shortly.', buttons: [{ type: 'quick_reply', label: 'I Am Interested' }, { type: 'call_to_action', label: 'View Job Details', url: 'https://example.com/jobs' }], createdAt: '2026-04-01' },
+  { id: 5, name: 'interview_reminder', category: 'utility', status: 'approved', body: 'Dear {{name}},\n\nThis is a courtesy reminder of your scheduled interview tomorrow.\n\nDate: {{date}}\nTime: {{time}}\nVenue: {{venue}}\n\nPlease ensure you arrive at least 10 minutes prior to your appointment. Should you need to reschedule, kindly notify us as soon as possible.\n\nWe look forward to seeing you.', buttons: [], createdAt: '2026-04-01' },
+  { id: 6, name: 'successful_placement', category: 'utility', status: 'approved', body: 'Dear {{name}},\n\nWe are pleased to inform you that your placement has been successfully confirmed.\n\nPosition: {{role}}\nCompany: {{company}}\nCommencement Date: {{start_date}}\n\nPlease ensure you report to the HR department on your first day with the required documentation.\n\nWe wish you every success in your new role.', buttons: [], createdAt: '2026-04-01' },
+  { id: 7, name: 'cv_submission_to_client', category: 'utility', status: 'approved', body: "Dear {{hr_name}},\n\nThank you for the opportunity to assist with your recruitment needs.\n\nPlease find attached the professional profile of {{candidate}} for your consideration for the position of {{role}}.\n\nWe believe the candidate's background and experience are well-aligned with your requirements. Should you wish to arrange an interview or require any further information, please do not hesitate to contact us.\n\nWe look forward to your valued feedback.", buttons: [], createdAt: '2026-04-01' },
 ]
 
 const COMMON_VARS = ['name', 'date', 'time', 'venue', 'role', 'company', 'salary', 'deadline', 'start_date', 'hr_name', 'candidate', 'phone', 'email']
-
 const STATUS_COLORS = {
   draft: { bg: '#f1f4f9', color: '#6b7280', label: 'Draft' },
   pending: { bg: '#fef3c7', color: '#92400e', label: 'Pending Approval' },
   approved: { bg: '#dcfce7', color: '#16a34a', label: 'Approved' },
   rejected: { bg: '#fee2e2', color: '#dc2626', label: 'Rejected' },
 }
-
 const CATEGORY_LABELS = { marketing: 'Marketing', utility: 'Utility', authentication: 'Authentication' }
 
 function DualRingsLogo() {
@@ -136,82 +92,85 @@ function DualRingsLogo() {
 }
 
 function IPhonePreview({ body, buttons }) {
-  const highlighted = body.replace(/\{\{(\w+)\}\}/g, (_, v) =>
-    `<span style="background:#dbeafe;color:#1e40af;padding:1px 5px;border-radius:3px;font-size:11.5px;font-weight:500;">{{${v}}}</span>`
-  )
   const now = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false })
+  const highlighted = body.replace(/\{\{(\w+)\}\}/g, (_, v) =>
+    `<span style="background:#dbeafe;color:#1e40af;padding:1px 4px;border-radius:3px;font-weight:600;font-size:11px;">{{${v}}}</span>`
+  )
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-      {/* iPhone shell */}
-      <div style={{ width: 300, background: '#1a1a1a', borderRadius: 44, padding: '12px 6px', boxShadow: '0 20px 60px rgba(0,0,0,0.4), inset 0 0 0 1px rgba(255,255,255,0.1)' }}>
-        {/* Notch */}
-        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 6 }}>
-          <div style={{ width: 120, height: 28, background: '#1a1a1a', borderRadius: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-            <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#2a2a2a', border: '1.5px solid #333' }} />
-            <div style={{ width: 60, height: 14, background: '#111', borderRadius: 7 }} />
+    <div style={{ width: 260, flexShrink: 0 }}>
+      {/* iPhone shell — fixed height */}
+      <div style={{ width: 260, background: '#111', borderRadius: 40, padding: '10px 5px 14px', boxShadow: '0 25px 50px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.08), inset 0 0 0 1px rgba(255,255,255,0.05)' }}>
+        {/* Dynamic Island */}
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}>
+          <div style={{ width: 90, height: 24, background: '#000', borderRadius: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+            <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#1a1a1a', border: '1.5px solid #2a2a2a' }} />
+            <div style={{ width: 40, height: 12, background: '#000', borderRadius: 6 }} />
           </div>
         </div>
-        {/* Screen */}
-        <div style={{ background: '#f0f0f0', borderRadius: 30, overflow: 'hidden' }}>
-          {/* Status bar */}
-          <div style={{ background: '#075e54', padding: '8px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <span style={{ fontSize: 11, color: '#fff', fontWeight: 600 }}>AH</span>
-              </div>
-              <div>
-                <div style={{ fontSize: 11, color: '#fff', fontWeight: 600 }}>Agency Hub</div>
-                <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.7)' }}>online</div>
-              </div>
+        {/* Screen — fixed height with overflow hidden */}
+        <div style={{ background: '#ece5dd', borderRadius: 28, overflow: 'hidden', height: 500, display: 'flex', flexDirection: 'column' }}>
+          {/* WhatsApp top bar */}
+          <div style={{ background: '#075e54', padding: '8px 12px 8px', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="white" opacity="0.8"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+            <div style={{ width: 30, height: 30, borderRadius: '50%', background: '#128c7e', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <span style={{ fontSize: 11, color: '#fff', fontWeight: 700 }}>AH</span>
             </div>
-            <div style={{ display: 'flex', gap: 10 }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.68A2 2 0 012.18 1h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.91 8.15a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 15.92z"/></svg>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="white"><circle cx="12" cy="12" r="10"/></svg>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 12, color: '#fff', fontWeight: 600, lineHeight: 1.2 }}>Agency Hub</div>
+              <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.75)' }}>online</div>
+            </div>
+            <div style={{ display: 'flex', gap: 12 }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="white" opacity="0.8"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1-9.4 0-17-7.6-17-17 0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z"/></svg>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="white" opacity="0.8"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
             </div>
           </div>
-          {/* Chat area */}
-          <div style={{ background: '#e5ddd5', minHeight: 220, padding: '12px 10px', backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'100\' height=\'100\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3C/svg%3E")' }}>
-            {/* Date bubble */}
-            <div style={{ textAlign: 'center', marginBottom: 10 }}>
-              <span style={{ background: 'rgba(0,0,0,0.15)', color: '#fff', fontSize: 10, padding: '2px 10px', borderRadius: 10 }}>Today</span>
+          {/* Chat area — scrollable */}
+          <div style={{ flex: 1, overflowY: 'auto', padding: '10px 8px 8px', display: 'flex', flexDirection: 'column', gap: 2 }}>
+            {/* Date chip */}
+            <div style={{ textAlign: 'center', marginBottom: 8 }}>
+              <span style={{ background: 'rgba(0,0,0,0.18)', color: '#fff', fontSize: 10, padding: '3px 10px', borderRadius: 10 }}>Today</span>
             </div>
-            {/* Message bubble */}
-            <div style={{ display: 'flex', justifyContent: 'flex-start', marginBottom: 4 }}>
-              <div style={{ maxWidth: '88%' }}>
-                <div style={{ background: '#fff', borderRadius: 8, borderTopLeftRadius: 2, padding: '8px 10px', boxShadow: '0 1px 1px rgba(0,0,0,0.1)' }}>
-                  <div style={{ fontSize: 12, color: '#111', lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }} dangerouslySetInnerHTML={{ __html: highlighted || '<span style="color:#9ca3af;font-style:italic;">Your message will appear here…</span>' }} />
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 3, marginTop: 4 }}>
-                    <span style={{ fontSize: 10, color: '#999' }}>{now}</span>
-                    <svg width="14" height="10" viewBox="0 0 18 10"><path d="M1 5l3 3 7-7" stroke="#4fc3f7" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/><path d="M6 5l3 3 7-7" stroke="#4fc3f7" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                  </div>
-                </div>
-                {buttons.length > 0 && (
-                  <div style={{ marginTop: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    {buttons.map((b, i) => (
-                      <div key={i} style={{ background: '#fff', borderRadius: 8, padding: '9px 12px', textAlign: 'center', boxShadow: '0 1px 1px rgba(0,0,0,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-                        {b.type === 'call_to_action'
-                          ? <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#128c7e" strokeWidth="2.5"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-                          : <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#128c7e" strokeWidth="2.5"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 00-4-4H4"/></svg>
-                        }
-                        <span style={{ fontSize: 12, color: '#128c7e', fontWeight: 500 }}>{b.label || (b.type === 'call_to_action' ? 'Button text' : 'Quick reply text')}</span>
-                      </div>
-                    ))}
-                  </div>
+            {/* Bubble */}
+            <div style={{ maxWidth: '88%', alignSelf: 'flex-start' }}>
+              <div style={{ background: '#fff', borderRadius: 8, borderTopLeftRadius: 2, padding: '8px 10px', boxShadow: '0 1px 2px rgba(0,0,0,0.12)' }}>
+                {body ? (
+                  <div style={{ fontSize: 12, color: '#111', lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }} dangerouslySetInnerHTML={{ __html: highlighted }} />
+                ) : (
+                  <div style={{ fontSize: 12, color: '#aaa', fontStyle: 'italic', lineHeight: 1.55 }}>Your message will appear here…</div>
                 )}
+                <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 3, marginTop: 5 }}>
+                  <span style={{ fontSize: 10, color: '#999' }}>{now}</span>
+                  <svg width="14" height="10" viewBox="0 0 18 10"><path d="M1 5l3 3 7-7" stroke="#53bdeb" strokeWidth="1.8" fill="none" strokeLinecap="round" strokeLinejoin="round"/><path d="M6 5l3 3 7-7" stroke="#53bdeb" strokeWidth="1.8" fill="none" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                </div>
               </div>
+              {/* Buttons */}
+              {buttons.length > 0 && (
+                <div style={{ marginTop: 3, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  {buttons.map((b, i) => (
+                    <div key={i} style={{ background: '#fff', borderRadius: 8, padding: '9px 10px', textAlign: 'center', boxShadow: '0 1px 2px rgba(0,0,0,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, borderTop: '0.5px solid #f0f0f0' }}>
+                      {b.type === 'call_to_action'
+                        ? <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#128c7e" strokeWidth="2.5"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                        : <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#128c7e" strokeWidth="2.5"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 00-4-4H4"/></svg>
+                      }
+                      <span style={{ fontSize: 12, color: '#128c7e', fontWeight: 600 }}>{b.label || (b.type === 'call_to_action' ? 'Button label' : 'Quick reply')}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
           {/* Input bar */}
-          <div style={{ background: '#f0f0f0', padding: '8px 10px', display: 'flex', alignItems: 'center', gap: 8, borderTop: '0.5px solid #ddd' }}>
-            <div style={{ flex: 1, background: '#fff', borderRadius: 20, padding: '6px 12px', fontSize: 11, color: '#999' }}>Type a message</div>
-            <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#075e54', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="white"><path d="M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z"/></svg>
+          <div style={{ background: '#f0f0f0', padding: '6px 8px', display: 'flex', alignItems: 'center', gap: 6, borderTop: '0.5px solid #ddd', flexShrink: 0 }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="#888"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>
+            <div style={{ flex: 1, background: '#fff', borderRadius: 18, padding: '5px 10px', fontSize: 10, color: '#aaa' }}>Message</div>
+            <div style={{ width: 26, height: 26, borderRadius: '50%', background: '#075e54', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="white"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
             </div>
           </div>
         </div>
-        {/* Home bar */}
+        {/* Home indicator */}
         <div style={{ display: 'flex', justifyContent: 'center', marginTop: 8 }}>
-          <div style={{ width: 100, height: 4, background: 'rgba(255,255,255,0.3)', borderRadius: 2 }} />
+          <div style={{ width: 90, height: 4, background: 'rgba(255,255,255,0.25)', borderRadius: 2 }} />
         </div>
       </div>
     </div>
@@ -462,7 +421,7 @@ export default function App() {
   function saveTemplate() {
     if (!tmplName.trim()) return alert('Please enter a template name.')
     if (!tmplBody.trim()) return alert('Please enter a message body.')
-    if (tmplBody.length > 1024) return alert('Message body exceeds 1024 character limit.')
+    if (tmplBody.length > 1024) return alert('Message body exceeds 1,024 character limit.')
     const nameClean = tmplName.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '')
     if (editingTemplate) {
       setTemplates(prev => prev.map(t => t.id === editingTemplate.id ? { ...t, name: nameClean, category: tmplCategory, body: tmplBody, buttons: tmplButtons } : t))
@@ -479,7 +438,7 @@ export default function App() {
 
   function submitForApproval(id) {
     setTemplates(prev => prev.map(t => t.id === id ? { ...t, status: 'pending' } : t))
-    alert('Template submitted for Meta approval. This requires Meta WhatsApp API to be connected.')
+    alert('Template submitted for Meta approval. Requires Meta WhatsApp API to be connected.')
   }
 
   const filteredTemplates = templates.filter(t => {
@@ -516,13 +475,11 @@ export default function App() {
           <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 24, marginTop: 8 }}>Sign in to your account</div>
           <div style={{ marginBottom: 14 }}>
             <label style={{ fontSize: 11, color: '#6b7280', display: 'block', marginBottom: 4 }}>Email</label>
-            <input type="email" value={email} onChange={e => setEmail(e.target.value)} onKeyDown={e => e.key === 'Enter' && login()} placeholder="you@agencyhub.com"
-              style={{ width: '100%', padding: '9px 12px', border: '0.5px solid #d1d5db', borderRadius: 8, fontSize: 13, outline: 'none', background: '#f9fafb', color: '#111827', boxSizing: 'border-box' }} />
+            <input type="email" value={email} onChange={e => setEmail(e.target.value)} onKeyDown={e => e.key === 'Enter' && login()} placeholder="you@agencyhub.com" style={{ width: '100%', padding: '9px 12px', border: '0.5px solid #d1d5db', borderRadius: 8, fontSize: 13, outline: 'none', background: '#f9fafb', color: '#111827', boxSizing: 'border-box' }} />
           </div>
           <div style={{ marginBottom: 20 }}>
             <label style={{ fontSize: 11, color: '#6b7280', display: 'block', marginBottom: 4 }}>Password</label>
-            <input type="password" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === 'Enter' && login()} placeholder="Enter your password"
-              style={{ width: '100%', padding: '9px 12px', border: '0.5px solid #d1d5db', borderRadius: 8, fontSize: 13, outline: 'none', background: '#f9fafb', color: '#111827', boxSizing: 'border-box' }} />
+            <input type="password" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === 'Enter' && login()} placeholder="Enter your password" style={{ width: '100%', padding: '9px 12px', border: '0.5px solid #d1d5db', borderRadius: 8, fontSize: 13, outline: 'none', background: '#f9fafb', color: '#111827', boxSizing: 'border-box' }} />
           </div>
           {loginError && <div style={{ fontSize: 11, color: '#ef4444', marginBottom: 12 }}>{loginError}</div>}
           <button onClick={login} style={{ width: '100%', padding: '10px', background: ACCENT, color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>Sign in</button>
@@ -556,10 +513,7 @@ export default function App() {
         {!isMobile && (
           <div style={{ display: 'flex', gap: 2 }}>
             {[{key:'inbox',label:'Inbox'},{key:'broadcasts',label:'Broadcasts'},{key:'templates',label:'Templates'},{key:'analytics',label:'Analytics'},{key:'settings',label:'Settings'}].map(n => (
-              <button key={n.key} onClick={() => setActiveNav(n.key)}
-                style={{ padding: '6px 12px', borderRadius: 7, fontSize: 12, color: activeNav === n.key ? '#fff' : '#cbd5e1', background: activeNav === n.key ? 'rgba(255,255,255,0.15)' : 'transparent', border: 'none', cursor: 'pointer', fontWeight: activeNav === n.key ? 500 : 400 }}>
-                {n.label}
-              </button>
+              <button key={n.key} onClick={() => setActiveNav(n.key)} style={{ padding: '6px 12px', borderRadius: 7, fontSize: 12, color: activeNav === n.key ? '#fff' : '#cbd5e1', background: activeNav === n.key ? 'rgba(255,255,255,0.15)' : 'transparent', border: 'none', cursor: 'pointer', fontWeight: activeNav === n.key ? 500 : 400 }}>{n.label}</button>
             ))}
           </div>
         )}
@@ -576,80 +530,81 @@ export default function App() {
         {/* TEMPLATES SCREEN */}
         {activeNav === 'templates' && !isMobile && (
           <div style={{ flex: 1, overflowY: 'auto', padding: 24, background: '#f1f4f9' }}>
-            <div style={{ maxWidth: 1000, margin: '0 auto' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
+            <div style={{ maxWidth: 1040, margin: '0 auto' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
                 <div>
-                  <div style={{ fontSize: 16, fontWeight: 500, color: '#111827', marginBottom: 4 }}>Templates</div>
-                  <div style={{ fontSize: 12, color: '#6b7280' }}>Create and manage WhatsApp message templates. All templates require Meta approval before use outside the 24-hour messaging window.</div>
+                  <div style={{ fontSize: 18, fontWeight: 600, color: '#111827', marginBottom: 3 }}>Message Templates</div>
+                  <div style={{ fontSize: 12, color: '#6b7280' }}>All templates require Meta approval before use outside the 24-hour messaging window.</div>
                 </div>
-                <button onClick={openNewTemplate} style={{ padding: '8px 16px', background: ACCENT, color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 500, cursor: 'pointer', flexShrink: 0 }}>+ New Template</button>
+                <button onClick={openNewTemplate} style={{ padding: '9px 18px', background: ACCENT, color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 16, lineHeight: 1 }}>+</span> New Template
+                </button>
               </div>
 
               <div style={{ background: '#fff', borderRadius: 10, border: '0.5px solid #e5e7eb', padding: '12px 16px', marginBottom: 16, display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-                <div style={{ position: 'relative', flex: 1, minWidth: 180 }}>
+                <div style={{ position: 'relative', flex: 1, minWidth: 200 }}>
                   <svg style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', width: 12, height: 12, color: '#9ca3af', pointerEvents: 'none' }} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="7" cy="7" r="4"/><path d="M10.5 10.5l3 3" strokeLinecap="round"/></svg>
-                  <input value={tmplSearch} onChange={e => setTmplSearch(e.target.value)} placeholder="Search templates…" style={{ width: '100%', padding: '6px 9px 6px 27px', border: '0.5px solid #d1d5db', borderRadius: 7, fontSize: 11, background: '#f9fafb', color: '#111827', outline: 'none', boxSizing: 'border-box' }} />
+                  <input value={tmplSearch} onChange={e => setTmplSearch(e.target.value)} placeholder="Search by name or content…" style={{ width: '100%', padding: '7px 9px 7px 28px', border: '0.5px solid #d1d5db', borderRadius: 7, fontSize: 12, background: '#f9fafb', color: '#111827', outline: 'none', boxSizing: 'border-box' }} />
                 </div>
-                <select value={tmplFilterCat} onChange={e => setTmplFilterCat(e.target.value)} style={{ padding: '6px 10px', border: '0.5px solid #d1d5db', borderRadius: 7, fontSize: 11, background: '#f9fafb', color: '#111827', outline: 'none' }}>
-                  <option value="all">All categories</option>
-                  <option value="marketing">Marketing</option>
-                  <option value="utility">Utility</option>
-                  <option value="authentication">Authentication</option>
-                </select>
-                <select value={tmplFilterStatus} onChange={e => setTmplFilterStatus(e.target.value)} style={{ padding: '6px 10px', border: '0.5px solid #d1d5db', borderRadius: 7, fontSize: 11, background: '#f9fafb', color: '#111827', outline: 'none' }}>
-                  <option value="all">All statuses</option>
-                  <option value="draft">Draft</option>
-                  <option value="pending">Pending</option>
-                  <option value="approved">Approved</option>
-                  <option value="rejected">Rejected</option>
-                </select>
-                <select value={tmplFilterType} onChange={e => setTmplFilterType(e.target.value)} style={{ padding: '6px 10px', border: '0.5px solid #d1d5db', borderRadius: 7, fontSize: 11, background: '#f9fafb', color: '#111827', outline: 'none' }}>
-                  <option value="all">All types</option>
-                  <option value="with_buttons">With buttons</option>
-                  <option value="no_buttons">No buttons</option>
-                </select>
-                <span style={{ fontSize: 11, color: '#9ca3af', marginLeft: 'auto' }}>{filteredTemplates.length} template{filteredTemplates.length !== 1 ? 's' : ''}</span>
+                {[
+                  { value: tmplFilterCat, set: setTmplFilterCat, options: [['all','All Categories'],['marketing','Marketing'],['utility','Utility'],['authentication','Authentication']] },
+                  { value: tmplFilterStatus, set: setTmplFilterStatus, options: [['all','All Statuses'],['draft','Draft'],['pending','Pending'],['approved','Approved'],['rejected','Rejected']] },
+                  { value: tmplFilterType, set: setTmplFilterType, options: [['all','All Types'],['with_buttons','With Buttons'],['no_buttons','No Buttons']] },
+                ].map((f, i) => (
+                  <select key={i} value={f.value} onChange={e => f.set(e.target.value)} style={{ padding: '7px 10px', border: '0.5px solid #d1d5db', borderRadius: 7, fontSize: 12, background: '#f9fafb', color: '#111827', outline: 'none' }}>
+                    {f.options.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                  </select>
+                ))}
+                <span style={{ fontSize: 11, color: '#9ca3af' }}>{filteredTemplates.length} result{filteredTemplates.length !== 1 ? 's' : ''}</span>
               </div>
 
               {filteredTemplates.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: 40, color: '#9ca3af', fontSize: 13 }}>No templates found</div>
+                <div style={{ textAlign: 'center', padding: '60px 0', color: '#9ca3af' }}>
+                  <div style={{ fontSize: 36, marginBottom: 10 }}>📋</div>
+                  <div style={{ fontSize: 14, fontWeight: 500, color: '#6b7280', marginBottom: 4 }}>No templates found</div>
+                  <div style={{ fontSize: 12 }}>Try adjusting your filters or create a new template</div>
+                </div>
               ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: 14 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 14 }}>
                   {filteredTemplates.map(t => {
                     const sc = STATUS_COLORS[t.status]
                     return (
-                      <div key={t.id} style={{ background: '#fff', borderRadius: 12, border: '0.5px solid #e5e7eb', padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                          <div>
-                            <div style={{ fontSize: 12, fontWeight: 600, color: '#111827', fontFamily: 'monospace', marginBottom: 5 }}>{t.name}</div>
-                            <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
-                              <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 4, background: '#f1f4f9', color: '#6b7280', border: '0.5px solid #e5e7eb', fontWeight: 500 }}>{CATEGORY_LABELS[t.category]}</span>
-                              <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 4, background: sc.bg, color: sc.color, fontWeight: 500 }}>{sc.label}</span>
-                              {t.buttons.length > 0 && <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 4, background: '#ede9fe', color: '#5b21b6', fontWeight: 500 }}>{t.buttons.length} button{t.buttons.length > 1 ? 's' : ''}</span>}
+                      <div key={t.id} style={{ background: '#fff', borderRadius: 12, border: '0.5px solid #e5e7eb', overflow: 'hidden', display: 'flex', flexDirection: 'column', transition: 'box-shadow .15s' }}
+                        onMouseEnter={e => e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.08)'}
+                        onMouseLeave={e => e.currentTarget.style.boxShadow = 'none'}>
+                        <div style={{ padding: '14px 16px', borderBottom: '0.5px solid #f1f4f9' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                            <div style={{ fontSize: 12, fontWeight: 600, color: '#111827', fontFamily: 'monospace', wordBreak: 'break-all' }}>{t.name}</div>
+                            <div style={{ display: 'flex', gap: 4, flexShrink: 0, marginLeft: 8 }}>
+                              <button onClick={() => openEditTemplate(t)} style={{ padding: '3px 9px', border: '0.5px solid #d1d5db', borderRadius: 5, fontSize: 10, background: 'transparent', color: '#6b7280', cursor: 'pointer' }}>Edit</button>
+                              <button onClick={() => deleteTemplate(t.id)} style={{ padding: '3px 9px', border: '0.5px solid #fca5a5', borderRadius: 5, fontSize: 10, background: 'transparent', color: '#dc2626', cursor: 'pointer' }}>Delete</button>
                             </div>
                           </div>
-                          <div style={{ display: 'flex', gap: 4 }}>
-                            <button onClick={() => openEditTemplate(t)} style={{ padding: '4px 10px', border: '0.5px solid #d1d5db', borderRadius: 6, fontSize: 10, background: 'transparent', color: '#6b7280', cursor: 'pointer' }}>Edit</button>
-                            <button onClick={() => deleteTemplate(t.id)} style={{ padding: '4px 10px', border: '0.5px solid #fca5a5', borderRadius: 6, fontSize: 10, background: 'transparent', color: '#dc2626', cursor: 'pointer' }}>Delete</button>
+                          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: 9, padding: '2px 7px', borderRadius: 4, background: '#f1f4f9', color: '#6b7280', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.3px' }}>{CATEGORY_LABELS[t.category]}</span>
+                            <span style={{ fontSize: 9, padding: '2px 7px', borderRadius: 4, background: sc.bg, color: sc.color, fontWeight: 600 }}>{sc.label}</span>
+                            {t.buttons.length > 0 && <span style={{ fontSize: 9, padding: '2px 7px', borderRadius: 4, background: '#ede9fe', color: '#5b21b6', fontWeight: 600 }}>{t.buttons.length} Button{t.buttons.length > 1 ? 's' : ''}</span>}
                           </div>
                         </div>
-                        <div style={{ fontSize: 11, color: '#6b7280', lineHeight: 1.6, background: '#f9fafb', borderRadius: 7, padding: '8px 10px', whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 110, overflow: 'hidden', position: 'relative' }}>
-                          {t.body}
-                          <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 28, background: 'linear-gradient(transparent, #f9fafb)' }} />
-                        </div>
-                        {t.buttons.length > 0 && (
-                          <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
-                            {t.buttons.map((b, i) => (
-                              <span key={i} style={{ fontSize: 10, padding: '3px 9px', borderRadius: 6, border: '0.5px solid #d1d5db', color: '#2563eb', background: '#eff6ff' }}>
-                                {b.type === 'call_to_action' ? '🔗' : '↩️'} {b.label || 'Untitled'}
-                              </span>
-                            ))}
+                        <div style={{ padding: '12px 16px', flex: 1 }}>
+                          <div style={{ fontSize: 11, color: '#4b5563', lineHeight: 1.65, background: '#f9fafb', borderRadius: 8, padding: '10px 12px', whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 100, overflow: 'hidden', position: 'relative', borderLeft: '2px solid #e5e7eb' }}>
+                            {t.body}
+                            <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 30, background: 'linear-gradient(transparent, #f9fafb)' }} />
                           </div>
-                        )}
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto', paddingTop: 4, borderTop: '0.5px solid #f1f4f9' }}>
-                          <span style={{ fontSize: 10, color: '#9ca3af' }}>{t.body.length}/1024 · {t.createdAt}</span>
+                          {t.buttons.length > 0 && (
+                            <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginTop: 8 }}>
+                              {t.buttons.map((b, i) => (
+                                <span key={i} style={{ fontSize: 10, padding: '3px 9px', borderRadius: 6, border: '0.5px solid #bfdbfe', color: ACCENT, background: ACCENT_LIGHT, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                  {b.type === 'call_to_action' ? '🔗' : '↩️'} {b.label || 'Untitled'}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        <div style={{ padding: '10px 16px', borderTop: '0.5px solid #f1f4f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fafafa' }}>
+                          <span style={{ fontSize: 10, color: '#9ca3af' }}>{t.body.length} / 1,024 chars</span>
                           {t.status === 'draft' && (
-                            <button onClick={() => submitForApproval(t.id)} style={{ padding: '4px 10px', background: NAVY, color: '#fff', border: 'none', borderRadius: 6, fontSize: 10, cursor: 'pointer', fontWeight: 500 }}>Submit for approval</button>
+                            <button onClick={() => submitForApproval(t.id)} style={{ padding: '4px 11px', background: NAVY, color: '#fff', border: 'none', borderRadius: 6, fontSize: 10, cursor: 'pointer', fontWeight: 500 }}>Submit for Approval</button>
                           )}
                         </div>
                       </div>
@@ -665,50 +620,55 @@ export default function App() {
         {activeNav === 'broadcasts' && !isMobile && (
           <div style={{ flex: 1, overflowY: 'auto', padding: 24, background: '#f1f4f9' }}>
             <div style={{ maxWidth: 700, margin: '0 auto' }}>
-              <div style={{ fontSize: 16, fontWeight: 500, color: '#111827', marginBottom: 4 }}>Broadcasts</div>
+              <div style={{ fontSize: 18, fontWeight: 600, color: '#111827', marginBottom: 4 }}>Broadcasts</div>
               <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 20 }}>Send a message to multiple contacts at once. Requires Meta WhatsApp API for live sending.</div>
               <div style={{ background: '#fff', borderRadius: 12, border: '0.5px solid #e5e7eb', padding: 20, marginBottom: 20 }}>
-                <div style={{ fontSize: 13, fontWeight: 500, color: '#111827', marginBottom: 14 }}>New Broadcast</div>
-                <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#111827', marginBottom: 16 }}>New Broadcast</div>
+                <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
                   <div style={{ flex: 1 }}>
-                    <label style={{ fontSize: 11, color: '#6b7280', display: 'block', marginBottom: 4 }}>Contact type</label>
-                    <select value={bcType} onChange={e => setBcType(e.target.value)} style={{ width: '100%', padding: '7px 10px', border: '0.5px solid #d1d5db', borderRadius: 8, fontSize: 12, background: '#f9fafb', color: '#111827', outline: 'none' }}>
+                    <label style={{ fontSize: 11, color: '#6b7280', display: 'block', marginBottom: 4, fontWeight: 500 }}>Contact type</label>
+                    <select value={bcType} onChange={e => setBcType(e.target.value)} style={{ width: '100%', padding: '8px 10px', border: '0.5px solid #d1d5db', borderRadius: 8, fontSize: 12, background: '#f9fafb', color: '#111827', outline: 'none' }}>
                       <option value="all">All contacts</option>
                       <option value="candidate">Candidates only</option>
                       <option value="client">Clients only</option>
                     </select>
                   </div>
                   <div style={{ flex: 1 }}>
-                    <label style={{ fontSize: 11, color: '#6b7280', display: 'block', marginBottom: 4 }}>Assigned to</label>
-                    <select value={bcAgent} onChange={e => setBcAgent(e.target.value)} style={{ width: '100%', padding: '7px 10px', border: '0.5px solid #d1d5db', borderRadius: 8, fontSize: 12, background: '#f9fafb', color: '#111827', outline: 'none' }}>
+                    <label style={{ fontSize: 11, color: '#6b7280', display: 'block', marginBottom: 4, fontWeight: 500 }}>Assigned to</label>
+                    <select value={bcAgent} onChange={e => setBcAgent(e.target.value)} style={{ width: '100%', padding: '8px 10px', border: '0.5px solid #d1d5db', borderRadius: 8, fontSize: 12, background: '#f9fafb', color: '#111827', outline: 'none' }}>
                       <option value="all">All agents</option>
                       {ALL_AGENTS.map(a => <option key={a} value={a}>{a}</option>)}
                     </select>
                   </div>
                 </div>
-                <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 10 }}>Recipients: <strong style={{ color: '#111827' }}>{convos.filter(c => (bcType === 'all' || c.type === bcType) && (bcAgent === 'all' || c.assigned_to === bcAgent)).length} contacts</strong></div>
-                <div style={{ marginBottom: 12 }}>
-                  <label style={{ fontSize: 11, color: '#6b7280', display: 'block', marginBottom: 4 }}>Message</label>
-                  <textarea value={bcMessage} onChange={e => setBcMessage(e.target.value)} placeholder="Type your broadcast message here…" rows={5} style={{ width: '100%', padding: '8px 10px', border: '0.5px solid #d1d5db', borderRadius: 8, fontSize: 12, background: '#f9fafb', color: '#111827', resize: 'vertical', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }} />
-                  <div style={{ fontSize: 10, color: '#9ca3af', marginTop: 3 }}>{bcMessage.length} characters</div>
+                <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 14, padding: '8px 12px', background: '#f9fafb', borderRadius: 7, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+                  <span>Recipients: <strong style={{ color: '#111827' }}>{convos.filter(c => (bcType === 'all' || c.type === bcType) && (bcAgent === 'all' || c.assigned_to === bcAgent)).length} contacts</strong></span>
                 </div>
-                <div style={{ background: '#fef3c7', border: '0.5px solid #fcd34d', borderRadius: 7, padding: '7px 10px', fontSize: 11, color: '#92400e', marginBottom: 12 }}>⚠️ Live sending requires Meta WhatsApp API. Currently in simulation mode.</div>
-                <button onClick={sendBroadcast} disabled={bcSending} style={{ padding: '8px 20px', background: bcSending ? '#9ca3af' : ACCENT, color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 500, cursor: bcSending ? 'default' : 'pointer' }}>{bcSending ? 'Sending…' : 'Send Broadcast'}</button>
+                <div style={{ marginBottom: 14 }}>
+                  <label style={{ fontSize: 11, color: '#6b7280', display: 'block', marginBottom: 4, fontWeight: 500 }}>Message</label>
+                  <textarea value={bcMessage} onChange={e => setBcMessage(e.target.value)} placeholder="Type your broadcast message…" rows={5} style={{ width: '100%', padding: '10px 12px', border: '0.5px solid #d1d5db', borderRadius: 8, fontSize: 12, background: '#f9fafb', color: '#111827', resize: 'vertical', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', lineHeight: 1.6 }} />
+                  <div style={{ fontSize: 10, color: '#9ca3af', marginTop: 4 }}>{bcMessage.length} characters</div>
+                </div>
+                <div style={{ background: '#fffbeb', border: '0.5px solid #fde68a', borderRadius: 7, padding: '8px 12px', fontSize: 11, color: '#92400e', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span>⚠️</span> Live sending requires Meta WhatsApp API. Currently in simulation mode.
+                </div>
+                <button onClick={sendBroadcast} disabled={bcSending} style={{ padding: '9px 22px', background: bcSending ? '#9ca3af' : ACCENT, color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 500, cursor: bcSending ? 'default' : 'pointer' }}>{bcSending ? 'Sending…' : 'Send Broadcast'}</button>
               </div>
               {bcSent.length > 0 && (
                 <div style={{ background: '#fff', borderRadius: 12, border: '0.5px solid #e5e7eb', padding: 20 }}>
-                  <div style={{ fontSize: 13, fontWeight: 500, color: '#111827', marginBottom: 14 }}>Broadcast History</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#111827', marginBottom: 14 }}>Broadcast History</div>
                   {bcSent.map(b => (
                     <div key={b.id} style={{ padding: '12px 14px', background: '#f9fafb', borderRadius: 8, border: '0.5px solid #e5e7eb', marginBottom: 10 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
-                        <span style={{ fontSize: 11, fontWeight: 500, color: '#111827' }}>Sent to {b.count} contacts</span>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                        <span style={{ fontSize: 12, fontWeight: 500, color: '#111827' }}>Sent to {b.count} contacts</span>
                         <span style={{ fontSize: 10, color: '#9ca3af' }}>{b.sentAt}</span>
                       </div>
-                      <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 5, lineHeight: 1.5 }}>{b.message}</div>
-                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                        <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 4, background: ACCENT_MID, color: '#1e40af', fontWeight: 500 }}>{b.type === 'all' ? 'All' : b.type}</span>
-                        <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 4, background: '#f1f4f9', color: '#6b7280', border: '0.5px solid #e5e7eb' }}>{b.agent === 'all' ? 'All agents' : b.agent}</span>
-                        <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 4, background: '#dcfce7', color: '#16a34a', fontWeight: 500 }}>✓ {b.status}</span>
+                      <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 8, lineHeight: 1.5 }}>{b.message}</div>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <span style={{ fontSize: 9, padding: '2px 7px', borderRadius: 4, background: ACCENT_MID, color: '#1e40af', fontWeight: 600 }}>{b.type === 'all' ? 'All' : b.type}</span>
+                        <span style={{ fontSize: 9, padding: '2px 7px', borderRadius: 4, background: '#f1f4f9', color: '#6b7280', border: '0.5px solid #e5e7eb', fontWeight: 600 }}>{b.agent === 'all' ? 'All agents' : b.agent}</span>
+                        <span style={{ fontSize: 9, padding: '2px 7px', borderRadius: 4, background: '#dcfce7', color: '#16a34a', fontWeight: 600 }}>✓ Sent</span>
                       </div>
                     </div>
                   ))}
@@ -954,10 +914,10 @@ export default function App() {
 
         {activeNav !== 'inbox' && activeNav !== 'broadcasts' && activeNav !== 'templates' && !isMobile && (
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f1f4f9' }}>
-            <div style={{ textAlign: 'center', color: '#9ca3af' }}>
-              <div style={{ fontSize: 32, marginBottom: 8 }}>🚧</div>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: 36, marginBottom: 10 }}>🚧</div>
               <div style={{ fontSize: 14, fontWeight: 500, color: '#6b7280', marginBottom: 4, textTransform: 'capitalize' }}>{activeNav}</div>
-              <div style={{ fontSize: 12 }}>Coming soon</div>
+              <div style={{ fontSize: 12, color: '#9ca3af' }}>Coming soon</div>
             </div>
           </div>
         )}
@@ -975,127 +935,186 @@ export default function App() {
 
       {/* TEMPLATE EDITOR MODAL */}
       {showTemplateEditor && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 70, padding: 16 }}>
-          <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 1000, maxHeight: '94vh', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
-            <div style={{ padding: '20px 28px', borderBottom: '0.5px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 70, padding: 20 }}>
+          <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 1020, maxHeight: '92vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+
+            {/* Modal header */}
+            <div style={{ padding: '18px 24px', borderBottom: '1px solid #f1f4f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, background: '#fff' }}>
               <div>
-                <div style={{ fontSize: 15, fontWeight: 600, color: '#111827' }}>{editingTemplate ? 'Edit Template' : 'New Template'}</div>
-                <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>Templates require Meta approval before use outside the 24-hour window. Max 1,024 characters.</div>
+                <div style={{ fontSize: 15, fontWeight: 600, color: '#111827' }}>{editingTemplate ? 'Edit Template' : 'Create New Template'}</div>
+                <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>WhatsApp Business · Max 1,024 characters · Meta approval required</div>
               </div>
-              <button onClick={() => setShowTemplateEditor(false)} style={{ width: 32, height: 32, borderRadius: 8, border: '0.5px solid #d1d5db', background: 'transparent', cursor: 'pointer', fontSize: 16, color: '#6b7280', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+              <button onClick={() => setShowTemplateEditor(false)} style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid #e5e7eb', background: '#f9fafb', cursor: 'pointer', fontSize: 16, color: '#6b7280', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
             </div>
 
             <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-              {/* LEFT — EDITOR */}
-              <div style={{ flex: 1, padding: 28, overflowY: 'auto' }}>
-                <div style={{ display: 'flex', gap: 14, marginBottom: 20 }}>
-                  <div style={{ flex: 1 }}>
-                    <label style={{ fontSize: 11, color: '#6b7280', display: 'block', marginBottom: 5, fontWeight: 500 }}>Template name <span style={{ color: '#9ca3af', fontWeight: 400 }}>(lowercase, underscores only)</span></label>
-                    <input value={tmplName} onChange={e => setTmplName(e.target.value)} placeholder="e.g. interview_confirmation"
-                      style={{ width: '100%', padding: '9px 12px', border: '0.5px solid #d1d5db', borderRadius: 8, fontSize: 12, outline: 'none', background: '#f9fafb', color: '#111827', boxSizing: 'border-box', fontFamily: 'monospace' }} />
-                  </div>
-                  <div style={{ width: 180 }}>
-                    <label style={{ fontSize: 11, color: '#6b7280', display: 'block', marginBottom: 5, fontWeight: 500 }}>Category</label>
-                    <select value={tmplCategory} onChange={e => setTmplCategory(e.target.value)}
-                      style={{ width: '100%', padding: '9px 12px', border: '0.5px solid #d1d5db', borderRadius: 8, fontSize: 12, background: '#f9fafb', color: '#111827', outline: 'none' }}>
-                      <option value="utility">Utility</option>
-                      <option value="marketing">Marketing</option>
-                      <option value="authentication">Authentication</option>
-                    </select>
-                  </div>
-                </div>
 
-                <div style={{ marginBottom: 16 }}>
-                  <label style={{ fontSize: 11, color: '#6b7280', display: 'block', marginBottom: 6, fontWeight: 500 }}>Insert variable</label>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: 8 }}>
-                    {COMMON_VARS.map(v => (
-                      <button key={v} onClick={() => insertVar(v)}
-                        style={{ padding: '4px 10px', borderRadius: 6, border: '0.5px solid #bfdbfe', fontSize: 10, background: ACCENT_LIGHT, color: ACCENT, cursor: 'pointer', fontFamily: 'monospace', fontWeight: 500 }}>
-                        {`{{${v}}}`}
-                      </button>
-                    ))}
-                    <div style={{ display: 'flex', gap: 5 }}>
-                      <input value={customVar} onChange={e => setCustomVar(e.target.value.replace(/\s/g,'_'))} placeholder="custom_var"
-                        style={{ padding: '4px 8px', border: '0.5px solid #d1d5db', borderRadius: 6, fontSize: 10, width: 110, outline: 'none', background: '#f9fafb', color: '#111827', fontFamily: 'monospace' }} />
-                      <button onClick={() => { if (customVar.trim()) { insertVar(customVar.trim()); setCustomVar('') } }}
-                        style={{ padding: '4px 10px', borderRadius: 6, border: 'none', fontSize: 10, background: ACCENT, color: '#fff', cursor: 'pointer', fontWeight: 500 }}>+ Add</button>
+              {/* LEFT — FORM */}
+              <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px' }}>
+
+                {/* Section: Basic Info */}
+                <div style={{ marginBottom: 20 }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <div style={{ width: 18, height: 18, borderRadius: '50%', background: ACCENT, color: '#fff', fontSize: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700 }}>1</div>
+                    Basic Information
+                  </div>
+                  <div style={{ display: 'flex', gap: 12 }}>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ fontSize: 11, color: '#6b7280', display: 'block', marginBottom: 5 }}>Template name <span style={{ color: '#9ca3af' }}>(lowercase_underscores)</span></label>
+                      <input value={tmplName} onChange={e => setTmplName(e.target.value)} placeholder="e.g. interview_confirmation"
+                        style={{ width: '100%', padding: '9px 12px', border: '1px solid #e5e7eb', borderRadius: 8, fontSize: 12, outline: 'none', background: '#fff', color: '#111827', boxSizing: 'border-box', fontFamily: 'monospace' }} />
+                    </div>
+                    <div style={{ width: 170 }}>
+                      <label style={{ fontSize: 11, color: '#6b7280', display: 'block', marginBottom: 5 }}>Category</label>
+                      <select value={tmplCategory} onChange={e => setTmplCategory(e.target.value)}
+                        style={{ width: '100%', padding: '9px 12px', border: '1px solid #e5e7eb', borderRadius: 8, fontSize: 12, background: '#fff', color: '#111827', outline: 'none' }}>
+                        <option value="utility">Utility</option>
+                        <option value="marketing">Marketing</option>
+                        <option value="authentication">Authentication</option>
+                      </select>
                     </div>
                   </div>
                 </div>
 
+                {/* Section: Variables */}
                 <div style={{ marginBottom: 20 }}>
-                  <label style={{ fontSize: 11, color: '#6b7280', display: 'block', marginBottom: 5, fontWeight: 500 }}>Message body</label>
-                  <textarea ref={tmplBodyRef} value={tmplBody} onChange={e => setTmplBody(e.target.value)} rows={10}
-                    placeholder="Dear {{name}},&#10;&#10;Type your professional message here…"
-                    style={{ width: '100%', padding: '12px 14px', border: `0.5px solid ${tmplBody.length > 1024 ? '#ef4444' : '#d1d5db'}`, borderRadius: 8, fontSize: 12, background: '#f9fafb', color: '#111827', resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.65, outline: 'none', boxSizing: 'border-box' }} />
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 5 }}>
-                    <span style={{ fontSize: 10, color: '#9ca3af' }}>Supports line breaks. Use variables for personalisation.</span>
-                    <span style={{ fontSize: 10, color: tmplBody.length > 1024 ? '#ef4444' : tmplBody.length > 900 ? '#d97706' : '#9ca3af', fontWeight: tmplBody.length > 900 ? 600 : 400 }}>{tmplBody.length} / 1,024</span>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <div style={{ width: 18, height: 18, borderRadius: '50%', background: ACCENT, color: '#fff', fontSize: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700 }}>2</div>
+                    Insert Variables
+                    <span style={{ fontSize: 10, color: '#9ca3af', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>— click to insert at cursor position</span>
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+                    {COMMON_VARS.map(v => (
+                      <button key={v} onClick={() => insertVar(v)}
+                        style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid #bfdbfe', fontSize: 10, background: ACCENT_LIGHT, color: ACCENT, cursor: 'pointer', fontFamily: 'monospace', fontWeight: 600, transition: 'all .1s' }}
+                        onMouseEnter={e => { e.currentTarget.style.background = ACCENT_MID }}
+                        onMouseLeave={e => { e.currentTarget.style.background = ACCENT_LIGHT }}>
+                        {`{{${v}}}`}
+                      </button>
+                    ))}
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <input value={customVar} onChange={e => setCustomVar(e.target.value.replace(/\s/g,'_').replace(/[^a-z0-9_]/gi,''))} placeholder="custom_variable"
+                      style={{ padding: '6px 10px', border: '1px solid #e5e7eb', borderRadius: 7, fontSize: 11, width: 140, outline: 'none', background: '#f9fafb', color: '#111827', fontFamily: 'monospace' }}
+                      onKeyDown={e => { if (e.key === 'Enter' && customVar.trim()) { insertVar(customVar.trim()); setCustomVar('') } }} />
+                    <button onClick={() => { if (customVar.trim()) { insertVar(customVar.trim()); setCustomVar('') } }}
+                      style={{ padding: '6px 14px', borderRadius: 7, border: 'none', fontSize: 11, background: ACCENT, color: '#fff', cursor: 'pointer', fontWeight: 500 }}>
+                      + Insert Custom
+                    </button>
+                    <span style={{ fontSize: 10, color: '#9ca3af' }}>Press Enter to insert</span>
                   </div>
                 </div>
 
+                {/* Section: Message Body */}
+                <div style={{ marginBottom: 20 }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <div style={{ width: 18, height: 18, borderRadius: '50%', background: ACCENT, color: '#fff', fontSize: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700 }}>3</div>
+                    Message Body
+                  </div>
+                  <textarea ref={tmplBodyRef} value={tmplBody} onChange={e => setTmplBody(e.target.value)} rows={11}
+                    placeholder={'Dear {{name}},\n\nType your professional message here.\n\nUse the variable buttons above to personalise each message automatically.'}
+                    style={{ width: '100%', padding: '12px 14px', border: `1px solid ${tmplBody.length > 1024 ? '#ef4444' : '#e5e7eb'}`, borderRadius: 8, fontSize: 12, background: '#fff', color: '#111827', resize: 'none', fontFamily: 'inherit', lineHeight: 1.65, outline: 'none', boxSizing: 'border-box', transition: 'border-color .2s' }} />
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 }}>
+                    <span style={{ fontSize: 10, color: '#9ca3af' }}>Supports line breaks. Variables are auto-filled when sending.</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      {tmplBody.length > 900 && <span style={{ fontSize: 10, color: tmplBody.length > 1024 ? '#ef4444' : '#d97706', fontWeight: 600 }}>{tmplBody.length > 1024 ? 'Over limit!' : 'Approaching limit'}</span>}
+                      <span style={{ fontSize: 11, fontWeight: 600, color: tmplBody.length > 1024 ? '#ef4444' : tmplBody.length > 900 ? '#d97706' : '#6b7280', background: tmplBody.length > 1024 ? '#fee2e2' : tmplBody.length > 900 ? '#fef3c7' : '#f1f4f9', padding: '2px 8px', borderRadius: 5 }}>
+                        {tmplBody.length} / 1,024
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Section: Buttons */}
                 <div style={{ marginBottom: 24 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                    <label style={{ fontSize: 11, color: '#6b7280', fontWeight: 500 }}>Buttons <span style={{ color: '#9ca3af', fontWeight: 400 }}>(max 3)</span></label>
-                    <div style={{ display: 'flex', gap: 7 }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <div style={{ width: 18, height: 18, borderRadius: '50%', background: ACCENT, color: '#fff', fontSize: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700 }}>4</div>
+                      Buttons <span style={{ fontSize: 10, color: '#9ca3af', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>optional · max 3</span>
+                    </div>
+                    <div style={{ display: 'flex', gap: 6 }}>
                       <button onClick={() => addButton('quick_reply')} disabled={tmplButtons.length >= 3}
-                        style={{ padding: '5px 12px', border: '0.5px solid #d1d5db', borderRadius: 7, fontSize: 11, background: 'transparent', color: tmplButtons.length >= 3 ? '#d1d5db' : '#6b7280', cursor: tmplButtons.length >= 3 ? 'default' : 'pointer' }}>
+                        style={{ padding: '5px 12px', border: '1px solid #e5e7eb', borderRadius: 7, fontSize: 11, background: tmplButtons.length >= 3 ? '#f9fafb' : '#fff', color: tmplButtons.length >= 3 ? '#d1d5db' : '#374151', cursor: tmplButtons.length >= 3 ? 'default' : 'pointer', fontWeight: 500 }}>
                         ↩️ Quick Reply
                       </button>
                       <button onClick={() => addButton('call_to_action')} disabled={tmplButtons.length >= 3}
-                        style={{ padding: '5px 12px', border: '0.5px solid #d1d5db', borderRadius: 7, fontSize: 11, background: 'transparent', color: tmplButtons.length >= 3 ? '#d1d5db' : '#6b7280', cursor: tmplButtons.length >= 3 ? 'default' : 'pointer' }}>
+                        style={{ padding: '5px 12px', border: '1px solid #e5e7eb', borderRadius: 7, fontSize: 11, background: tmplButtons.length >= 3 ? '#f9fafb' : '#fff', color: tmplButtons.length >= 3 ? '#d1d5db' : '#374151', cursor: tmplButtons.length >= 3 ? 'default' : 'pointer', fontWeight: 500 }}>
                         🔗 Call to Action
                       </button>
                     </div>
                   </div>
-                  {tmplButtons.length === 0 && <div style={{ fontSize: 11, color: '#9ca3af', padding: '12px 14px', background: '#f9fafb', borderRadius: 8, textAlign: 'center', border: '0.5px dashed #e5e7eb' }}>No buttons added. Buttons appear below the message bubble on WhatsApp.</div>}
-                  {tmplButtons.map((b, i) => (
-                    <div key={i} style={{ padding: '12px 14px', background: '#f9fafb', borderRadius: 10, border: '0.5px solid #e5e7eb', marginBottom: 8 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                        <span style={{ fontSize: 10, fontWeight: 600, color: b.type === 'call_to_action' ? ACCENT : '#5b21b6', background: b.type === 'call_to_action' ? ACCENT_MID : '#ede9fe', padding: '3px 8px', borderRadius: 5 }}>
-                          {b.type === 'call_to_action' ? '🔗 Call to Action' : '↩️ Quick Reply'}
-                        </span>
-                        <button onClick={() => removeButton(i)} style={{ fontSize: 11, color: '#dc2626', background: 'transparent', border: '0.5px solid #fca5a5', borderRadius: 5, padding: '2px 8px', cursor: 'pointer' }}>Remove</button>
-                      </div>
-                      <div style={{ display: 'flex', gap: 10 }}>
-                        <div style={{ flex: 1 }}>
-                          <label style={{ fontSize: 10, color: '#6b7280', display: 'block', marginBottom: 4 }}>Button label</label>
-                          <input value={b.label} onChange={e => updateButton(i, 'label', e.target.value)} placeholder="e.g. Confirm Interest"
-                            style={{ width: '100%', padding: '7px 10px', border: '0.5px solid #d1d5db', borderRadius: 7, fontSize: 11, outline: 'none', background: '#fff', color: '#111827', boxSizing: 'border-box' }} />
-                        </div>
-                        {b.type === 'call_to_action' && (
-                          <div style={{ flex: 1 }}>
-                            <label style={{ fontSize: 10, color: '#6b7280', display: 'block', marginBottom: 4 }}>URL</label>
-                            <input value={b.url} onChange={e => updateButton(i, 'url', e.target.value)} placeholder="https://…"
-                              style={{ width: '100%', padding: '7px 10px', border: '0.5px solid #d1d5db', borderRadius: 7, fontSize: 11, outline: 'none', background: '#fff', color: '#111827', boxSizing: 'border-box' }} />
-                          </div>
-                        )}
-                      </div>
+                  {tmplButtons.length === 0 ? (
+                    <div style={{ fontSize: 11, color: '#9ca3af', padding: '14px', background: '#f9fafb', borderRadius: 8, textAlign: 'center', border: '1px dashed #e5e7eb' }}>
+                      No buttons added. Buttons appear below the message bubble on WhatsApp.
                     </div>
-                  ))}
+                  ) : (
+                    tmplButtons.map((b, i) => (
+                      <div key={i} style={{ background: '#f9fafb', borderRadius: 10, border: '1px solid #e5e7eb', padding: '12px 14px', marginBottom: 8 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{ width: 6, height: 6, borderRadius: '50%', background: b.type === 'call_to_action' ? ACCENT : '#7c3aed', display: 'inline-block' }} />
+                            <span style={{ fontSize: 11, fontWeight: 600, color: b.type === 'call_to_action' ? ACCENT : '#7c3aed' }}>
+                              {b.type === 'call_to_action' ? 'Call to Action Button' : 'Quick Reply Button'}
+                            </span>
+                          </div>
+                          <button onClick={() => removeButton(i)} style={{ fontSize: 10, color: '#dc2626', background: 'transparent', border: '1px solid #fca5a5', borderRadius: 5, padding: '3px 8px', cursor: 'pointer' }}>Remove</button>
+                        </div>
+                        <div style={{ display: 'flex', gap: 10 }}>
+                          <div style={{ flex: 1 }}>
+                            <label style={{ fontSize: 10, color: '#6b7280', display: 'block', marginBottom: 4 }}>Button label</label>
+                            <input value={b.label} onChange={e => updateButton(i, 'label', e.target.value)} placeholder="e.g. Confirm Interest"
+                              style={{ width: '100%', padding: '7px 10px', border: '1px solid #e5e7eb', borderRadius: 7, fontSize: 11, outline: 'none', background: '#fff', color: '#111827', boxSizing: 'border-box' }} />
+                          </div>
+                          {b.type === 'call_to_action' && (
+                            <div style={{ flex: 1 }}>
+                              <label style={{ fontSize: 10, color: '#6b7280', display: 'block', marginBottom: 4 }}>Destination URL</label>
+                              <input value={b.url} onChange={e => updateButton(i, 'url', e.target.value)} placeholder="https://…"
+                                style={{ width: '100%', padding: '7px 10px', border: '1px solid #e5e7eb', borderRadius: 7, fontSize: 11, outline: 'none', background: '#fff', color: '#111827', boxSizing: 'border-box' }} />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
 
-                <div style={{ display: 'flex', gap: 10 }}>
-                  <button onClick={() => setShowTemplateEditor(false)} style={{ flex: 1, padding: '10px', border: '0.5px solid #d1d5db', borderRadius: 8, fontSize: 12, color: '#6b7280', background: 'transparent', cursor: 'pointer' }}>Cancel</button>
-                  <button onClick={saveTemplate} style={{ flex: 2, padding: '10px', background: ACCENT, color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 500, cursor: 'pointer' }}>{editingTemplate ? 'Save changes' : 'Create template'}</button>
+                {/* Actions */}
+                <div style={{ display: 'flex', gap: 10, paddingTop: 4 }}>
+                  <button onClick={() => setShowTemplateEditor(false)} style={{ flex: 1, padding: '10px', border: '1px solid #e5e7eb', borderRadius: 8, fontSize: 12, color: '#6b7280', background: '#fff', cursor: 'pointer', fontWeight: 500 }}>Cancel</button>
+                  <button onClick={saveTemplate} style={{ flex: 2, padding: '10px', background: ACCENT, color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                    {editingTemplate ? '✓ Save Changes' : '+ Create Template'}
+                  </button>
                 </div>
               </div>
 
-              {/* RIGHT — IPHONE PREVIEW */}
-              <div style={{ width: 360, padding: '28px 24px', flexShrink: 0, background: '#f1f4f9', borderLeft: '0.5px solid #e5e7eb', display: 'flex', flexDirection: 'column', alignItems: 'center', overflowY: 'auto' }}>
-                <div style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', marginBottom: 16, textTransform: 'uppercase', letterSpacing: '0.6px', alignSelf: 'flex-start' }}>Live Preview</div>
+              {/* RIGHT — PREVIEW */}
+              <div style={{ width: 320, flexShrink: 0, background: '#1a1a2e', borderLeft: '1px solid #111', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '24px 20px', overflowY: 'auto', gap: 16 }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '1px', alignSelf: 'flex-start' }}>Preview</div>
                 <IPhonePreview body={tmplBody} buttons={tmplButtons} />
-                <div style={{ marginTop: 16, width: '100%', padding: '12px 14px', background: '#fff', borderRadius: 10, border: '0.5px solid #e5e7eb' }}>
-                  <div style={{ fontSize: 10, color: '#9ca3af', marginBottom: 7, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.4px' }}>Variables detected</div>
+                {/* Variables panel */}
+                <div style={{ width: '100%', background: 'rgba(255,255,255,0.05)', borderRadius: 10, padding: '12px 14px', border: '1px solid rgba(255,255,255,0.08)' }}>
+                  <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', marginBottom: 8, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Variables in use</div>
                   {(tmplBody.match(/\{\{(\w+)\}\}/g) || []).length === 0 ? (
-                    <div style={{ fontSize: 11, color: '#9ca3af' }}>None</div>
+                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', fontStyle: 'italic' }}>None detected</div>
                   ) : (
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
                       {[...new Set(tmplBody.match(/\{\{(\w+)\}\}/g) || [])].map(v => (
-                        <span key={v} style={{ fontSize: 10, padding: '3px 8px', borderRadius: 5, background: ACCENT_MID, color: '#1e40af', fontFamily: 'monospace', fontWeight: 500 }}>{v}</span>
+                        <span key={v} style={{ fontSize: 10, padding: '3px 8px', borderRadius: 5, background: 'rgba(37,99,235,0.3)', color: '#93c5fd', fontFamily: 'monospace', fontWeight: 600, border: '1px solid rgba(37,99,235,0.4)' }}>{v}</span>
                       ))}
                     </div>
                   )}
+                </div>
+                {/* Char count panel */}
+                <div style={{ width: '100%', background: 'rgba(255,255,255,0.05)', borderRadius: 10, padding: '12px 14px', border: '1px solid rgba(255,255,255,0.08)' }}>
+                  <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', marginBottom: 8, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Character count</div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                    <span style={{ fontSize: 22, fontWeight: 700, color: tmplBody.length > 1024 ? '#ef4444' : tmplBody.length > 900 ? '#f59e0b' : '#34d399' }}>{tmplBody.length}</span>
+                    <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)' }}>/ 1,024</span>
+                  </div>
+                  <div style={{ height: 4, background: 'rgba(255,255,255,0.1)', borderRadius: 2, overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${Math.min((tmplBody.length / 1024) * 100, 100)}%`, background: tmplBody.length > 1024 ? '#ef4444' : tmplBody.length > 900 ? '#f59e0b' : '#34d399', borderRadius: 2, transition: 'width .2s' }} />
+                  </div>
+                  <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', marginTop: 5 }}>{Math.max(0, 1024 - tmplBody.length)} characters remaining</div>
                 </div>
               </div>
             </div>
@@ -1103,11 +1122,11 @@ export default function App() {
         </div>
       )}
 
-      {/* MAINTENANCE EDITOR MODAL */}
+      {/* MAINTENANCE EDITOR */}
       {showMaintenanceEditor && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60, padding: 16 }}>
           <div style={{ background: '#fff', borderRadius: 14, padding: 24, width: '100%', maxWidth: 400 }}>
-            <div style={{ fontSize: 14, fontWeight: 500, color: '#111827', marginBottom: 4 }}>⚠️ Schedule Maintenance</div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: '#111827', marginBottom: 4 }}>⚠️ Schedule Maintenance</div>
             <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 16 }}>This banner will be visible to all users.</div>
             <div style={{ marginBottom: 12 }}>
               <label style={{ fontSize: 11, color: '#6b7280', display: 'block', marginBottom: 4 }}>Date (SGT)</label>

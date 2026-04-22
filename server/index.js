@@ -665,7 +665,7 @@ app.get('/projects', auth, async (req, res) => {
       LEFT JOIN conversations c ON c.project_id = p.id
       WHERE p.workspace_id = $1
       GROUP BY p.id, u.name
-      ORDER BY p.status ASC, p.last_activity DESC NULLS LAST, p.created_at DESC
+      ORDER BY p.status ASC, p.created_at DESC
     `, [wsId])
     res.json(r.rows)
   } catch (err) { res.status(500).json({ error: err.message }) }

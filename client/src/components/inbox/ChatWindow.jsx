@@ -379,8 +379,8 @@ export default function ChatWindow({ activeConvoId, active, setActive, projects,
                 onMouseLeave={() => setHoveredMsgId(null)}
                 style={{ display: 'flex', flexDirection: 'column', alignItems: m.direction === 'out' ? 'flex-end' : 'flex-start', marginBottom: 2, padding: '2px 4px', borderRadius: 8, background: isFlashing ? '#fef08a' : 'transparent', transition: 'background 0.6s', position: 'relative' }}>
                 {showSender && <div style={{ fontSize: 10, color: '#9ca3af', marginBottom: 2, padding: '0 3px', textAlign: m.direction === 'out' ? 'right' : 'left' }}>{m.direction === 'out' ? (active.assigned_to || 'Agent') : active.name}</div>}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, maxWidth: '100%', flexDirection: m.direction === 'out' ? 'row-reverse' : 'row' }}>
-                  <div style={{ maxWidth: isMobile ? '85%' : '74%', padding: '8px 12px', borderRadius: 12, fontSize: 12, lineHeight: 1.6, wordBreak: 'break-word', whiteSpace: 'pre-wrap', background: m.direction === 'out' ? ACCENT : '#f1f4f9', color: m.direction === 'out' ? '#fff' : '#111827', borderBottomRightRadius: m.direction === 'out' ? 3 : 12, borderBottomLeftRadius: m.direction === 'in' ? 3 : 12, position: 'relative' }}>
+                <div style={{ position: 'relative', maxWidth: isMobile ? '85%' : '74%' }}>
+                  <div style={{ padding: '8px 12px', borderRadius: 12, fontSize: 12, lineHeight: 1.6, wordBreak: 'break-word', whiteSpace: 'pre-wrap', background: m.direction === 'out' ? ACCENT : '#f1f4f9', color: m.direction === 'out' ? '#fff' : '#111827', borderBottomRightRadius: m.direction === 'out' ? 3 : 12, borderBottomLeftRadius: m.direction === 'in' ? 3 : 12, position: 'relative' }}>
                     {isPinned && (
                       <span title={`Pinned${m.pinned_by_name ? ` by ${m.pinned_by_name}` : ''}`}
                         style={{ position: 'absolute', top: -6, [m.direction === 'out' ? 'left' : 'right']: -6, width: 16, height: 16, borderRadius: '50%', background: '#fbbf24', color: '#78350f', fontSize: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.15)' }}>
@@ -391,11 +391,11 @@ export default function ChatWindow({ activeConvoId, active, setActive, projects,
                     )}
                     {m.text}
                   </div>
-                  {/* Pin/unpin button — shown on hover or always if pinned */}
+                  {/* Pin button — absolutely positioned so it never affects bubble layout */}
                   {m.id && (isHovered || isPinned) && (
                     <button onClick={() => togglePin(m.id)}
                       title={isPinned ? 'Unpin' : 'Pin message'}
-                      style={{ width: 22, height: 22, borderRadius: 5, border: 'none', background: isPinned ? '#fef3c7' : '#f1f4f9', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: isPinned ? '#92400e' : '#6b7280', opacity: isPinned ? 1 : 0.85, flexShrink: 0 }}>
+                      style={{ position: 'absolute', top: '50%', transform: 'translateY(-50%)', [m.direction === 'out' ? 'right' : 'left']: 'calc(100% + 6px)', width: 22, height: 22, borderRadius: 5, border: 'none', background: isPinned ? '#fef3c7' : '#f1f4f9', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: isPinned ? '#92400e' : '#6b7280', opacity: isPinned ? 1 : 0.85, boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
                       <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor">
                         <path d="M9.5 1.5a1 1 0 0 1 .707.293l4 4a1 1 0 0 1-.707 1.707h-1.586l-1 4h.586a.5.5 0 0 1 0 1H9l-.5 3a.5.5 0 0 1-1 0L7 11.5H3.5a.5.5 0 0 1 0-1h.586l-1-4H1.5a1 1 0 0 1-.707-1.707l4-4A1 1 0 0 1 5.5 1.5h4z"/>
                       </svg>

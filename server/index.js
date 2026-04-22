@@ -63,6 +63,8 @@ async function setupDatabase() {
     await client.query(`CREATE TABLE IF NOT EXISTS pdpa_records (id SERIAL PRIMARY KEY, workspace_id INTEGER REFERENCES workspaces(id) ON DELETE CASCADE, contact_id INTEGER REFERENCES contacts(id) ON DELETE CASCADE, status VARCHAR(20) DEFAULT 'pending', method VARCHAR(50), consented_at TIMESTAMP, expires_at TIMESTAMP, withdrawn_at TIMESTAMP, collected_by INTEGER, notes TEXT, created_at TIMESTAMP DEFAULT NOW())`)
     await client.query(`CREATE TABLE IF NOT EXISTS audit_log (id SERIAL PRIMARY KEY, workspace_id INTEGER, user_id INTEGER, action VARCHAR(100), entity_type VARCHAR(50), entity_id INTEGER, old_values JSONB, new_values JSONB, ip_address VARCHAR(50), created_at TIMESTAMP DEFAULT NOW())`)
     await client.query(`CREATE TABLE IF NOT EXISTS notifications (id SERIAL PRIMARY KEY, workspace_id INTEGER REFERENCES workspaces(id) ON DELETE CASCADE, user_id INTEGER REFERENCES users(id) ON DELETE CASCADE, type VARCHAR(100), title VARCHAR(255), body TEXT, entity_type VARCHAR(50), entity_id INTEGER, read BOOLEAN DEFAULT false, read_at TIMESTAMP, created_at TIMESTAMP DEFAULT NOW())`)
+    await client.query(`CREATE TABLE IF NOT EXISTS projects (id SERIAL PRIMARY KEY, workspace_id INTEGER REFERENCES workspaces(id) ON DELETE CASCADE, client_name VARCHAR(255) NOT NULL, start_month VARCHAR(10) NOT NULL, start_year INTEGER NOT NULL, colour VARCHAR(20) DEFAULT '#2563eb', status VARCHAR(20) DEFAULT 'active', archived_at TIMESTAMP, created_by INTEGER, created_at TIMESTAMP DEFAULT NOW(), updated_at TIMESTAMP DEFAULT NOW())`)
+    await client.query(`ALTER TABLE conversations ADD COLUMN IF NOT EXISTS project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL`)    
     await client.query(`CREATE TABLE IF NOT EXISTS broadcasts (id SERIAL PRIMARY KEY, workspace_id INTEGER REFERENCES workspaces(id) ON DELETE CASCADE, phone_number_id INTEGER, created_by INTEGER, name VARCHAR(255), template_id INTEGER, message TEXT, recipient_count INTEGER DEFAULT 0, sent_count INTEGER DEFAULT 0, failed_count INTEGER DEFAULT 0, status VARCHAR(20) DEFAULT 'draft', scheduled_at TIMESTAMP, sent_at TIMESTAMP, created_at TIMESTAMP DEFAULT NOW())`)
     await client.query(`CREATE TABLE IF NOT EXISTS security_settings (id SERIAL PRIMARY KEY, workspace_id INTEGER REFERENCES workspaces(id) ON DELETE CASCADE UNIQUE, session_timeout_minutes INTEGER DEFAULT 480, max_failed_logins INTEGER DEFAULT 5, force_password_change BOOLEAN DEFAULT false, two_factor_required BOOLEAN DEFAULT false, password_min_length INTEGER DEFAULT 8, password_require_special BOOLEAN DEFAULT false, created_at TIMESTAMP DEFAULT NOW(), updated_at TIMESTAMP DEFAULT NOW())`)
     await client.query(`CREATE TABLE IF NOT EXISTS calendar_events (id SERIAL PRIMARY KEY, workspace_id INTEGER REFERENCES workspaces(id) ON DELETE CASCADE, conversation_id INTEGER, contact_id INTEGER, job_order_id INTEGER, created_by INTEGER, title VARCHAR(255), event_date DATE, event_time TIME, location TEXT, notes TEXT, type VARCHAR(50) DEFAULT 'interview', status VARCHAR(20) DEFAULT 'scheduled', created_at TIMESTAMP DEFAULT NOW())`)
@@ -643,6 +645,125 @@ app.post('/calendar', auth, async (req, res) => {
     const wsId = await getWorkspaceId(req.user.id)
     const { conversation_id, contact_id, job_order_id, title, event_date, event_time, location, notes, type } = req.body
     const r = await pool.query(`INSERT INTO calendar_events (workspace_id, conversation_id, contact_id, job_order_id, created_by, title, event_date, event_time, location, notes, type) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`, [wsId, conversation_id, contact_id, job_order_id, req.user.id, title, event_date, event_time, location, notes, type || 'interview'])
+    res.json(r.rows[0])
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+// ─── PROJECTS ──────────────────────────────────────────────────────────────────
+app.get('/projects', auth, async (req, res) => {
+  try {
+    const wsId = await getWorkspaceId(req.user.id)
+    const r = await pool.query(`
+      SELECT p.*,
+        u.name as created_by_name,
+        COUNT(DISTINCT c.id) FILTER (WHERE c.status != 'resolved') as active_conversations,
+        COUNT(DISTINCT c.id) as total_conversations,
+        COUNT(DISTINCT c.id) FILTER (WHERE c.unread_count > 0) as unread_conversations,
+        MAX(c.last_message_at) as last_activity
+      FROM projects p
+      LEFT JOIN users u ON u.id = p.created_by
+      LEFT JOIN conversations c ON c.project_id = p.id
+      WHERE p.workspace_id = $1
+      GROUP BY p.id, u.name
+      ORDER BY p.status ASC, p.last_activity DESC NULLS LAST, p.created_at DESC
+    `, [wsId])
+    res.json(r.rows)
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+app.post('/projects', auth, async (req, res) => {
+  try {
+    const wsId = await getWorkspaceId(req.user.id)
+    const { client_name, start_month, start_year, colour } = req.body
+    if (!client_name || !start_month || !start_year) return res.status(400).json({ error: 'Client name, month and year are required' })
+    const r = await pool.query(`
+      INSERT INTO projects (workspace_id, client_name, start_month, start_year, colour, created_by)
+      VALUES ($1,$2,$3,$4,$5,$6) RETURNING *
+    `, [wsId, client_name.trim(), start_month, start_year, colour || '#2563eb', req.user.id])
+    await logAudit(wsId, req.user.id, 'create_project', 'project', r.rows[0].id, null, { client_name, start_month, start_year })
+    res.json(r.rows[0])
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+app.patch('/projects/:id', auth, async (req, res) => {
+  try {
+    const wsId = await getWorkspaceId(req.user.id)
+    const { client_name, start_month, start_year, colour, status } = req.body
+    const old = await pool.query('SELECT * FROM projects WHERE id=$1 AND workspace_id=$2', [req.params.id, wsId])
+    if (!old.rows.length) return res.status(404).json({ error: 'Project not found' })
+    const r = await pool.query(`
+      UPDATE projects SET
+        client_name = COALESCE($1, client_name),
+        start_month = COALESCE($2, start_month),
+        start_year = COALESCE($3, start_year),
+        colour = COALESCE($4, colour),
+        status = COALESCE($5, status),
+        archived_at = CASE WHEN $5 = 'archived' THEN NOW() ELSE archived_at END,
+        updated_at = NOW()
+      WHERE id=$6 AND workspace_id=$7 RETURNING *
+    `, [client_name, start_month, start_year, colour, status, req.params.id, wsId])
+    await logAudit(wsId, req.user.id, 'update_project', 'project', req.params.id, old.rows[0], req.body)
+    res.json(r.rows[0])
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+app.delete('/projects/:id', auth, async (req, res) => {
+  try {
+    const wsId = await getWorkspaceId(req.user.id)
+    // Unassign all conversations first
+    await pool.query('UPDATE conversations SET project_id=NULL WHERE project_id=$1 AND workspace_id=$2', [req.params.id, wsId])
+    await pool.query('DELETE FROM projects WHERE id=$1 AND workspace_id=$2', [req.params.id, wsId])
+    res.json({ success: true })
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+app.get('/projects/:id/conversations', auth, async (req, res) => {
+  try {
+    const wsId = await getWorkspaceId(req.user.id)
+    const { type, agent_id, unread, page = 1, limit = 50 } = req.query
+    const offset = (page - 1) * limit
+    let query = `
+      SELECT c.*, ct.name, ct.phone, ct.email, ct.type, ct.pipeline_stage,
+        ct.pdpa_consented, ct.dnc,
+        u.name as assigned_name, u.id as assigned_id,
+        pn.number as phone_number, pn.display_name as phone_line,
+        c.last_message_preview as preview
+      FROM conversations c
+      JOIN contacts ct ON ct.id = c.contact_id
+      LEFT JOIN users u ON u.id = c.assigned_to
+      LEFT JOIN phone_numbers pn ON pn.id = c.phone_number_id
+      WHERE c.workspace_id=$1 AND c.project_id=$2
+    `
+    const params = [wsId, req.params.id]
+    let idx = 3
+    if (type) { query += ` AND ct.type=$${idx++}`; params.push(type) }
+    if (agent_id) { query += ` AND c.assigned_to=$${idx++}`; params.push(agent_id) }
+    if (unread === 'true') { query += ` AND c.unread_count > 0` }
+    query += ` ORDER BY ct.type DESC, c.last_message_at DESC NULLS LAST`
+    query += ` LIMIT $${idx++} OFFSET $${idx++}`
+    params.push(limit, offset)
+    const r = await pool.query(query, params)
+    const total = await pool.query(`SELECT COUNT(*) FROM conversations c JOIN contacts ct ON ct.id=c.contact_id WHERE c.workspace_id=$1 AND c.project_id=$2${type ? ` AND ct.type='${type}'` : ''}`, [wsId, req.params.id])
+    res.json({ conversations: r.rows, total: parseInt(total.rows[0].count), page: parseInt(page), limit: parseInt(limit) })
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+app.patch('/projects/:id/assign-conversations', auth, async (req, res) => {
+  try {
+    const wsId = await getWorkspaceId(req.user.id)
+    const { conversation_ids } = req.body
+    if (!Array.isArray(conversation_ids) || conversation_ids.length === 0) return res.status(400).json({ error: 'conversation_ids array required' })
+    await pool.query(`UPDATE conversations SET project_id=$1, updated_at=NOW() WHERE id=ANY($2) AND workspace_id=$3`, [req.params.id, conversation_ids, wsId])
+    await logAudit(wsId, req.user.id, 'assign_to_project', 'project', req.params.id, null, { conversation_ids, count: conversation_ids.length })
+    res.json({ success: true, assigned: conversation_ids.length })
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+app.patch('/conversations/:id/project', auth, async (req, res) => {
+  try {
+    const wsId = await getWorkspaceId(req.user.id)
+    const { project_id } = req.body
+    const r = await pool.query(`UPDATE conversations SET project_id=$1, updated_at=NOW() WHERE id=$2 AND workspace_id=$3 RETURNING *`, [project_id, req.params.id, wsId])
     res.json(r.rows[0])
   } catch (err) { res.status(500).json({ error: err.message }) }
 })

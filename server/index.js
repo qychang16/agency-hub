@@ -50,7 +50,7 @@ async function setupDatabase() {
     await client.query(`CREATE TABLE IF NOT EXISTS team_members (id SERIAL PRIMARY KEY, team_id INTEGER REFERENCES teams(id) ON DELETE CASCADE, user_id INTEGER REFERENCES users(id) ON DELETE CASCADE, UNIQUE(team_id, user_id))`)
     await client.query(`CREATE TABLE IF NOT EXISTS routing_rules (id SERIAL PRIMARY KEY, workspace_id INTEGER REFERENCES workspaces(id) ON DELETE CASCADE, mode VARCHAR(20) DEFAULT 'smart', sticky_assignment BOOLEAN DEFAULT true, round_robin BOOLEAN DEFAULT true, candidate_team_id INTEGER, client_team_id INTEGER, max_capacity INTEGER DEFAULT 20, escalation_enabled BOOLEAN DEFAULT true, escalation_steps JSONB DEFAULT '[]', after_hours_action VARCHAR(20) DEFAULT 'auto_reply', unassigned_queue BOOLEAN DEFAULT true, blackout_start VARCHAR(5) DEFAULT '22:00', blackout_end VARCHAR(5) DEFAULT '08:00', created_at TIMESTAMP DEFAULT NOW(), updated_at TIMESTAMP DEFAULT NOW())`)
     await client.query(`CREATE TABLE IF NOT EXISTS business_hours (id SERIAL PRIMARY KEY, workspace_id INTEGER REFERENCES workspaces(id) ON DELETE CASCADE, phone_number_id INTEGER, day_of_week VARCHAR(20), is_open BOOLEAN DEFAULT true, open_time VARCHAR(5) DEFAULT '09:00', close_time VARCHAR(5) DEFAULT '18:00', created_at TIMESTAMP DEFAULT NOW())`)
-    await client.query(`CREATE TABLE IF NOT EXISTS contacts (id SERIAL PRIMARY KEY, workspace_id INTEGER REFERENCES workspaces(id) ON DELETE CASCADE, name VARCHAR(255), phone VARCHAR(50), email VARCHAR(255), type VARCHAR(20) DEFAULT 'candidate', pipeline_stage VARCHAR(50) DEFAULT 'new', assigned_to INTEGER, team_id INTEGER, pdpa_consented BOOLEAN DEFAULT false, pdpa_consented_at TIMESTAMP, dnc BOOLEAN DEFAULT false, dnc_reason TEXT, opted_out BOOLEAN DEFAULT false, tags JSONB DEFAULT '[]', notes TEXT, source VARCHAR(100), current_role VARCHAR(255), current_company VARCHAR(255), expected_salary DECIMAL, notice_period VARCHAR(50), linkedin_url TEXT, created_at TIMESTAMP DEFAULT NOW(), updated_at TIMESTAMP DEFAULT NOW())`)
+    await client.query(`CREATE TABLE IF NOT EXISTS contacts (id SERIAL PRIMARY KEY, workspace_id INTEGER REFERENCES workspaces(id) ON DELETE CASCADE, name VARCHAR(255), phone VARCHAR(50), email VARCHAR(255), type VARCHAR(20) DEFAULT 'candidate', pipeline_stage VARCHAR(50) DEFAULT 'new', assigned_to INTEGER, team_id INTEGER, pdpa_consented BOOLEAN DEFAULT false, pdpa_consented_at TIMESTAMP, dnc BOOLEAN DEFAULT false, dnc_reason TEXT, opted_out BOOLEAN DEFAULT false, tags JSONB DEFAULT '[]', notes TEXT, source VARCHAR(100), candidate_role VARCHAR(255), current_company VARCHAR(255), expected_salary DECIMAL, notice_period VARCHAR(50), linkedin_url TEXT, created_at TIMESTAMP DEFAULT NOW(), updated_at TIMESTAMP DEFAULT NOW())`)
     await client.query(`CREATE TABLE IF NOT EXISTS conversations (id SERIAL PRIMARY KEY, workspace_id INTEGER REFERENCES workspaces(id) ON DELETE CASCADE, phone_number_id INTEGER, contact_id INTEGER REFERENCES contacts(id) ON DELETE CASCADE, assigned_to INTEGER, team_id INTEGER, status VARCHAR(20) DEFAULT 'open', labels JSONB DEFAULT '[]', last_message_at TIMESTAMP, last_message_preview TEXT, unread_count INTEGER DEFAULT 0, priority VARCHAR(20) DEFAULT 'normal', handover_note TEXT, handover_note_by INTEGER, handover_note_at TIMESTAMP, closed_at TIMESTAMP, created_at TIMESTAMP DEFAULT NOW(), updated_at TIMESTAMP DEFAULT NOW())`)
     await client.query(`CREATE TABLE IF NOT EXISTS messages (id SERIAL PRIMARY KEY, conversation_id INTEGER REFERENCES conversations(id) ON DELETE CASCADE, workspace_id INTEGER, user_id INTEGER, direction VARCHAR(10), type VARCHAR(20) DEFAULT 'text', text TEXT, media_url TEXT, template_id INTEGER, status VARCHAR(20) DEFAULT 'sent', whatsapp_message_id VARCHAR(255), delivered_at TIMESTAMP, read_at TIMESTAMP, is_note BOOLEAN DEFAULT false, is_scheduled BOOLEAN DEFAULT false, scheduled_at TIMESTAMP, sent_at TIMESTAMP, created_at TIMESTAMP DEFAULT NOW())`)
     await client.query(`CREATE TABLE IF NOT EXISTS scheduled_messages (id SERIAL PRIMARY KEY, workspace_id INTEGER REFERENCES workspaces(id) ON DELETE CASCADE, conversation_id INTEGER, contact_id INTEGER, phone_number_id INTEGER, created_by INTEGER, channel VARCHAR(20) DEFAULT 'whatsapp', template_id INTEGER, subject TEXT, body TEXT, variables JSONB DEFAULT '{}', buttons JSONB DEFAULT '[]', scheduled_at TIMESTAMP, send_mode VARCHAR(20) DEFAULT 'scheduled', status VARCHAR(20) DEFAULT 'pending', sent_at TIMESTAMP, failed_at TIMESTAMP, failed_reason TEXT, email_to VARCHAR(255), email_cc VARCHAR(255), email_opened_at TIMESTAMP, email_bounced BOOLEAN DEFAULT false, bulk_batch_id VARCHAR(100), created_at TIMESTAMP DEFAULT NOW())`)
@@ -141,6 +141,7 @@ async function seedDatabase() {
     console.log('📧 Login: director@tel-cloud.com / admin123')
   } catch (err) { console.error('❌ Seed error:', err.message) }
 }
+
 // ─── AUTH ──────────────────────────────────────────────────────────────────────
 app.post('/login', async (req, res) => {
   try {
@@ -645,6 +646,7 @@ app.post('/calendar', auth, async (req, res) => {
     res.json(r.rows[0])
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
+
 // ─── SOCKET.IO ─────────────────────────────────────────────────────────────────
 io.on('connection', socket => {
   socket.on('join_conversation', id => socket.join(`conversation_${id}`))
@@ -664,141 +666,6 @@ app.get('/', (req, res) => res.json({
   version: '2.0.0',
   timestamp: new Date().toISOString()
 }))
-
-// ─── EMERGENCY RESET ───────────────────────────────────────────────────────────
-app.get('/reset-password-emergency', async (req, res) => {
-  try {
-    const hash = await bcrypt.hash('admin123', 10)
-    await pool.query(`UPDATE users SET password_hash=$1, failed_login_attempts=0, locked_until=NULL WHERE email ILIKE '%director%'`, [hash])
-    const users = await pool.query(`SELECT id, email, role, active FROM users ORDER BY id ASC LIMIT 10`)
-    res.json({ success: true, message: 'Director password reset to admin123', users: users.rows })
-  } catch (err) {
-    res.json({ error: err.message })
-  }
-})
-
-app.get('/nuke-database', async (req, res) => {
-  try {
-    await pool.query(`
-      DROP TABLE IF EXISTS calendar_events CASCADE;
-      DROP TABLE IF EXISTS security_settings CASCADE;
-      DROP TABLE IF EXISTS broadcasts CASCADE;
-      DROP TABLE IF EXISTS notifications CASCADE;
-      DROP TABLE IF EXISTS audit_log CASCADE;
-      DROP TABLE IF EXISTS pdpa_records CASCADE;
-      DROP TABLE IF EXISTS placements CASCADE;
-      DROP TABLE IF EXISTS job_applications CASCADE;
-      DROP TABLE IF EXISTS job_orders CASCADE;
-      DROP TABLE IF EXISTS labels CASCADE;
-      DROP TABLE IF EXISTS quick_replies CASCADE;
-      DROP TABLE IF EXISTS scheduled_messages CASCADE;
-      DROP TABLE IF EXISTS templates CASCADE;
-      DROP TABLE IF EXISTS messages CASCADE;
-      DROP TABLE IF EXISTS conversations CASCADE;
-      DROP TABLE IF EXISTS contacts CASCADE;
-      DROP TABLE IF EXISTS business_hours CASCADE;
-      DROP TABLE IF EXISTS routing_rules CASCADE;
-      DROP TABLE IF EXISTS team_members CASCADE;
-      DROP TABLE IF EXISTS users CASCADE;
-      DROP TABLE IF EXISTS teams CASCADE;
-      DROP TABLE IF EXISTS phone_numbers CASCADE;
-      DROP TABLE IF EXISTS workspaces CASCADE;
-    `)
-    res.json({ success: true, message: 'All tables dropped. Server will recreate on next restart.' })
-  } catch (err) {
-    res.json({ error: err.message })
-  }
-})
-
-app.get('/setup-now', async (req, res) => {
-  const client = await pool.connect()
-  try {
-    // Create tables one by one with error handling
-    await client.query(`CREATE TABLE IF NOT EXISTS workspaces (id SERIAL PRIMARY KEY, name VARCHAR(255) NOT NULL, slug VARCHAR(100) UNIQUE, email VARCHAR(255), phone VARCHAR(50), address TEXT, registration_number VARCHAR(100), timezone VARCHAR(50) DEFAULT 'Asia/Singapore', workspace_type VARCHAR(20) DEFAULT 'client', billing_exempt BOOLEAN DEFAULT false, plan VARCHAR(20) DEFAULT 'starter', whatsapp_account_id VARCHAR(255), whatsapp_token TEXT, whatsapp_connected BOOLEAN DEFAULT false, status VARCHAR(20) DEFAULT 'active', created_at TIMESTAMP DEFAULT NOW(), updated_at TIMESTAMP DEFAULT NOW())`)
-    await client.query(`CREATE TABLE IF NOT EXISTS phone_numbers (id SERIAL PRIMARY KEY, workspace_id INTEGER REFERENCES workspaces(id) ON DELETE CASCADE, number VARCHAR(50), display_name VARCHAR(255), whatsapp_phone_id VARCHAR(255), connected BOOLEAN DEFAULT false, is_primary BOOLEAN DEFAULT false, team_id INTEGER, status VARCHAR(20) DEFAULT 'active', daily_limit INTEGER DEFAULT 1000, created_at TIMESTAMP DEFAULT NOW())`)
-    await client.query(`CREATE TABLE IF NOT EXISTS teams (id SERIAL PRIMARY KEY, workspace_id INTEGER REFERENCES workspaces(id) ON DELETE CASCADE, name VARCHAR(255), key VARCHAR(100), type VARCHAR(50) DEFAULT 'recruitment', lead_user_id INTEGER, color VARCHAR(20) DEFAULT '#2563eb', description TEXT, created_at TIMESTAMP DEFAULT NOW())`)
-    await client.query(`CREATE TABLE IF NOT EXISTS users (id SERIAL PRIMARY KEY, workspace_id INTEGER REFERENCES workspaces(id) ON DELETE CASCADE, name VARCHAR(255), email VARCHAR(255) UNIQUE, password_hash VARCHAR(255), role VARCHAR(50) DEFAULT 'consultant', team_id INTEGER, status VARCHAR(20) DEFAULT 'offline', capacity INTEGER DEFAULT 20, active BOOLEAN DEFAULT true, is_super_admin BOOLEAN DEFAULT false, send_behaviour VARCHAR(20) DEFAULT 'enter', force_password_change BOOLEAN DEFAULT false, last_login_at TIMESTAMP, failed_login_attempts INTEGER DEFAULT 0, locked_until TIMESTAMP, permissions JSONB, created_at TIMESTAMP DEFAULT NOW(), updated_at TIMESTAMP DEFAULT NOW())`)
-    await client.query(`CREATE TABLE IF NOT EXISTS team_members (id SERIAL PRIMARY KEY, team_id INTEGER REFERENCES teams(id) ON DELETE CASCADE, user_id INTEGER REFERENCES users(id) ON DELETE CASCADE, UNIQUE(team_id, user_id))`)
-    await client.query(`CREATE TABLE IF NOT EXISTS routing_rules (id SERIAL PRIMARY KEY, workspace_id INTEGER REFERENCES workspaces(id) ON DELETE CASCADE, mode VARCHAR(20) DEFAULT 'smart', sticky_assignment BOOLEAN DEFAULT true, round_robin BOOLEAN DEFAULT true, candidate_team_id INTEGER, client_team_id INTEGER, max_capacity INTEGER DEFAULT 20, escalation_enabled BOOLEAN DEFAULT true, escalation_steps JSONB DEFAULT '[]', after_hours_action VARCHAR(20) DEFAULT 'auto_reply', unassigned_queue BOOLEAN DEFAULT true, blackout_start VARCHAR(5) DEFAULT '22:00', blackout_end VARCHAR(5) DEFAULT '08:00', created_at TIMESTAMP DEFAULT NOW())`)
-    await client.query(`CREATE TABLE IF NOT EXISTS business_hours (id SERIAL PRIMARY KEY, workspace_id INTEGER REFERENCES workspaces(id) ON DELETE CASCADE, phone_number_id INTEGER, day_of_week VARCHAR(20), is_open BOOLEAN DEFAULT true, open_time VARCHAR(5) DEFAULT '09:00', close_time VARCHAR(5) DEFAULT '18:00', created_at TIMESTAMP DEFAULT NOW())`)
-    await client.query(`CREATE TABLE IF NOT EXISTS contacts (id SERIAL PRIMARY KEY, workspace_id INTEGER REFERENCES workspaces(id) ON DELETE CASCADE, name VARCHAR(255), phone VARCHAR(50), email VARCHAR(255), type VARCHAR(20) DEFAULT 'candidate', pipeline_stage VARCHAR(50) DEFAULT 'new', assigned_to INTEGER, team_id INTEGER, pdpa_consented BOOLEAN DEFAULT false, pdpa_consented_at TIMESTAMP, dnc BOOLEAN DEFAULT false, dnc_reason TEXT, opted_out BOOLEAN DEFAULT false, tags JSONB DEFAULT '[]', notes TEXT, expected_salary DECIMAL, notice_period VARCHAR(50), linkedin_url TEXT, candidate_role VARCHAR(255), current_company VARCHAR(255), created_at TIMESTAMP DEFAULT NOW(), updated_at TIMESTAMP DEFAULT NOW())`)
-    await client.query(`CREATE TABLE IF NOT EXISTS conversations (id SERIAL PRIMARY KEY, workspace_id INTEGER REFERENCES workspaces(id) ON DELETE CASCADE, phone_number_id INTEGER, contact_id INTEGER REFERENCES contacts(id) ON DELETE CASCADE, assigned_to INTEGER, team_id INTEGER, status VARCHAR(20) DEFAULT 'open', labels JSONB DEFAULT '[]', last_message_at TIMESTAMP, last_message_preview TEXT, unread_count INTEGER DEFAULT 0, priority VARCHAR(20) DEFAULT 'normal', handover_note TEXT, handover_note_by INTEGER, handover_note_at TIMESTAMP, closed_at TIMESTAMP, created_at TIMESTAMP DEFAULT NOW(), updated_at TIMESTAMP DEFAULT NOW())`)
-    await client.query(`CREATE TABLE IF NOT EXISTS messages (id SERIAL PRIMARY KEY, conversation_id INTEGER REFERENCES conversations(id) ON DELETE CASCADE, workspace_id INTEGER, user_id INTEGER, direction VARCHAR(10), type VARCHAR(20) DEFAULT 'text', text TEXT, media_url TEXT, template_id INTEGER, status VARCHAR(20) DEFAULT 'sent', delivered_at TIMESTAMP, read_at TIMESTAMP, is_note BOOLEAN DEFAULT false, sent_at TIMESTAMP, created_at TIMESTAMP DEFAULT NOW())`)
-    await client.query(`CREATE TABLE IF NOT EXISTS scheduled_messages (id SERIAL PRIMARY KEY, workspace_id INTEGER REFERENCES workspaces(id) ON DELETE CASCADE, conversation_id INTEGER, contact_id INTEGER, phone_number_id INTEGER, created_by INTEGER, channel VARCHAR(20) DEFAULT 'whatsapp', template_id INTEGER, subject TEXT, body TEXT, variables JSONB DEFAULT '{}', buttons JSONB DEFAULT '[]', scheduled_at TIMESTAMP, send_mode VARCHAR(20) DEFAULT 'scheduled', status VARCHAR(20) DEFAULT 'pending', sent_at TIMESTAMP, failed_at TIMESTAMP, failed_reason TEXT, email_to VARCHAR(255), email_cc VARCHAR(255), email_opened_at TIMESTAMP, bulk_batch_id VARCHAR(100), created_at TIMESTAMP DEFAULT NOW())`)
-    await client.query(`CREATE TABLE IF NOT EXISTS templates (id SERIAL PRIMARY KEY, workspace_id INTEGER REFERENCES workspaces(id) ON DELETE CASCADE, name VARCHAR(255), category VARCHAR(50) DEFAULT 'utility', type VARCHAR(20) DEFAULT 'whatsapp', status VARCHAR(20) DEFAULT 'draft', body TEXT, subject TEXT, buttons JSONB DEFAULT '[]', language VARCHAR(10) DEFAULT 'en', created_by INTEGER, created_at TIMESTAMP DEFAULT NOW(), updated_at TIMESTAMP DEFAULT NOW())`)
-    await client.query(`CREATE TABLE IF NOT EXISTS quick_replies (id SERIAL PRIMARY KEY, workspace_id INTEGER REFERENCES workspaces(id) ON DELETE CASCADE, created_by INTEGER, title VARCHAR(255), body TEXT, shortcut VARCHAR(50), shared BOOLEAN DEFAULT true, created_at TIMESTAMP DEFAULT NOW())`)
-    await client.query(`CREATE TABLE IF NOT EXISTS labels (id SERIAL PRIMARY KEY, workspace_id INTEGER REFERENCES workspaces(id) ON DELETE CASCADE, name VARCHAR(100), color VARCHAR(20) DEFAULT '#2563eb', bg VARCHAR(20) DEFAULT '#eff6ff', created_at TIMESTAMP DEFAULT NOW())`)
-    await client.query(`CREATE TABLE IF NOT EXISTS job_orders (id SERIAL PRIMARY KEY, workspace_id INTEGER REFERENCES workspaces(id) ON DELETE CASCADE, title VARCHAR(255), client_contact_id INTEGER, company VARCHAR(255), description TEXT, requirements TEXT, salary_min DECIMAL, salary_max DECIMAL, currency VARCHAR(10) DEFAULT 'SGD', headcount INTEGER DEFAULT 1, location VARCHAR(255), employment_type VARCHAR(50), status VARCHAR(20) DEFAULT 'open', priority VARCHAR(20) DEFAULT 'normal', deadline DATE, assigned_to INTEGER, team_id INTEGER, placement_fee DECIMAL, fee_type VARCHAR(20) DEFAULT 'percentage', created_by INTEGER, created_at TIMESTAMP DEFAULT NOW(), updated_at TIMESTAMP DEFAULT NOW())`)
-    await client.query(`CREATE TABLE IF NOT EXISTS job_applications (id SERIAL PRIMARY KEY, job_order_id INTEGER REFERENCES job_orders(id) ON DELETE CASCADE, contact_id INTEGER REFERENCES contacts(id) ON DELETE CASCADE, workspace_id INTEGER, stage VARCHAR(50) DEFAULT 'new', assigned_to INTEGER, notes TEXT, interview_date TIMESTAMP, offer_amount DECIMAL, placement_date DATE, created_at TIMESTAMP DEFAULT NOW(), updated_at TIMESTAMP DEFAULT NOW(), UNIQUE(job_order_id, contact_id))`)
-    await client.query(`CREATE TABLE IF NOT EXISTS placements (id SERIAL PRIMARY KEY, workspace_id INTEGER REFERENCES workspaces(id) ON DELETE CASCADE, contact_id INTEGER, job_order_id INTEGER, placed_by INTEGER, start_date DATE, salary DECIMAL, placement_fee DECIMAL, fee_collected BOOLEAN DEFAULT false, notes TEXT, created_at TIMESTAMP DEFAULT NOW())`)
-    await client.query(`CREATE TABLE IF NOT EXISTS pdpa_records (id SERIAL PRIMARY KEY, workspace_id INTEGER REFERENCES workspaces(id) ON DELETE CASCADE, contact_id INTEGER REFERENCES contacts(id) ON DELETE CASCADE, status VARCHAR(20) DEFAULT 'pending', method VARCHAR(50), consented_at TIMESTAMP, collected_by INTEGER, notes TEXT, created_at TIMESTAMP DEFAULT NOW())`)
-    await client.query(`CREATE TABLE IF NOT EXISTS audit_log (id SERIAL PRIMARY KEY, workspace_id INTEGER, user_id INTEGER, action VARCHAR(100), entity_type VARCHAR(50), entity_id INTEGER, old_values JSONB, new_values JSONB, created_at TIMESTAMP DEFAULT NOW())`)
-    await client.query(`CREATE TABLE IF NOT EXISTS notifications (id SERIAL PRIMARY KEY, workspace_id INTEGER, user_id INTEGER, type VARCHAR(100), title VARCHAR(255), body TEXT, entity_type VARCHAR(50), entity_id INTEGER, read BOOLEAN DEFAULT false, read_at TIMESTAMP, created_at TIMESTAMP DEFAULT NOW())`)
-    await client.query(`CREATE TABLE IF NOT EXISTS security_settings (id SERIAL PRIMARY KEY, workspace_id INTEGER REFERENCES workspaces(id) ON DELETE CASCADE UNIQUE, session_timeout_minutes INTEGER DEFAULT 480, max_failed_logins INTEGER DEFAULT 5, force_password_change BOOLEAN DEFAULT false, two_factor_required BOOLEAN DEFAULT false, password_min_length INTEGER DEFAULT 8, password_require_special BOOLEAN DEFAULT false, created_at TIMESTAMP DEFAULT NOW(), updated_at TIMESTAMP DEFAULT NOW())`)
-    await client.query(`CREATE TABLE IF NOT EXISTS calendar_events (id SERIAL PRIMARY KEY, workspace_id INTEGER REFERENCES workspaces(id) ON DELETE CASCADE, conversation_id INTEGER, contact_id INTEGER, job_order_id INTEGER, created_by INTEGER, title VARCHAR(255), event_date DATE, event_time TIME, location TEXT, notes TEXT, type VARCHAR(50) DEFAULT 'interview', status VARCHAR(20) DEFAULT 'scheduled', created_at TIMESTAMP DEFAULT NOW())`)
-    await client.query(`CREATE TABLE IF NOT EXISTS broadcasts (id SERIAL PRIMARY KEY, workspace_id INTEGER REFERENCES workspaces(id) ON DELETE CASCADE, phone_number_id INTEGER, created_by INTEGER, name VARCHAR(255), template_id INTEGER, message TEXT, recipient_count INTEGER DEFAULT 0, sent_count INTEGER DEFAULT 0, failed_count INTEGER DEFAULT 0, status VARCHAR(20) DEFAULT 'draft', scheduled_at TIMESTAMP, sent_at TIMESTAMP, created_at TIMESTAMP DEFAULT NOW())`)
-
-    // Now seed
-    const existing = await client.query(`SELECT id FROM workspaces WHERE slug='telcloud-main'`)
-    if (existing.rows.length === 0) {
-      const ws = await client.query(`INSERT INTO workspaces (name, slug, workspace_type, billing_exempt, plan, email, timezone) VALUES ('Tel-Cloud Demo','telcloud-main','internal',true,'enterprise','admin@tel-cloud.com','Asia/Singapore') RETURNING id`)
-      const wsId = ws.rows[0].id
-      const pn = await client.query(`INSERT INTO phone_numbers (workspace_id, number, display_name, is_primary, status) VALUES ($1,'+6591234567','Main Line',true,'active') RETURNING id`, [wsId])
-      const phoneId = pn.rows[0].id
-      const rt = await client.query(`INSERT INTO teams (workspace_id, name, key, type, color) VALUES ($1,'Recruitment Team','recruitment','recruitment','#2563eb') RETURNING id`, [wsId])
-      const ct = await client.query(`INSERT INTO teams (workspace_id, name, key, type, color) VALUES ($1,'Client Relations Team','client','client','#7c3aed') RETURNING id`, [wsId])
-      const at = await client.query(`INSERT INTO teams (workspace_id, name, key, type, color) VALUES ($1,'Admin Team','admin','admin','#059669') RETURNING id`, [wsId])
-      const hash = await bcrypt.hash('admin123', 10)
-      const dir = await client.query(`INSERT INTO users (workspace_id, name, email, password_hash, role, active, status, is_super_admin) VALUES ($1,'Director','director@tel-cloud.com',$2,'director',true,'online',true) RETURNING id`, [wsId, hash])
-      const dirId = dir.rows[0].id
-      const agentHash = await bcrypt.hash('agent123', 10)
-      const agentList = [
-        { name: 'Aisha', email: 'aisha@tel-cloud.com', role: 'senior_consultant', teamId: rt.rows[0].id },
-        { name: 'Ben', email: 'ben@tel-cloud.com', role: 'consultant', teamId: ct.rows[0].id },
-        { name: 'Marcus', email: 'marcus@tel-cloud.com', role: 'consultant', teamId: rt.rows[0].id },
-        { name: 'Priya', email: 'priya@tel-cloud.com', role: 'consultant', teamId: rt.rows[0].id },
-        { name: 'Rachel', email: 'rachel@tel-cloud.com', role: 'consultant', teamId: ct.rows[0].id },
-        { name: 'Zara', email: 'zara@tel-cloud.com', role: 'admin', teamId: at.rows[0].id },
-      ]
-      for (const a of agentList) {
-        const u = await client.query(`INSERT INTO users (workspace_id, name, email, password_hash, role, active, status, team_id) VALUES ($1,$2,$3,$4,$5,true,'online',$6) RETURNING id`, [wsId, a.name, a.email, agentHash, a.role, a.teamId])
-        await client.query(`INSERT INTO team_members (team_id, user_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [a.teamId, u.rows[0].id])
-      }
-      const days = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday']
-      for (const day of days) {
-        await client.query(`INSERT INTO business_hours (workspace_id, phone_number_id, day_of_week, is_open, open_time, close_time) VALUES ($1,$2,$3,$4,'09:00','18:00')`, [wsId, phoneId, day, !['Saturday','Sunday'].includes(day)])
-      }
-      await client.query(`INSERT INTO routing_rules (workspace_id, mode, sticky_assignment, round_robin, candidate_team_id, client_team_id, escalation_enabled, escalation_steps) VALUES ($1,'smart',true,true,$2,$3,true,'[]')`, [wsId, rt.rows[0].id, ct.rows[0].id])
-      await client.query(`INSERT INTO security_settings (workspace_id) VALUES ($1)`, [wsId])
-      const sampleContacts = [
-        { name: 'Sarah Lim', phone: '+6591234001', email: 'sarah@example.com', type: 'candidate', stage: 'interviewed' },
-        { name: 'John Tan', phone: '+6591234002', email: 'john@example.com', type: 'candidate', stage: 'screened' },
-        { name: 'Mary Wong', phone: '+6591234003', email: 'mary@example.com', type: 'candidate', stage: 'new' },
-        { name: 'ABC Pte Ltd HR', phone: '+6591234004', email: 'hr@abc.com', type: 'client', stage: 'new' },
-        { name: 'XYZ Corp HR', phone: '+6591234005', email: 'hr@xyz.com', type: 'client', stage: 'new' },
-      ]
-      for (const contact of sampleContacts) {
-        const c = await client.query(`INSERT INTO contacts (workspace_id, name, phone, email, type, pipeline_stage, pdpa_consented, pdpa_consented_at) VALUES ($1,$2,$3,$4,$5,$6,true,NOW()) RETURNING id`, [wsId, contact.name, contact.phone, contact.email, contact.type, contact.stage])
-        const convo = await client.query(`INSERT INTO conversations (workspace_id, phone_number_id, contact_id, status, last_message_at) VALUES ($1,$2,$3,'open',NOW()) RETURNING id`, [wsId, phoneId, c.rows[0].id])
-        await client.query(`INSERT INTO messages (conversation_id, workspace_id, direction, text, status) VALUES ($1,$2,'in',$3,'read')`, [convo.rows[0].id, wsId, `Hello, I am ${contact.name}. I am interested in opportunities.`])
-      }
-      const defaultTemplates = [
-        { name: 'interview_confirmation', category: 'utility', body: 'Dear {{name}},\n\nWe are pleased to confirm your interview for the position of {{role}} at {{company}}.\n\nDate: {{date}}\nTime: {{time}}\nVenue: {{venue}}\n\nKindly bring your NRIC and certificates.\n\nWe look forward to meeting you.', buttons: [] },
-        { name: 'offer_letter_notification', category: 'utility', body: 'Dear {{name}},\n\nWe are delighted to inform you that your offer letter for {{role}} at {{company}} is ready.\n\nPlease confirm acceptance by {{deadline}}.\n\nWe look forward to welcoming you.', buttons: [{ type: 'quick_reply', label: 'Accept Offer' }, { type: 'quick_reply', label: 'Request Clarification' }] },
-        { name: 'candidate_status_followup', category: 'utility', body: 'Dear {{name}},\n\nWe refer to your application for {{role}} at {{company}}.\n\nKindly advise on your current availability and interest.\n\nThank you.', buttons: [{ type: 'quick_reply', label: 'Still Interested' }, { type: 'quick_reply', label: 'No Longer Available' }] },
-        { name: 'interview_reminder', category: 'utility', body: 'Dear {{name}},\n\nThis is a reminder of your interview tomorrow.\n\nDate: {{date}}\nTime: {{time}}\nVenue: {{venue}}\n\nPlease arrive 10 minutes early.', buttons: [] },
-        { name: 'job_opportunity_alert', category: 'marketing', body: 'Dear {{name}},\n\nWe have a new opportunity matching your profile.\n\nPosition: {{role}}\nCompany: {{company}}\nSalary: {{salary}}/month\n\nReply if interested.', buttons: [{ type: 'quick_reply', label: 'I Am Interested' }] },
-      ]
-      for (const t of defaultTemplates) {
-        await client.query(`INSERT INTO templates (workspace_id, name, category, status, body, buttons, created_by) VALUES ($1,$2,$3,'approved',$4,$5,$6)`, [wsId, t.name, t.category, t.body, JSON.stringify(t.buttons), dirId])
-      }
-    }
-    const users = await client.query(`SELECT id, email, role FROM users ORDER BY id ASC`)
-    res.json({ success: true, message: 'Database setup complete', users: users.rows })
-  } catch (err) {
-    res.json({ error: err.message })
-  } finally { client.release() }
-})
 
 // ─── START ─────────────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 4000

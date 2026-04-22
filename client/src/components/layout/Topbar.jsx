@@ -20,6 +20,7 @@ function DualRingsLogo() {
 
 const NAV_ITEMS = [
   { key: 'inbox', label: 'Inbox', icon: '💬' },
+  { key: 'projects', label: 'Projects', icon: '📁' },
   { key: 'scheduled', label: 'Scheduled', icon: '🕐' },
   { key: 'broadcasts', label: 'Broadcasts', icon: '📢' },
   { key: 'templates', label: 'Templates', icon: '📋' },

@@ -11,6 +11,7 @@ const ContactDrawer = lazy(() => import('./components/inbox/ContactDrawer'))
 const Broadcasts = lazy(() => import('./components/broadcasts/Broadcasts'))
 const Templates = lazy(() => import('./components/templates/Templates'))
 const Analytics = lazy(() => import('./components/analytics/Analytics'))
+const Projects = lazy(() => import('./components/projects/Projects'))
 const Scheduled = lazy(() => import('./components/scheduled/Scheduled'))
 const Settings = lazy(() => import('./components/settings/Settings'))
 const Pipeline = lazy(() => import('./components/pipeline/Pipeline'))
@@ -294,6 +295,7 @@ function MainApp() {
               )}
             </div>
           )
+        case 'projects': return <Projects />
         case 'broadcasts': return <Broadcasts />
         case 'templates': return <Templates />
         case 'analytics': return <Analytics />

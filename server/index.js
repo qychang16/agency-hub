@@ -907,6 +907,136 @@ app.get('/create-projects-table', async (req, res) => {
   }
 })
 
+// ─── WHATSAPP WEBHOOK ──────────────────────────────────────────────────────────
+
+// GET /webhook — Meta calls this once to verify the URL
+app.get('/webhook', (req, res) => {
+  const mode = req.query['hub.mode']
+  const token = req.query['hub.verify_token']
+  const challenge = req.query['hub.challenge']
+  const verifyToken = process.env.META_VERIFY_TOKEN
+
+  if (mode === 'subscribe' && token === verifyToken) {
+    console.log('✅ Webhook verified by Meta')
+    return res.status(200).send(challenge)
+  }
+  console.warn('❌ Webhook verification failed. Mode:', mode, 'Token match:', token === verifyToken)
+  return res.sendStatus(403)
+})
+
+// POST /webhook — Meta sends every message event here
+app.post('/webhook', async (req, res) => {
+  // Respond to Meta immediately — they require a 200 within 20 seconds
+  res.sendStatus(200)
+
+  try {
+    const body = req.body
+    if (body?.object !== 'whatsapp_business_account') return
+
+    for (const entry of body.entry || []) {
+      for (const change of entry.changes || []) {
+        if (change.field !== 'messages') continue
+        const value = change.value || {}
+        const phoneNumberId = value?.metadata?.phone_number_id
+        const wabaId = entry.id
+
+        // Find the workspace this WABA belongs to
+        // For now we only have one workspace — look it up by Meta phone number id
+        // (later we'll match by phone_numbers.whatsapp_phone_id)
+        const wsRow = await pool.query(
+          `SELECT id FROM workspaces WHERE workspace_type='internal' OR plan='enterprise' ORDER BY id ASC LIMIT 1`
+        )
+        const wsId = wsRow.rows[0]?.id
+        if (!wsId) { console.warn('No workspace found for webhook'); continue }
+
+        const phoneRow = await pool.query(
+          `SELECT id FROM phone_numbers WHERE workspace_id=$1 ORDER BY is_primary DESC, id ASC LIMIT 1`,
+          [wsId]
+        )
+        const phoneId = phoneRow.rows[0]?.id
+
+        // Handle incoming messages
+        for (const msg of value.messages || []) {
+          const fromPhone = '+' + msg.from
+          const text = msg.text?.body || msg.button?.text || `[${msg.type} message]`
+          const waMessageId = msg.id
+
+          // Find or create contact
+          let contactRow = await pool.query(
+            `SELECT id, name FROM contacts WHERE phone=$1 AND workspace_id=$2 LIMIT 1`,
+            [fromPhone, wsId]
+          )
+          let contactId = contactRow.rows[0]?.id
+          let contactName = contactRow.rows[0]?.name
+          if (!contactId) {
+            const newContact = await pool.query(
+              `INSERT INTO contacts (workspace_id, name, phone, type, pipeline_stage)
+               VALUES ($1, $2, $3, 'candidate', 'new') RETURNING id, name`,
+              [wsId, fromPhone, fromPhone]
+            )
+            contactId = newContact.rows[0].id
+            contactName = newContact.rows[0].name
+          }
+
+          // Find or create open conversation
+          let convoRow = await pool.query(
+            `SELECT id FROM conversations WHERE contact_id=$1 AND workspace_id=$2 AND status='open' LIMIT 1`,
+            [contactId, wsId]
+          )
+          let convoId = convoRow.rows[0]?.id
+          if (!convoId) {
+            const newConvo = await pool.query(
+              `INSERT INTO conversations (workspace_id, phone_number_id, contact_id, status, last_message_at)
+               VALUES ($1, $2, $3, 'open', NOW()) RETURNING id`,
+              [wsId, phoneId, contactId]
+            )
+            convoId = newConvo.rows[0].id
+          }
+
+          // Insert inbound message
+          const insertedMsg = await pool.query(
+            `INSERT INTO messages (conversation_id, workspace_id, direction, text, type, status, whatsapp_message_id, sent_at)
+             VALUES ($1, $2, 'in', $3, 'text', 'received', $4, NOW()) RETURNING *`,
+            [convoId, wsId, text, waMessageId]
+          )
+
+          // Update conversation preview and bump unread
+          await pool.query(
+            `UPDATE conversations SET last_message_at=NOW(), last_message_preview=$1,
+             unread_count=COALESCE(unread_count,0)+1, updated_at=NOW() WHERE id=$2`,
+            [text.slice(0, 100), convoId]
+          )
+
+          // Push to any listening UI clients in real time
+          io.emit('new_message', { ...insertedMsg.rows[0], conversation_id: convoId })
+          console.log(`📥 Inbound message from ${fromPhone} saved to convo ${convoId}`)
+        }
+
+        // Handle delivery/read status updates
+        for (const statusUpdate of value.statuses || []) {
+          const waId = statusUpdate.id
+          const status = statusUpdate.status // sent, delivered, read, failed
+          const timestamp = new Date(parseInt(statusUpdate.timestamp) * 1000)
+          const column = status === 'delivered' ? 'delivered_at' : status === 'read' ? 'read_at' : null
+          if (column) {
+            await pool.query(
+              `UPDATE messages SET status=$1, ${column}=$2 WHERE whatsapp_message_id=$3`,
+              [status, timestamp, waId]
+            )
+          } else {
+            await pool.query(
+              `UPDATE messages SET status=$1 WHERE whatsapp_message_id=$2`,
+              [status, waId]
+            )
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Webhook processing error:', err)
+  }
+})
+
 // ─── SOCKET.IO ─────────────────────────────────────────────────────────────────
 io.on('connection', socket => {
   socket.on('join_conversation', id => socket.join(`conversation_${id}`))

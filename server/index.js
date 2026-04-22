@@ -768,6 +768,16 @@ app.patch('/conversations/:id/project', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
+app.get('/create-projects-table', async (req, res) => {
+  try {
+    await pool.query(`CREATE TABLE IF NOT EXISTS projects (id SERIAL PRIMARY KEY, workspace_id INTEGER REFERENCES workspaces(id) ON DELETE CASCADE, client_name VARCHAR(255) NOT NULL, start_month VARCHAR(10) NOT NULL, start_year INTEGER NOT NULL, colour VARCHAR(20) DEFAULT '#2563eb', status VARCHAR(20) DEFAULT 'active', archived_at TIMESTAMP, created_by INTEGER, created_at TIMESTAMP DEFAULT NOW(), updated_at TIMESTAMP DEFAULT NOW())`)
+    await pool.query(`ALTER TABLE conversations ADD COLUMN IF NOT EXISTS project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL`)
+    res.json({ success: true, message: 'Projects table created' })
+  } catch (err) {
+    res.json({ error: err.message })
+  }
+})
+
 // ─── SOCKET.IO ─────────────────────────────────────────────────────────────────
 io.on('connection', socket => {
   socket.on('join_conversation', id => socket.join(`conversation_${id}`))

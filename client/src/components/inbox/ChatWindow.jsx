@@ -255,8 +255,8 @@ export default function ChatWindow({ activeConvoId, active, setActive, projects,
           <>
             <div style={{
               width: 36, height: 36, borderRadius: radius.pill,
-              background: isClient ? accent.soft : ink[200],
-              color: isClient ? accent.DEFAULT : ink[700],
+              background: isClient ? accent.DEFAULT : '#f5e9d6',
+              color: isClient ? '#fff' : '#7a5a1f',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               fontSize: textSize.sm, fontWeight: textWeight.semibold,
               flexShrink: 0,
@@ -283,10 +283,10 @@ export default function ChatWindow({ activeConvoId, active, setActive, projects,
                   </span>
                 )}
                 <span style={{
-                  fontSize: 9, padding: '1px 5px', borderRadius: radius.sm,
-                  background: isClient ? accent.soft : ink[200],
-                  color: isClient ? accent.DEFAULT : ink[700],
-                  fontWeight: textWeight.semibold, textTransform: 'uppercase', letterSpacing: '0.4px',
+                  fontSize: 9, padding: '2px 7px', borderRadius: radius.sm,
+                  background: isClient ? accent.DEFAULT : '#f5e9d6',
+                  color: isClient ? '#fff' : '#7a5a1f',
+                  fontWeight: textWeight.bold, textTransform: 'uppercase', letterSpacing: '0.5px',
                 }}>{isClient ? 'Client' : 'Candidate'}</span>
                 {currentProject && (
                   <span style={{

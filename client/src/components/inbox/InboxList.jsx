@@ -56,11 +56,11 @@ function ConvoCard({ convo, isActive, onClick, projects }) {
       )}
 
       <div style={{ display: 'flex', gap: space[3], alignItems: 'flex-start' }}>
-        {/* Avatar — no unread badge here anymore, keeps it clean */}
+        {/* Avatar — matching colour family to the type tag for consistency */}
         <div style={{
           width: 34, height: 34, borderRadius: radius.pill,
-          background: isClient ? accent.DEFAULT : ink[200],
-          color: isClient ? '#fff' : ink[700],
+          background: isClient ? accent.DEFAULT : '#f5e9d6',
+          color: isClient ? '#fff' : '#7a5a1f',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           fontSize: textSize.xs, fontWeight: textWeight.semibold,
           flexShrink: 0,
@@ -281,7 +281,7 @@ export default function InboxList({ activeConvoId, setActiveConvoId, isMobile, m
                 marginLeft: space[2],
                 fontSize: textSize.xs,
                 fontWeight: textWeight.semibold,
-                color: accent.DEFAULT,
+                color: '#d14a2b',
                 fontFamily: fonts.body,
               }}>{unreadCount} unread</span>
             )}

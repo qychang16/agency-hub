@@ -19,7 +19,7 @@ const NAV_ITEMS = [
 
 function Logo() {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: space[3], flexShrink: 0 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: space[2], flexShrink: 0 }}>
       {/* Floating 3D chrome rings — no container */}
       <svg width="46" height="46" viewBox="0 0 34 34" fill="none" style={{ filter: 'drop-shadow(0 2px 5px rgba(10, 9, 7, 0.2))' }}>
         <defs>

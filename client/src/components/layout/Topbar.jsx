@@ -40,6 +40,7 @@ export default function Topbar({ activeNav, setActiveNav, onNewContact, isMobile
   const visibleNav = NAV_ITEMS.filter(item => {
     switch (item.key) {
       case 'inbox': return hasPermission(user, 'view_own_conversations') || hasPermission(user, 'view_all_conversations')
+      case 'projects': return true
       case 'scheduled': return hasPermission(user, 'schedule_messages') || hasPermission(user, 'bulk_schedule')
       case 'broadcasts': return hasPermission(user, 'send_broadcasts') || hasPermission(user, 'send_own_broadcasts')
       case 'templates': return hasPermission(user, 'send_approved_templates') || hasPermission(user, 'create_templates')

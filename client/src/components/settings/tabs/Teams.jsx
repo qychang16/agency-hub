@@ -1,178 +1,401 @@
-import { useState } from 'react'
-import { useWorkspace } from '../../../context/WorkspaceContext'
-import { ACCENT, ACCENT_LIGHT, ACCENT_MID, NAVY } from '../../../utils/constants'
+import { useState, useEffect } from 'react'
+import { useAuth } from '../../../context/AuthContext'
+import { API, ACCENT, ACCENT_LIGHT, NAVY } from '../../../utils/constants'
+import { getRoleColor, getRoleLabel } from '../../../utils/permissions'
 
-const TEAM_COLORS = ['#2563eb','#7c3aed','#059669','#d97706','#dc2626','#0891b2','#db2777','#65a30d']
+const TEAM_COLORS = [
+  '#2563eb', '#7c3aed', '#059669', '#d97706',
+  '#dc2626', '#0891b2', '#be185d', '#1a2332',
+  '#65a30d', '#ea580c', '#0f766e', '#7e22ce',
+]
 
-export default function Teams() {
-  const { teams, agents, addTeam, updateTeam, deleteTeam } = useWorkspace()
-  const [showModal, setShowModal] = useState(false)
-  const [editingTeam, setEditingTeam] = useState(null)
-  const [form, setForm] = useState({ label: '', key: '', type: 'recruitment', lead_user_id: '', color: '#2563eb', description: '', agents: [] })
+const TEAM_TYPES = [
+  { value: 'recruitment', label: 'Recruitment', icon: '🎯', desc: 'Handles candidate sourcing, screening and placement' },
+  { value: 'client', label: 'Client Relations', icon: '🏢', desc: 'Manages client relationships and job briefs' },
+  { value: 'executive', label: 'Executive Search', icon: '⭐', desc: 'Handles senior and C-suite level placements' },
+  { value: 'admin', label: 'Admin', icon: '⚙️', desc: 'Back-office operations, data and compliance' },
+  { value: 'support', label: 'Support', icon: '🤝', desc: 'General support and coordination' },
+]
 
-  function openAdd() {
-    setEditingTeam(null)
-    setForm({ label: '', key: '', type: 'recruitment', lead_user_id: '', color: '#2563eb', description: '', agents: [] })
-    setShowModal(true)
+function Field({ label, hint, children }) {
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <label style={{ fontSize: 11, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.4px' }}>{label}</label>
+      {hint && <div style={{ fontSize: 11, color: '#9ca3af', marginBottom: 6 }}>{hint}</div>}
+      {children}
+    </div>
+  )
+}
+
+function Input({ value, onChange, placeholder, disabled }) {
+  return (
+    <input value={value || ''} onChange={onChange} placeholder={placeholder} disabled={disabled}
+      style={{ width: '100%', padding: '9px 12px', border: '0.5px solid #e5e7eb', borderRadius: 8, fontSize: 13, outline: 'none', background: disabled ? '#f9fafb' : '#fff', color: '#111827', boxSizing: 'border-box' }} />
+  )
+}
+
+function Select({ value, onChange, options }) {
+  return (
+    <select value={value || ''} onChange={onChange}
+      style={{ width: '100%', padding: '9px 12px', border: '0.5px solid #e5e7eb', borderRadius: 8, fontSize: 13, outline: 'none', background: '#fff', color: '#111827' }}>
+      {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+    </select>
+  )
+}
+
+function Btn({ onClick, children, variant = 'primary', size = 'md', disabled, style: extra }) {
+  const sizes = { sm: { padding: '5px 10px', fontSize: 11 }, md: { padding: '8px 14px', fontSize: 12 } }
+  const variants = {
+    primary: { background: ACCENT, color: '#fff', border: 'none' },
+    ghost: { background: 'transparent', color: '#6b7280', border: '0.5px solid #e5e7eb' },
+    danger: { background: '#fee2e2', color: '#dc2626', border: '0.5px solid #fca5a5' },
   }
+  return (
+    <button onClick={!disabled ? onClick : undefined}
+      style={{ ...sizes[size], ...variants[variant], borderRadius: 8, cursor: disabled ? 'default' : 'pointer', fontWeight: 500, opacity: disabled ? 0.6 : 1, display: 'inline-flex', alignItems: 'center', gap: 5, ...extra }}>
+      {children}
+    </button>
+  )
+}
 
-  function openEdit(team) {
-    setEditingTeam(team)
-    setForm({ label: team.label, key: team.key, type: team.type, lead_user_id: team.lead_user_id || '', color: team.color, description: team.description || '', agents: team.agents || [] })
-    setShowModal(true)
-  }
+function StatusDot({ status }) {
+  const colors = { online: '#22c55e', away: '#f59e0b', offline: '#9ca3af', busy: '#ef4444' }
+  return <div style={{ width: 7, height: 7, borderRadius: '50%', background: colors[status] || '#9ca3af', flexShrink: 0 }} />
+}
 
-  function handleSave() {
-    if (!form.label.trim()) return alert('Team name is required.')
-    const key = form.key || form.label.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '')
-    if (editingTeam) {
-      updateTeam(editingTeam.id, { ...form, key })
-    } else {
-      addTeam({ ...form, key })
-    }
-    setShowModal(false)
-  }
+function Modal({ title, subtitle, onClose, children, width = 540 }) {
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16 }}
+      onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div style={{ background: '#fff', borderRadius: 14, width: '100%', maxWidth: width, maxHeight: '90vh', overflowY: 'auto' }}>
+        <div style={{ padding: '18px 20px', borderBottom: '0.5px solid #f1f4f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, background: '#fff', zIndex: 1 }}>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: '#111827' }}>{title}</div>
+            {subtitle && <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>{subtitle}</div>}
+          </div>
+          <button onClick={onClose} style={{ width: 28, height: 28, borderRadius: 7, border: '0.5px solid #e5e7eb', background: '#f9fafb', cursor: 'pointer', fontSize: 14, color: '#6b7280', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+        </div>
+        <div style={{ padding: 20 }}>{children}</div>
+      </div>
+    </div>
+  )
+}
 
-  function toggleAgent(agentName) {
+function TeamModal({ team, agents, onClose, onSave }) {
+  const { token } = useAuth()
+  const [form, setForm] = useState({
+    name: team?.name || '',
+    type: team?.type || 'recruitment',
+    lead_user_id: team?.lead_user_id || '',
+    color: team?.color || '#2563eb',
+    description: team?.description || '',
+    members: (team?.members || []).map(m => m.id || m),
+  })
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const [memberSearch, setMemberSearch] = useState('')
+  const isEdit = !!team
+
+  function toggleMember(id) {
     setForm(p => ({
       ...p,
-      agents: p.agents.includes(agentName)
-        ? p.agents.filter(a => a !== agentName)
-        : [...p.agents, agentName]
+      members: p.members.includes(id)
+        ? p.members.filter(m => m !== id)
+        : [...p.members, id]
     }))
   }
 
+  async function save() {
+    setError('')
+    if (!form.name.trim()) { setError('Team name is required'); return }
+    setSaving(true)
+    try {
+      const url = isEdit ? `${API}/teams/${team.id}` : `${API}/teams`
+      const method = isEdit ? 'PATCH' : 'POST'
+      const r = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({ ...form, key: form.name.toLowerCase().replace(/\s+/g, '_') })
+      })
+      if (!r.ok) { const d = await r.json(); setError(d.error || 'Failed to save'); return }
+      onSave(); onClose()
+    } catch { setError('Failed to save. Please try again.') }
+    finally { setSaving(false) }
+  }
+
+  const filteredAgents = agents.filter(a =>
+    !memberSearch || a.name?.toLowerCase().includes(memberSearch.toLowerCase())
+  )
+
+  const selectedType = TEAM_TYPES.find(t => t.value === form.type)
+
   return (
-    <div style={{ padding: 28 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
-        <div>
-          <div style={{ fontSize: 16, fontWeight: 600, color: '#111827', marginBottom: 4 }}>Teams</div>
-          <div style={{ fontSize: 12, color: '#9ca3af' }}>Organise agents into teams for routing and reporting.</div>
+    <Modal title={isEdit ? `Edit Team — ${team.name}` : 'Create New Team'} subtitle={isEdit ? 'Update team settings and members' : 'Set up a new team and assign agents'} onClose={onClose}>
+      <Field label="Team Name">
+        <Input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} placeholder="e.g. Recruitment Team, KL Office, Executive Search" />
+      </Field>
+
+      <Field label="Team Type" hint="Determines routing behaviour and analytics categorisation">
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+          {TEAM_TYPES.map(t => (
+            <div key={t.value} onClick={() => setForm(p => ({ ...p, type: t.value }))}
+              style={{ display: 'flex', gap: 10, padding: '10px 12px', borderRadius: 8, border: `1.5px solid ${form.type === t.value ? ACCENT : '#e5e7eb'}`, cursor: 'pointer', background: form.type === t.value ? ACCENT_LIGHT : '#fff', transition: 'all .1s' }}>
+              <span style={{ fontSize: 18, flexShrink: 0 }}>{t.icon}</span>
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: form.type === t.value ? ACCENT : '#111827' }}>{t.label}</div>
+                <div style={{ fontSize: 10, color: '#9ca3af', marginTop: 1, lineHeight: 1.4 }}>{t.desc}</div>
+              </div>
+            </div>
+          ))}
         </div>
-        <button onClick={openAdd}
-          style={{ padding: '9px 18px', background: ACCENT, color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
-          + New Team
-        </button>
-      </div>
+      </Field>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 14 }}>
-        {teams.map(team => {
-          const teamAgents = agents.filter(a => team.agents?.includes(a.name) && a.active)
-          const lead = agents.find(a => a.id === team.lead_user_id || a.name === team.lead_name)
-          return (
-            <div key={team.id} style={{ background: '#fff', borderRadius: 12, border: '0.5px solid #e5e7eb', overflow: 'hidden' }}
-              onMouseEnter={e => e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.08)'}
-              onMouseLeave={e => e.currentTarget.style.boxShadow = 'none'}>
-              <div style={{ height: 4, background: team.color }} />
-              <div style={{ padding: '16px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: '#111827', marginBottom: 3 }}>{team.label}</div>
-                    <span style={{ fontSize: 9, padding: '2px 7px', borderRadius: 4, background: '#f1f4f9', color: '#6b7280', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.3px' }}>{team.type}</span>
-                  </div>
-                  <div style={{ display: 'flex', gap: 5 }}>
-                    <button onClick={() => openEdit(team)}
-                      style={{ padding: '4px 10px', border: '0.5px solid #d1d5db', borderRadius: 6, fontSize: 10, background: 'transparent', color: '#374151', cursor: 'pointer' }}>Edit</button>
-                    <button onClick={() => { if (confirm('Delete this team?')) deleteTeam(team.id) }}
-                      style={{ padding: '4px 10px', border: '0.5px solid #fca5a5', borderRadius: 6, fontSize: 10, background: 'transparent', color: '#dc2626', cursor: 'pointer' }}>Delete</button>
-                  </div>
-                </div>
-                {team.description && <div style={{ fontSize: 11, color: '#9ca3af', marginBottom: 10 }}>{team.description}</div>}
-                {lead && (
-                  <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 10 }}>
-                    <span style={{ color: '#9ca3af' }}>Lead: </span><strong>{lead.name}</strong>
-                  </div>
-                )}
-                <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
-                  {teamAgents.slice(0, 6).map(a => (
-                    <div key={a.name} style={{ width: 28, height: 28, borderRadius: 7, background: team.color + '20', border: `1px solid ${team.color}40`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: team.color, title: a.name }}>
-                      {a.name[0]}
-                    </div>
-                  ))}
-                  {teamAgents.length > 6 && (
-                    <div style={{ width: 28, height: 28, borderRadius: 7, background: '#f1f4f9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: '#9ca3af' }}>
-                      +{teamAgents.length - 6}
-                    </div>
-                  )}
-                  {teamAgents.length === 0 && <span style={{ fontSize: 11, color: '#9ca3af' }}>No agents assigned</span>}
-                </div>
-                <div style={{ marginTop: 10, paddingTop: 10, borderTop: '0.5px solid #f1f4f9', display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: 11, color: '#9ca3af' }}>{teamAgents.length} agent{teamAgents.length !== 1 ? 's' : ''}</span>
-                  <span style={{ fontSize: 10, color: '#9ca3af', fontFamily: 'monospace' }}>{team.key}</span>
-                </div>
-              </div>
-            </div>
-          )
-        })}
-      </div>
-
-      {showModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 80, padding: 16 }}>
-          <div style={{ background: '#fff', borderRadius: 14, padding: 24, width: '100%', maxWidth: 520, maxHeight: '90vh', overflowY: 'auto' }}>
-            <div style={{ fontSize: 15, fontWeight: 600, color: '#111827', marginBottom: 20 }}>{editingTeam ? 'Edit Team' : 'Create New Team'}</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
-              <div>
-                <label style={{ fontSize: 11, fontWeight: 500, color: '#6b7280', display: 'block', marginBottom: 4 }}>Team Name *</label>
-                <input value={form.label} onChange={e => setForm(p => ({ ...p, label: e.target.value }))} placeholder="e.g. Recruitment Team"
-                  style={{ width: '100%', padding: '8px 10px', border: '1px solid #e5e7eb', borderRadius: 7, fontSize: 12, outline: 'none', background: '#f9fafb', color: '#111827', boxSizing: 'border-box' }} />
-              </div>
-              <div>
-                <label style={{ fontSize: 11, fontWeight: 500, color: '#6b7280', display: 'block', marginBottom: 4 }}>Type</label>
-                <select value={form.type} onChange={e => setForm(p => ({ ...p, type: e.target.value }))}
-                  style={{ width: '100%', padding: '8px 10px', border: '1px solid #e5e7eb', borderRadius: 7, fontSize: 12, background: '#f9fafb', color: '#111827', outline: 'none' }}>
-                  <option value="recruitment">Recruitment</option>
-                  <option value="client">Client Relations</option>
-                  <option value="admin">Admin</option>
-                  <option value="executive">Executive Search</option>
-                  <option value="other">Other</option>
-                </select>
-              </div>
-              <div>
-                <label style={{ fontSize: 11, fontWeight: 500, color: '#6b7280', display: 'block', marginBottom: 4 }}>Team Lead</label>
-                <select value={form.lead_user_id} onChange={e => setForm(p => ({ ...p, lead_user_id: e.target.value }))}
-                  style={{ width: '100%', padding: '8px 10px', border: '1px solid #e5e7eb', borderRadius: 7, fontSize: 12, background: '#f9fafb', color: '#111827', outline: 'none' }}>
-                  <option value="">No lead</option>
-                  {agents.filter(a => a.active).map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-                </select>
-              </div>
-              <div>
-                <label style={{ fontSize: 11, fontWeight: 500, color: '#6b7280', display: 'block', marginBottom: 4 }}>Team Colour</label>
-                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                  {TEAM_COLORS.map(c => (
-                    <button key={c} onClick={() => setForm(p => ({ ...p, color: c }))}
-                      style={{ width: 24, height: 24, borderRadius: 6, background: c, border: form.color === c ? `2px solid #111827` : '2px solid transparent', cursor: 'pointer', padding: 0 }} />
-                  ))}
-                </div>
-              </div>
-            </div>
-            <div style={{ marginBottom: 14 }}>
-              <label style={{ fontSize: 11, fontWeight: 500, color: '#6b7280', display: 'block', marginBottom: 4 }}>Description</label>
-              <input value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} placeholder="Brief description of this team's function"
-                style={{ width: '100%', padding: '8px 10px', border: '1px solid #e5e7eb', borderRadius: 7, fontSize: 12, outline: 'none', background: '#f9fafb', color: '#111827', boxSizing: 'border-box' }} />
-            </div>
-            <div style={{ marginBottom: 20 }}>
-              <label style={{ fontSize: 11, fontWeight: 500, color: '#6b7280', display: 'block', marginBottom: 8 }}>Assign Agents</label>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
-                {agents.filter(a => a.active).map(a => (
-                  <label key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', borderRadius: 7, border: `1px solid ${form.agents.includes(a.name) ? ACCENT : '#e5e7eb'}`, background: form.agents.includes(a.name) ? ACCENT_LIGHT : '#f9fafb', cursor: 'pointer' }}>
-                    <input type="checkbox" checked={form.agents.includes(a.name)} onChange={() => toggleAgent(a.name)} style={{ accentColor: ACCENT }} />
-                    <div>
-                      <div style={{ fontSize: 12, fontWeight: 500, color: '#374151' }}>{a.name}</div>
-                      <div style={{ fontSize: 10, color: '#9ca3af', textTransform: 'capitalize' }}>{a.role?.replace('_', ' ')}</div>
-                    </div>
-                  </label>
-                ))}
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button onClick={() => setShowModal(false)}
-                style={{ flex: 1, padding: '9px', border: '1px solid #e5e7eb', borderRadius: 8, fontSize: 12, color: '#6b7280', background: '#fff', cursor: 'pointer' }}>Cancel</button>
-              <button onClick={handleSave}
-                style={{ flex: 2, padding: '9px', background: ACCENT, color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>{editingTeam ? 'Save Changes' : 'Create Team'}</button>
-            </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <Field label="Team Lead" hint="Lead is notified on SLA breaches and escalations">
+          <Select value={form.lead_user_id} onChange={e => setForm(p => ({ ...p, lead_user_id: e.target.value }))} options={[
+            { value: '', label: 'No lead assigned' },
+            ...agents.map(a => ({ value: a.id, label: a.name }))
+          ]} />
+        </Field>
+        <Field label="Team Colour">
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', paddingTop: 4 }}>
+            {TEAM_COLORS.map(c => (
+              <button key={c} onClick={() => setForm(p => ({ ...p, color: c }))}
+                style={{ width: 26, height: 26, borderRadius: 7, background: c, border: form.color === c ? '3px solid #111827' : '2px solid transparent', cursor: 'pointer', transition: 'border .1s' }} />
+            ))}
           </div>
+        </Field>
+      </div>
+
+      <Field label="Description" hint="Brief summary of this team's responsibilities — visible to all agents">
+        <Input value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} placeholder="e.g. Handles all candidate screening and placement for Singapore market" />
+      </Field>
+
+      <Field label={`Team Members — ${form.members.length} selected`} hint="Select agents to add to this team. No limit.">
+        <div style={{ marginBottom: 8, position: 'relative' }}>
+          <svg style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', width: 11, height: 11, color: '#9ca3af', pointerEvents: 'none' }} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="7" cy="7" r="4"/><path d="M10.5 10.5l3 3" strokeLinecap="round"/></svg>
+          <input value={memberSearch} onChange={e => setMemberSearch(e.target.value)} placeholder="Search agents…"
+            style={{ width: '100%', padding: '7px 10px 7px 26px', border: '0.5px solid #e5e7eb', borderRadius: 7, fontSize: 12, outline: 'none', background: '#f9fafb', color: '#111827', boxSizing: 'border-box' }} />
+        </div>
+        <div style={{ maxHeight: 200, overflowY: 'auto', border: '0.5px solid #e5e7eb', borderRadius: 9, padding: 6 }}>
+          {filteredAgents.length === 0 ? (
+            <div style={{ padding: '20px 0', textAlign: 'center', fontSize: 12, color: '#9ca3af' }}>No agents found</div>
+          ) : filteredAgents.map(a => {
+            const selected = form.members.includes(a.id)
+            const rc = getRoleColor(a.role)
+            return (
+              <div key={a.id} onClick={() => toggleMember(a.id)}
+                style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 7, cursor: 'pointer', background: selected ? ACCENT_LIGHT : 'transparent', marginBottom: 2, transition: 'background .1s' }}
+                onMouseEnter={e => { if (!selected) e.currentTarget.style.background = '#f9fafb' }}
+                onMouseLeave={e => { if (!selected) e.currentTarget.style.background = 'transparent' }}>
+                <div style={{ width: 16, height: 16, borderRadius: 4, border: `1.5px solid ${selected ? ACCENT : '#d1d5db'}`, background: selected ? ACCENT : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all .15s' }}>
+                  {selected && <svg width="9" height="9" viewBox="0 0 10 10"><path d="M1.5 5l2.5 2.5 5-5" stroke="white" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                </div>
+                <div style={{ width: 28, height: 28, borderRadius: 8, background: rc.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: rc.color, flexShrink: 0 }}>
+                  {a.name?.[0]?.toUpperCase()}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 12, fontWeight: 500, color: '#111827' }}>{a.name}</div>
+                  <div style={{ fontSize: 10, color: '#9ca3af' }}>{getRoleLabel(a.role)}</div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <StatusDot status={a.status} />
+                  <span style={{ fontSize: 10, color: '#9ca3af', textTransform: 'capitalize' }}>{a.status || 'offline'}</span>
+                </div>
+                {parseInt(form.lead_user_id) === a.id && (
+                  <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 4, background: '#fef3c7', color: '#92400e', fontWeight: 700 }}>Lead</span>
+                )}
+              </div>
+            )
+          })}
+        </div>
+        {form.members.length > 0 && (
+          <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+            {form.members.map(id => {
+              const a = agents.find(ag => ag.id === id)
+              if (!a) return null
+              return (
+                <div key={id} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '3px 8px 3px 6px', background: ACCENT_LIGHT, borderRadius: 20, border: `0.5px solid ${ACCENT}30` }}>
+                  <div style={{ width: 16, height: 16, borderRadius: '50%', background: ACCENT, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700, color: '#fff' }}>{a.name?.[0]?.toUpperCase()}</div>
+                  <span style={{ fontSize: 11, color: ACCENT, fontWeight: 500 }}>{a.name}</span>
+                  <button onClick={e => { e.stopPropagation(); toggleMember(id) }} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: ACCENT, fontSize: 12, padding: 0, lineHeight: 1 }}>×</button>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </Field>
+
+      {error && (
+        <div style={{ padding: '10px 12px', background: '#fef2f2', border: '0.5px solid #fecaca', borderRadius: 8, fontSize: 12, color: '#dc2626', marginBottom: 12 }}>
+          ⚠ {error}
         </div>
       )}
+
+      <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
+        <Btn variant="ghost" onClick={onClose} style={{ flex: 1 }}>Cancel</Btn>
+        <Btn onClick={save} disabled={saving} style={{ flex: 2 }}>{saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Create Team'}</Btn>
+      </div>
+    </Modal>
+  )
+}
+
+export default function Teams() {
+  const { token } = useAuth()
+  const [teams, setTeams] = useState([])
+  const [agents, setAgents] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [showAdd, setShowAdd] = useState(false)
+  const [showEdit, setShowEdit] = useState(null)
+
+  useEffect(() => { load() }, [])
+
+  async function load() {
+    try {
+      const [t, a] = await Promise.all([
+        fetch(`${API}/teams`, { headers: { Authorization: 'Bearer ' + token } }).then(r => r.json()),
+        fetch(`${API}/agents`, { headers: { Authorization: 'Bearer ' + token } }).then(r => r.json()),
+      ])
+      setTeams(Array.isArray(t) ? t : [])
+      setAgents(Array.isArray(a) ? a.filter(ag => ag.active) : [])
+    } catch {} finally { setLoading(false) }
+  }
+
+  async function deleteTeam(team) {
+    if (!confirm(`Delete "${team.name}"? Agents will be unassigned but not deleted. Conversation history is preserved.`)) return
+    await fetch(`${API}/teams/${team.id}`, { method: 'DELETE', headers: { Authorization: 'Bearer ' + token } })
+    load()
+  }
+
+  const totalAgentsInTeams = [...new Set(teams.flatMap(t => (t.members || []).map(m => m.id || m)))].length
+
+  return (
+    <div>
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
+        <div>
+          <div style={{ fontSize: 15, fontWeight: 600, color: '#111827' }}>Teams</div>
+          <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 3 }}>
+            {teams.length} team{teams.length !== 1 ? 's' : ''} · {totalAgentsInTeams} agent{totalAgentsInTeams !== 1 ? 's' : ''} assigned
+          </div>
+        </div>
+        <Btn onClick={() => setShowAdd(true)}>+ Create Team</Btn>
+      </div>
+
+      {/* Info banner */}
+      <div style={{ background: '#eff6ff', border: '0.5px solid #bfdbfe', borderRadius: 10, padding: '12px 16px', marginBottom: 20, display: 'flex', gap: 10 }}>
+        <span style={{ fontSize: 16, flexShrink: 0 }}>💡</span>
+        <div style={{ fontSize: 12, color: '#1e40af', lineHeight: 1.6 }}>
+          <strong>Teams control routing.</strong> Candidates auto-route to your Recruitment team. Clients auto-route to your Client Relations team.
+          Each team can have its own routing rules, SLA targets and business hours. An agent can belong to multiple teams.
+        </div>
+      </div>
+
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: 60, color: '#9ca3af' }}>
+          <div style={{ fontSize: 28, marginBottom: 10 }}>⏳</div>
+          <div>Loading teams…</div>
+        </div>
+      ) : teams.length === 0 ? (
+        <div style={{ background: '#fff', borderRadius: 12, border: '0.5px solid #e5e7eb', padding: '60px 20px', textAlign: 'center' }}>
+          <div style={{ fontSize: 40, marginBottom: 14 }}>🤝</div>
+          <div style={{ fontSize: 14, fontWeight: 500, color: '#6b7280', marginBottom: 6 }}>No teams yet</div>
+          <div style={{ fontSize: 12, color: '#9ca3af', marginBottom: 20, maxWidth: 320, margin: '0 auto 20px' }}>
+            Create teams to organise your agents and enable smart conversation routing
+          </div>
+          <Btn onClick={() => setShowAdd(true)}>+ Create First Team</Btn>
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 14 }}>
+          {teams.map(t => {
+            const typeInfo = TEAM_TYPES.find(tt => tt.value === t.type) || TEAM_TYPES[0]
+            const members = t.members || []
+            const onlineMembers = members.filter(m => m.status === 'online')
+            const lead = members.find(m => (m.id || m) === t.lead_user_id)
+
+            return (
+              <div key={t.id} style={{ background: '#fff', borderRadius: 12, border: '0.5px solid #e5e7eb', overflow: 'hidden' }}>
+                {/* Team header */}
+                <div style={{ padding: '16px 18px', borderBottom: '0.5px solid #f1f4f9', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                    <div style={{ width: 42, height: 42, borderRadius: 11, background: t.color + '18', border: `1.5px solid ${t.color}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>
+                      {typeInfo.icon}
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: '#111827', marginBottom: 3 }}>{t.name}</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 10, background: t.color + '18', color: t.color, fontWeight: 600 }}>{typeInfo.label}</span>
+                        <span style={{ fontSize: 10, color: '#9ca3af' }}>{members.length} member{members.length !== 1 ? 's' : ''}</span>
+                        {onlineMembers.length > 0 && (
+                          <span style={{ fontSize: 10, color: '#16a34a' }}>· {onlineMembers.length} online</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 5 }}>
+                    <Btn variant="ghost" size="sm" onClick={() => setShowEdit(t)}>Edit</Btn>
+                    <Btn variant="danger" size="sm" onClick={() => deleteTeam(t)}>Delete</Btn>
+                  </div>
+                </div>
+
+                {/* Description */}
+                {t.description && (
+                  <div style={{ padding: '10px 18px', fontSize: 12, color: '#6b7280', borderBottom: '0.5px solid #f9fafb', lineHeight: 1.5 }}>
+                    {t.description}
+                  </div>
+                )}
+
+                {/* Team lead */}
+                {lead && (
+                  <div style={{ padding: '10px 18px', display: 'flex', alignItems: 'center', gap: 8, borderBottom: '0.5px solid #f9fafb' }}>
+                    <span style={{ fontSize: 10, color: '#9ca3af', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.4px' }}>Lead</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <div style={{ width: 20, height: 20, borderRadius: 6, background: '#fef3c7', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700, color: '#92400e' }}>
+                        {lead.name?.[0]?.toUpperCase()}
+                      </div>
+                      <span style={{ fontSize: 12, color: '#374151', fontWeight: 500 }}>{lead.name}</span>
+                      <span style={{ fontSize: 10 }}>⭐</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Members */}
+                <div style={{ padding: '12px 18px' }}>
+                  {members.length === 0 ? (
+                    <div style={{ fontSize: 12, color: '#9ca3af', textAlign: 'center', padding: '10px 0' }}>No members yet — edit to add agents</div>
+                  ) : (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      {members.map(m => (
+                        <div key={m.id || m} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '4px 9px', background: '#f9fafb', borderRadius: 8, border: '0.5px solid #e5e7eb' }}>
+                          <StatusDot status={m.status} />
+                          <span style={{ fontSize: 11, color: '#374151', fontWeight: 500 }}>{m.name}</span>
+                          {(m.id || m) === t.lead_user_id && <span style={{ fontSize: 10 }}>⭐</span>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Footer stats */}
+                <div style={{ padding: '10px 18px', background: '#f9fafb', borderTop: '0.5px solid #f1f4f9', display: 'flex', gap: 16 }}>
+                  <div style={{ fontSize: 11, color: '#9ca3af' }}>
+                    <span style={{ fontWeight: 600, color: '#374151' }}>{onlineMembers.length}</span> online
+                  </div>
+                  <div style={{ fontSize: 11, color: '#9ca3af' }}>
+                    <span style={{ fontWeight: 600, color: '#374151' }}>{members.filter(m => m.status === 'away').length}</span> away
+                  </div>
+                  <div style={{ fontSize: 11, color: '#9ca3af' }}>
+                    <span style={{ fontWeight: 600, color: '#374151' }}>{members.filter(m => !m.status || m.status === 'offline').length}</span> offline
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {showAdd && <TeamModal agents={agents} onClose={() => setShowAdd(false)} onSave={load} />}
+      {showEdit && <TeamModal team={showEdit} agents={agents} onClose={() => setShowEdit(null)} onSave={load} />}
     </div>
   )
 }

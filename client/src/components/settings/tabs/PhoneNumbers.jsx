@@ -82,9 +82,27 @@ export default function PhoneNumbers() {
   const [loading, setLoading] = useState(true)
   const [showAdd, setShowAdd] = useState(false)
   const [showEdit, setShowEdit] = useState(null)
-  const [form, setForm] = useState({ number: '', display_name: '', whatsapp_phone_id: '', is_primary: false })
+  const [form, setForm] = useState({ number: '', display_name: '', whatsapp_phone_id: '', is_primary: false, owner_user_id: '', project_id: '' })
+  const [agents, setAgents] = useState([])
+  const [projects, setProjects] = useState([])
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { load(); loadAgents(); loadProjects() }, [])
+
+  async function loadAgents() {
+    try {
+      const r = await fetch(`${API}/agents`, { headers: { Authorization: 'Bearer ' + token } })
+      const data = await r.json()
+      setAgents(Array.isArray(data) ? data.filter(a => a.active) : [])
+    } catch {}
+  }
+
+  async function loadProjects() {
+    try {
+      const r = await fetch(`${API}/projects`, { headers: { Authorization: 'Bearer ' + token } })
+      const data = await r.json()
+      setProjects(Array.isArray(data) ? data.filter(p => p.status === 'active') : [])
+    } catch {}
+  }
 
   async function load() {
     try {
@@ -100,7 +118,7 @@ export default function PhoneNumbers() {
       const method = showEdit ? 'PATCH' : 'POST'
       await fetch(url, { method, headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }, body: JSON.stringify(form) })
       setShowAdd(false); setShowEdit(null)
-      setForm({ number: '', display_name: '', whatsapp_phone_id: '', is_primary: false })
+      setForm({ number: '', display_name: '', whatsapp_phone_id: '', is_primary: false, owner_user_id: '', project_id: '' })
       load()
     } catch {}
   }
@@ -124,7 +142,7 @@ export default function PhoneNumbers() {
           <div style={{ fontSize: 15, fontWeight: 600, color: '#111827' }}>Phone Numbers</div>
           <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 3 }}>Manage WhatsApp numbers connected to your workspace. No limit on numbers.</div>
         </div>
-        <Btn onClick={() => { setForm({ number: '', display_name: '', whatsapp_phone_id: '', is_primary: false }); setShowAdd(true) }}>+ Add Number</Btn>
+        <Btn onClick={() => { setForm({ number: '', display_name: '', whatsapp_phone_id: '', is_primary: false, owner_user_id: '', project_id: '' }); setShowAdd(true) }}>+ Add Number</Btn>
       </div>
 
       {/* Info banner */}
@@ -193,6 +211,24 @@ export default function PhoneNumbers() {
                   )}
                   <span style={{ fontSize: 11, color: '#9ca3af' }}>Daily limit: {n.daily_limit?.toLocaleString() || '1,000'} conversations</span>
                 </div>
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 4 }}>
+                  {n.owner_name ? (
+                    <span style={{ fontSize: 11, color: '#374151', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                      <span style={{ color: '#9ca3af' }}>Owner:</span> <strong>{n.owner_name}</strong>
+                    </span>
+                  ) : (
+                    <span style={{ fontSize: 11, color: '#9ca3af', fontStyle: 'italic' }}>No owner assigned</span>
+                  )}
+                  {n.project_name ? (
+                    <span style={{ fontSize: 11, color: '#374151', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                      <span style={{ color: '#9ca3af' }}>Project:</span>
+                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: n.project_colour || '#6b7280', display: 'inline-block' }} />
+                      <strong>{n.project_name}</strong>
+                    </span>
+                  ) : (
+                    <span style={{ fontSize: 11, color: '#9ca3af', fontStyle: 'italic' }}>Workspace-level (no project)</span>
+                  )}
+                </div>
               </div>
 
               {/* Actions */}
@@ -202,7 +238,7 @@ export default function PhoneNumbers() {
                 )}
                 <Btn variant="ghost" size="sm" onClick={() => {
                   setShowEdit(n)
-                  setForm({ number: n.number, display_name: n.display_name || '', whatsapp_phone_id: n.whatsapp_phone_id || '', is_primary: n.is_primary })
+                  setForm({ number: n.number, display_name: n.display_name || '', whatsapp_phone_id: n.whatsapp_phone_id || '', is_primary: n.is_primary, owner_user_id: n.owner_user_id || '', project_id: n.project_id || '' })
                 }}>Edit</Btn>
                 {!n.is_primary && (
                   <Btn variant="danger" size="sm" onClick={() => remove(n.id)}>Remove</Btn>
@@ -241,6 +277,26 @@ export default function PhoneNumbers() {
 
           <Field label="WhatsApp Phone Number ID" hint="From Meta Business Manager → WhatsApp → Phone Numbers → Phone Number ID">
             <Input value={form.whatsapp_phone_id} onChange={e => setForm(p => ({ ...p, whatsapp_phone_id: e.target.value }))} placeholder="e.g. 123456789012345" />
+          </Field>
+
+          <Field label="Line Owner" hint="The staff member responsible for this number. They're the default assignee for new conversations.">
+            <select
+              value={form.owner_user_id || ''}
+              onChange={e => setForm(p => ({ ...p, owner_user_id: e.target.value ? parseInt(e.target.value) : '' }))}
+              style={{ width: '100%', padding: '9px 12px', border: '0.5px solid #e5e7eb', borderRadius: 8, fontSize: 13, outline: 'none', background: '#fff', color: '#111827', boxSizing: 'border-box', cursor: 'pointer' }}>
+              <option value="">— Unassigned —</option>
+              {agents.map(a => <option key={a.id} value={a.id}>{a.name} ({a.email})</option>)}
+            </select>
+          </Field>
+
+          <Field label="Project" hint="Tie this number to a specific client project. Leave blank for office/workspace-level lines (e.g. main reception).">
+            <select
+              value={form.project_id || ''}
+              onChange={e => setForm(p => ({ ...p, project_id: e.target.value ? parseInt(e.target.value) : '' }))}
+              style={{ width: '100%', padding: '9px 12px', border: '0.5px solid #e5e7eb', borderRadius: 8, fontSize: 13, outline: 'none', background: '#fff', color: '#111827', boxSizing: 'border-box', cursor: 'pointer' }}>
+              <option value="">— Workspace-level (no project) —</option>
+              {projects.map(p => <option key={p.id} value={p.id}>{p.client_name} · {p.start_month} {p.start_year}</option>)}
+            </select>
           </Field>
 
           <Toggle

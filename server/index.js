@@ -542,7 +542,18 @@ app.patch('/workspace', auth, async (req, res) => {
 app.get('/phone-numbers', auth, async (req, res) => {
   try {
     const wsId = await getWorkspaceId(req.user.id)
-    const r = await pool.query('SELECT * FROM phone_numbers WHERE workspace_id=$1 ORDER BY is_primary DESC, created_at ASC', [wsId])
+    const r = await pool.query(`
+      SELECT pn.*,
+             u.name  AS owner_name,
+             u.email AS owner_email,
+             p.client_name AS project_name,
+             p.colour AS project_colour
+      FROM phone_numbers pn
+      LEFT JOIN users u ON u.id = pn.owner_user_id
+      LEFT JOIN projects p ON p.id = pn.project_id
+      WHERE pn.workspace_id=$1
+      ORDER BY pn.is_primary DESC, pn.created_at ASC
+    `, [wsId])
     res.json(r.rows)
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
@@ -550,9 +561,14 @@ app.get('/phone-numbers', auth, async (req, res) => {
 app.post('/phone-numbers', auth, async (req, res) => {
   try {
     const wsId = await getWorkspaceId(req.user.id)
-    const { number, display_name, whatsapp_phone_id, is_primary } = req.body
+    const { number, display_name, whatsapp_phone_id, is_primary, owner_user_id, project_id } = req.body
     if (is_primary) await pool.query('UPDATE phone_numbers SET is_primary=false WHERE workspace_id=$1', [wsId])
-    const r = await pool.query(`INSERT INTO phone_numbers (workspace_id, number, display_name, whatsapp_phone_id, is_primary) VALUES ($1,$2,$3,$4,$5) RETURNING *`, [wsId, number, display_name, whatsapp_phone_id, is_primary || false])
+    const r = await pool.query(
+      `INSERT INTO phone_numbers
+         (workspace_id, number, display_name, whatsapp_phone_id, is_primary, owner_user_id, project_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+      [wsId, number, display_name, whatsapp_phone_id, is_primary || false, owner_user_id || null, project_id || null]
+    )
     res.json(r.rows[0])
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
@@ -560,9 +576,19 @@ app.post('/phone-numbers', auth, async (req, res) => {
 app.patch('/phone-numbers/:id', auth, async (req, res) => {
   try {
     const wsId = await getWorkspaceId(req.user.id)
-    const { display_name, is_primary, status, team_id } = req.body
+    const { display_name, is_primary, status, team_id, owner_user_id, project_id } = req.body
     if (is_primary) await pool.query('UPDATE phone_numbers SET is_primary=false WHERE workspace_id=$1', [wsId])
-    const r = await pool.query(`UPDATE phone_numbers SET display_name=$1, is_primary=$2, status=$3, team_id=$4 WHERE id=$5 AND workspace_id=$6 RETURNING *`, [display_name, is_primary, status, team_id, req.params.id, wsId])
+    const r = await pool.query(
+      `UPDATE phone_numbers
+          SET display_name   = COALESCE($1, display_name),
+              is_primary     = COALESCE($2, is_primary),
+              status         = COALESCE($3, status),
+              team_id        = $4,
+              owner_user_id  = $5,
+              project_id     = $6
+        WHERE id=$7 AND workspace_id=$8 RETURNING *`,
+      [display_name, is_primary, status, team_id || null, owner_user_id || null, project_id || null, req.params.id, wsId]
+    )
     res.json(r.rows[0])
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
@@ -589,8 +615,10 @@ app.post('/agents', auth, async (req, res) => {
     const wsId = await getWorkspaceId(req.user.id)
     const { name, email, role, team_id, capacity, password } = req.body
     const hash = await bcrypt.hash(password || 'Welcome@123', 10)
-    const r = await pool.query(`INSERT INTO users (workspace_id, name, email, password_hash, role, team_id, capacity, force_password_change) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`, [wsId, name, email, hash, role, team_id, capacity || 20, true])
-    if (team_id) await pool.query('INSERT INTO team_members (team_id, user_id) VALUES ($1,$2) ON CONFLICT DO NOTHING', [team_id, r.rows[0].id])
+    const teamIdValue = (team_id === '' || team_id === null || team_id === undefined) ? null : parseInt(team_id)
+    const capacityValue = (capacity === '' || capacity === null || capacity === undefined) ? 20 : parseInt(capacity)
+    const r = await pool.query(`INSERT INTO users (workspace_id, name, email, password_hash, role, team_id, capacity, force_password_change) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`, [wsId, name, email, hash, role, teamIdValue, capacityValue, true])
+    if (teamIdValue) await pool.query('INSERT INTO team_members (team_id, user_id) VALUES ($1,$2) ON CONFLICT DO NOTHING', [teamIdValue, r.rows[0].id])
     await logAudit(wsId, req.user.id, 'create_agent', 'user', r.rows[0].id, null, { name, email, role })
     res.json({ ...r.rows[0], password_hash: undefined })
   } catch (err) { res.status(500).json({ error: err.message }) }
@@ -600,10 +628,12 @@ app.patch('/agents/:id', auth, async (req, res) => {
   try {
     const wsId = await getWorkspaceId(req.user.id)
     const { name, email, role, team_id, capacity, status, active, permissions } = req.body
-    const r = await pool.query(`UPDATE users SET name=$1, email=$2, role=$3, team_id=$4, capacity=$5, status=$6, active=$7, permissions=$8, updated_at=NOW() WHERE id=$9 AND workspace_id=$10 RETURNING *`, [name, email, role, team_id, capacity, status, active, JSON.stringify(permissions), req.params.id, wsId])
-    if (team_id) {
+    const teamIdValue = (team_id === '' || team_id === null || team_id === undefined) ? null : parseInt(team_id)
+    const capacityValue = (capacity === '' || capacity === null || capacity === undefined) ? null : parseInt(capacity)
+    const r = await pool.query(`UPDATE users SET name=$1, email=$2, role=$3, team_id=$4, capacity=$5, status=$6, active=$7, permissions=$8, updated_at=NOW() WHERE id=$9 AND workspace_id=$10 RETURNING *`, [name, email, role, teamIdValue, capacityValue, status, active, JSON.stringify(permissions), req.params.id, wsId])
+    if (teamIdValue) {
       await pool.query('DELETE FROM team_members WHERE user_id=$1', [req.params.id])
-      await pool.query('INSERT INTO team_members (team_id, user_id) VALUES ($1,$2) ON CONFLICT DO NOTHING', [team_id, req.params.id])
+      await pool.query('INSERT INTO team_members (team_id, user_id) VALUES ($1,$2) ON CONFLICT DO NOTHING', [teamIdValue, req.params.id])
     }
     res.json({ ...r.rows[0], password_hash: undefined })
   } catch (err) { res.status(500).json({ error: err.message }) }
@@ -1200,6 +1230,128 @@ app.patch('/projects/:id/assign-conversations', auth, async (req, res) => {
     await logAudit(wsId, req.user.id, 'assign_to_project', 'project', req.params.id, null, { conversation_ids, count: conversation_ids.length })
     res.json({ success: true, assigned: conversation_ids.length })
   } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+// ─── PROJECT MEMBERS (Session D1 Chunk 4A) ─────────────────────────────────────
+
+// GET /projects/:id/members — list all members of a project
+app.get('/projects/:id/members', auth, async (req, res) => {
+  try {
+    const wsId = await getWorkspaceId(req.user.id)
+    // Confirm project belongs to this workspace (prevents cross-tenant peek)
+    const proj = await pool.query('SELECT id FROM projects WHERE id=$1 AND workspace_id=$2', [req.params.id, wsId])
+    if (!proj.rows.length) return res.status(404).json({ error: 'Project not found' })
+
+    const r = await pool.query(`
+      SELECT pm.project_id, pm.user_id, pm.role_in_project, pm.created_at,
+             u.name, u.email, u.role AS user_role, u.active, u.status
+      FROM project_members pm
+      JOIN users u ON u.id = pm.user_id
+      WHERE pm.project_id = $1
+      ORDER BY pm.role_in_project DESC, u.name ASC
+    `, [req.params.id])
+    res.json(r.rows)
+  } catch (err) {
+    console.error('GET /projects/:id/members error:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// POST /projects/:id/members — add a user to a project
+// Body: { user_id, role_in_project? }  role default = 'member'
+app.post('/projects/:id/members', auth, async (req, res) => {
+  try {
+    const wsId = await getWorkspaceId(req.user.id)
+    const { user_id, role_in_project } = req.body
+    if (!user_id) return res.status(400).json({ error: 'user_id is required' })
+    const role = (role_in_project === 'lead') ? 'lead' : 'member'
+
+    // Confirm project and user both belong to this workspace
+    const proj = await pool.query('SELECT id FROM projects WHERE id=$1 AND workspace_id=$2', [req.params.id, wsId])
+    if (!proj.rows.length) return res.status(404).json({ error: 'Project not found' })
+    const usr = await pool.query('SELECT id FROM users WHERE id=$1 AND workspace_id=$2 AND active=true', [user_id, wsId])
+    if (!usr.rows.length) return res.status(404).json({ error: 'User not found in this workspace' })
+
+    // Upsert (allows re-adding with a different role)
+    const r = await pool.query(`
+      INSERT INTO project_members (project_id, user_id, role_in_project)
+      VALUES ($1, $2, $3)
+      ON CONFLICT (project_id, user_id) DO UPDATE SET role_in_project = EXCLUDED.role_in_project
+      RETURNING *
+    `, [req.params.id, user_id, role])
+
+    await logAudit(wsId, req.user.id, 'add_project_member', 'project', req.params.id, null, { user_id, role })
+    res.json(r.rows[0])
+  } catch (err) {
+    console.error('POST /projects/:id/members error:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// PATCH /projects/:id/members/:userId — change a member's role
+// Body: { role_in_project: 'member' | 'lead' }
+app.patch('/projects/:id/members/:userId', auth, async (req, res) => {
+  try {
+    const wsId = await getWorkspaceId(req.user.id)
+    const { role_in_project } = req.body
+    if (!['member', 'lead'].includes(role_in_project)) {
+      return res.status(400).json({ error: "role_in_project must be 'member' or 'lead'" })
+    }
+
+    const proj = await pool.query('SELECT id FROM projects WHERE id=$1 AND workspace_id=$2', [req.params.id, wsId])
+    if (!proj.rows.length) return res.status(404).json({ error: 'Project not found' })
+
+    const r = await pool.query(`
+      UPDATE project_members SET role_in_project=$1
+      WHERE project_id=$2 AND user_id=$3 RETURNING *
+    `, [role_in_project, req.params.id, req.params.userId])
+
+    if (!r.rows.length) return res.status(404).json({ error: 'Member not found' })
+    await logAudit(wsId, req.user.id, 'update_project_member', 'project', req.params.id, null, { user_id: req.params.userId, role_in_project })
+    res.json(r.rows[0])
+  } catch (err) {
+    console.error('PATCH /projects/:id/members/:userId error:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// DELETE /projects/:id/members/:userId — remove from project
+app.delete('/projects/:id/members/:userId', auth, async (req, res) => {
+  try {
+    const wsId = await getWorkspaceId(req.user.id)
+    const proj = await pool.query('SELECT id FROM projects WHERE id=$1 AND workspace_id=$2', [req.params.id, wsId])
+    if (!proj.rows.length) return res.status(404).json({ error: 'Project not found' })
+
+    const r = await pool.query(
+      `DELETE FROM project_members WHERE project_id=$1 AND user_id=$2 RETURNING *`,
+      [req.params.id, req.params.userId]
+    )
+    if (!r.rows.length) return res.status(404).json({ error: 'Member not found' })
+    await logAudit(wsId, req.user.id, 'remove_project_member', 'project', req.params.id, null, { user_id: req.params.userId })
+    res.json({ success: true })
+  } catch (err) {
+    console.error('DELETE /projects/:id/members/:userId error:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// GET /my-projects — returns the current user's project memberships + project details
+// Used later in Chunk 4B to scope consultant views
+app.get('/my-projects', auth, async (req, res) => {
+  try {
+    const wsId = await getWorkspaceId(req.user.id)
+    const r = await pool.query(`
+      SELECT p.*, pm.role_in_project
+      FROM project_members pm
+      JOIN projects p ON p.id = pm.project_id
+      WHERE pm.user_id = $1 AND p.workspace_id = $2
+      ORDER BY p.status ASC, p.created_at DESC
+    `, [req.user.id, wsId])
+    res.json(r.rows)
+  } catch (err) {
+    console.error('GET /my-projects error:', err)
+    res.status(500).json({ error: err.message })
+  }
 })
 
 app.patch('/conversations/:id/project', auth, async (req, res) => {

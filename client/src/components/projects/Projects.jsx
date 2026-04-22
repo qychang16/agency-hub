@@ -258,8 +258,163 @@ function ProjectCard({ project, onEdit, onArchive, onRestore, onDelete, onSelect
   )
 }
 
+// ─── Members panel (inside a project) ──────────────────────────────────────
+function MembersPanel({ project, agents }) {
+  const { token } = useAuth()
+  const [members, setMembers] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [adding, setAdding] = useState(false)
+  const [selectedUserId, setSelectedUserId] = useState('')
+  const [selectedRole, setSelectedRole] = useState('member')
+  const [error, setError] = useState('')
+
+  useEffect(() => { load() }, [project.id])
+
+  async function load() {
+    setLoading(true)
+    try {
+      const r = await fetch(`${API}/projects/${project.id}/members`, { headers: { Authorization: 'Bearer ' + token } })
+      const data = await r.json()
+      setMembers(Array.isArray(data) ? data : [])
+    } catch {} finally { setLoading(false) }
+  }
+
+  async function addMember() {
+    setError('')
+    if (!selectedUserId) { setError('Please select a staff member to add'); return }
+    try {
+      const r = await fetch(`${API}/projects/${project.id}/members`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({ user_id: parseInt(selectedUserId), role_in_project: selectedRole })
+      })
+      if (!r.ok) { const d = await r.json(); setError(d.error || 'Failed to add member'); return }
+      setSelectedUserId(''); setSelectedRole('member'); setAdding(false)
+      load()
+    } catch { setError('Failed to add member. Please try again.') }
+  }
+
+  async function changeRole(userId, newRole) {
+    await fetch(`${API}/projects/${project.id}/members/${userId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+      body: JSON.stringify({ role_in_project: newRole })
+    })
+    load()
+  }
+
+  async function removeMember(userId, memberName) {
+    if (!confirm(`Remove ${memberName} from this project? They'll lose access to its conversations.`)) return
+    await fetch(`${API}/projects/${project.id}/members/${userId}`, {
+      method: 'DELETE',
+      headers: { Authorization: 'Bearer ' + token }
+    })
+    load()
+  }
+
+  const memberIds = new Set(members.map(m => m.user_id))
+  const eligibleToAdd = agents.filter(a => a.active && !memberIds.has(a.id))
+  const leads = members.filter(m => m.role_in_project === 'lead')
+  const regulars = members.filter(m => m.role_in_project !== 'lead')
+
+  return (
+    <div style={{ maxWidth: 720, margin: '0 auto' }}>
+      {/* Add member card */}
+      <div style={{ background: '#fff', borderRadius: 12, border: '0.5px solid #e5e7eb', overflow: 'hidden', marginBottom: 16 }}>
+        <div style={{ padding: '14px 18px', borderBottom: '0.5px solid #f1f4f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#111827' }}>Project team</div>
+            <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>
+              {members.length} {members.length === 1 ? 'member' : 'members'} · {leads.length} lead{leads.length !== 1 ? 's' : ''}
+            </div>
+          </div>
+          {!adding && eligibleToAdd.length > 0 && (
+            <Btn onClick={() => setAdding(true)}>+ Add member</Btn>
+          )}
+        </div>
+
+        {adding && (
+          <div style={{ padding: '14px 18px', background: '#f9fafb', borderBottom: '0.5px solid #f1f4f9' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr auto auto', gap: 10, alignItems: 'center' }}>
+              <select value={selectedUserId} onChange={e => setSelectedUserId(e.target.value)}
+                style={{ padding: '9px 12px', border: '0.5px solid #e5e7eb', borderRadius: 8, fontSize: 13, outline: 'none', background: '#fff', color: '#111827', cursor: 'pointer' }}>
+                <option value="">— Select a staff member —</option>
+                {eligibleToAdd.map(a => (
+                  <option key={a.id} value={a.id}>{a.name} · {a.role}</option>
+                ))}
+              </select>
+              <select value={selectedRole} onChange={e => setSelectedRole(e.target.value)}
+                style={{ padding: '9px 12px', border: '0.5px solid #e5e7eb', borderRadius: 8, fontSize: 13, outline: 'none', background: '#fff', color: '#111827', cursor: 'pointer' }}>
+                <option value="member">Member</option>
+                <option value="lead">Lead</option>
+              </select>
+              <Btn onClick={addMember}>Add</Btn>
+              <Btn variant="ghost" onClick={() => { setAdding(false); setError(''); setSelectedUserId('') }}>Cancel</Btn>
+            </div>
+            {error && <div style={{ marginTop: 8, fontSize: 11, color: '#dc2626' }}>⚠ {error}</div>}
+          </div>
+        )}
+
+        {loading ? (
+          <div style={{ padding: 30, textAlign: 'center', color: '#9ca3af', fontSize: 13 }}>Loading members…</div>
+        ) : members.length === 0 ? (
+          <div style={{ padding: '40px 20px', textAlign: 'center' }}>
+            <div style={{ fontSize: 32, marginBottom: 10 }}>👥</div>
+            <div style={{ fontSize: 13, fontWeight: 500, color: '#6b7280', marginBottom: 4 }}>No team members yet</div>
+            <div style={{ fontSize: 12, color: '#9ca3af' }}>
+              {eligibleToAdd.length > 0
+                ? 'Add staff to give them access to this project.'
+                : 'All active staff are already members, or you have no staff yet. Add staff in Settings → Team first.'}
+            </div>
+          </div>
+        ) : (
+          <div>
+            {[...leads, ...regulars].map(m => (
+              <div key={m.user_id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 18px', borderBottom: '0.5px solid #f9fafb' }}>
+                {/* Avatar */}
+                <div style={{ width: 36, height: 36, borderRadius: 10, background: project.colour + '20', border: `1px solid ${project.colour}40`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: project.colour, flexShrink: 0 }}>
+                  {m.name?.[0]?.toUpperCase()}
+                </div>
+                {/* Name + email */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#111827' }}>{m.name}</div>
+                    <span style={{ fontSize: 9, padding: '2px 7px', borderRadius: 6, background: '#f1f4f9', color: '#6b7280', textTransform: 'capitalize', fontWeight: 600 }}>{m.user_role}</span>
+                    {m.role_in_project === 'lead' && (
+                      <span style={{ fontSize: 9, padding: '2px 7px', borderRadius: 6, background: '#fef3c7', color: '#92400e', fontWeight: 700 }}>★ LEAD</span>
+                    )}
+                  </div>
+                  <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>{m.email}</div>
+                </div>
+                {/* Role toggle */}
+                <select value={m.role_in_project} onChange={e => changeRole(m.user_id, e.target.value)}
+                  style={{ padding: '6px 10px', border: '0.5px solid #e5e7eb', borderRadius: 6, fontSize: 11, outline: 'none', background: '#fff', color: '#111827', cursor: 'pointer' }}>
+                  <option value="member">Member</option>
+                  <option value="lead">Lead</option>
+                </select>
+                {/* Remove */}
+                <Btn variant="danger" size="sm" onClick={() => removeMember(m.user_id, m.name)}>Remove</Btn>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Helper note */}
+      <div style={{ background: '#eff6ff', border: '0.5px solid #bfdbfe', borderRadius: 10, padding: '12px 16px', fontSize: 12, color: '#1e40af', display: 'flex', gap: 10 }}>
+        <span style={{ fontSize: 16, flexShrink: 0 }}>💡</span>
+        <div style={{ lineHeight: 1.6 }}>
+          <strong>Leads</strong> are point-of-contact for the client and typically manage the project end-to-end.
+          <strong>Members</strong> handle day-to-day conversations alongside leads. Both can reply on any phone line assigned to this project.
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function ProjectView({ project, onBack, onRenamed }) {
   const { token } = useAuth()
+  const [view, setView] = useState('conversations')
   const [conversations, setConversations] = useState([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
@@ -376,32 +531,54 @@ function ProjectView({ project, onBack, onRenamed }) {
           </div>
         </div>
 
-        {/* Filters */}
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-          <div style={{ position: 'relative', flex: 1, maxWidth: 280 }}>
-            <svg style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', width: 12, height: 12, color: 'rgba(255,255,255,0.4)', pointerEvents: 'none' }} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="7" cy="7" r="4"/><path d="M10.5 10.5l3 3" strokeLinecap="round"/></svg>
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search contacts…"
-              style={{ width: '100%', padding: '7px 10px 7px 28px', border: '0.5px solid rgba(255,255,255,0.2)', borderRadius: 8, fontSize: 12, outline: 'none', background: 'rgba(255,255,255,0.1)', color: '#fff', boxSizing: 'border-box' }} />
-          </div>
-          <select value={agentFilter} onChange={e => { setAgentFilter(e.target.value); load(1, true) }}
-            style={{ padding: '7px 12px', border: '0.5px solid rgba(255,255,255,0.2)', borderRadius: 8, fontSize: 12, outline: 'none', background: 'rgba(255,255,255,0.1)', color: '#fff' }}>
-            <option value="all">All Agents</option>
-            {agents.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-          </select>
-          <button onClick={() => { setUnreadOnly(!unreadOnly); load(1, true) }}
-            style={{ padding: '7px 12px', border: `0.5px solid ${unreadOnly ? '#fff' : 'rgba(255,255,255,0.2)'}`, borderRadius: 8, fontSize: 12, background: unreadOnly ? '#fff' : 'rgba(255,255,255,0.1)', color: unreadOnly ? NAVY : '#fff', cursor: 'pointer', fontWeight: unreadOnly ? 600 : 400 }}>
-            Unread only
-          </button>
-          <button onClick={() => load(1, true)}
-            style={{ padding: '7px 12px', border: '0.5px solid rgba(255,255,255,0.2)', borderRadius: 8, fontSize: 12, background: 'transparent', color: 'rgba(255,255,255,0.7)', cursor: 'pointer' }}>
-            ↻
-          </button>
+        {/* Tabs */}
+        <div style={{ display: 'flex', gap: 4, marginBottom: view === 'conversations' ? 10 : 0 }}>
+          {[
+            { key: 'conversations', label: '💬 Conversations' },
+            { key: 'members', label: '👤 Team' },
+          ].map(t => (
+            <button key={t.key} onClick={() => setView(t.key)}
+              style={{
+                padding: '7px 14px', border: 'none', borderRadius: 8,
+                background: view === t.key ? '#fff' : 'rgba(255,255,255,0.1)',
+                color: view === t.key ? NAVY : 'rgba(255,255,255,0.7)',
+                fontSize: 12, fontWeight: view === t.key ? 600 : 500, cursor: 'pointer',
+              }}>
+              {t.label}
+            </button>
+          ))}
         </div>
+
+        {/* Conversation filters (only in conversations view) */}
+        {view === 'conversations' && (
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+            <div style={{ position: 'relative', flex: 1, maxWidth: 280 }}>
+              <svg style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', width: 12, height: 12, color: 'rgba(255,255,255,0.4)', pointerEvents: 'none' }} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="7" cy="7" r="4"/><path d="M10.5 10.5l3 3" strokeLinecap="round"/></svg>
+              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search contacts…"
+                style={{ width: '100%', padding: '7px 10px 7px 28px', border: '0.5px solid rgba(255,255,255,0.2)', borderRadius: 8, fontSize: 12, outline: 'none', background: 'rgba(255,255,255,0.1)', color: '#fff', boxSizing: 'border-box' }} />
+            </div>
+            <select value={agentFilter} onChange={e => { setAgentFilter(e.target.value); load(1, true) }}
+              style={{ padding: '7px 12px', border: '0.5px solid rgba(255,255,255,0.2)', borderRadius: 8, fontSize: 12, outline: 'none', background: 'rgba(255,255,255,0.1)', color: '#fff' }}>
+              <option value="all">All Agents</option>
+              {agents.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+            </select>
+            <button onClick={() => { setUnreadOnly(!unreadOnly); load(1, true) }}
+              style={{ padding: '7px 12px', border: `0.5px solid ${unreadOnly ? '#fff' : 'rgba(255,255,255,0.2)'}`, borderRadius: 8, fontSize: 12, background: unreadOnly ? '#fff' : 'rgba(255,255,255,0.1)', color: unreadOnly ? NAVY : '#fff', cursor: 'pointer', fontWeight: unreadOnly ? 600 : 400 }}>
+              Unread only
+            </button>
+            <button onClick={() => load(1, true)}
+              style={{ padding: '7px 12px', border: '0.5px solid rgba(255,255,255,0.2)', borderRadius: 8, fontSize: 12, background: 'transparent', color: 'rgba(255,255,255,0.7)', cursor: 'pointer' }}>
+              ↻
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Content */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px 28px' }}>
-        {loading ? (
+        {view === 'members' ? (
+          <MembersPanel project={project} agents={agents} />
+        ) : loading ? (
           <div style={{ textAlign: 'center', padding: 60, color: '#9ca3af' }}>
             <div style={{ fontSize: 32, marginBottom: 12 }}>📁</div>
             <div>Loading project conversations…</div>

@@ -9,6 +9,7 @@ const InboxList = lazy(() => import('./components/inbox/InboxList'))
 const ChatWindow = lazy(() => import('./components/inbox/ChatWindow'))
 const ContactDrawer = lazy(() => import('./components/inbox/ContactDrawer'))
 const GlobalSearch = lazy(() => import('./components/search/GlobalSearch'))
+const NewContactModal = lazy(() => import('./components/inbox/NewContactModal'))
 const Broadcasts = lazy(() => import('./components/broadcasts/Broadcasts'))
 const Templates = lazy(() => import('./components/templates/Templates'))
 const Analytics = lazy(() => import('./components/analytics/Analytics'))
@@ -410,6 +411,19 @@ function MainApp() {
           <GlobalSearch
             onClose={() => setShowSearch(false)}
             onSelect={handleSearchSelect}
+          />
+        </Suspense>
+      )}
+      {showNewContact && (
+        <Suspense fallback={null}>
+          <NewContactModal
+            projects={projects}
+            onClose={() => setShowNewContact(false)}
+            onCreated={(convoId) => {
+              setActiveNav('inbox')
+              setActiveConvoId(convoId)
+              if (isMobile) setMobileView('chat')
+            }}
           />
         </Suspense>
       )}

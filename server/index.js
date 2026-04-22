@@ -315,12 +315,13 @@ app.delete('/teams/:id', auth, async (req, res) => {
 app.get('/conversations', auth, async (req, res) => {
   try {
     const wsId = await getWorkspaceId(req.user.id)
-    const { phone_number_id, status } = req.query
+    const { phone_number_id, status, contact_id } = req.query
     let query = `SELECT c.*, ct.name, ct.phone, ct.email, ct.type, ct.pipeline_stage, ct.pdpa_consented, ct.dnc, u.name as assigned_name, pn.number as phone_number, pn.display_name as phone_line, c.last_message_preview as preview FROM conversations c JOIN contacts ct ON ct.id=c.contact_id LEFT JOIN users u ON u.id=c.assigned_to LEFT JOIN phone_numbers pn ON pn.id=c.phone_number_id WHERE c.workspace_id=$1`
     const params = [wsId]
     let idx = 2
     if (phone_number_id) { query += ` AND c.phone_number_id=$${idx++}`; params.push(phone_number_id) }
     if (status) { query += ` AND c.status=$${idx++}`; params.push(status) }
+    if (contact_id) { query += ` AND c.contact_id=$${idx++}`; params.push(contact_id) }
     query += ' ORDER BY c.last_message_at DESC NULLS LAST'
     const r = await pool.query(query, params)
     res.json(r.rows.map(c => ({ ...c, assigned_to: c.assigned_name })))

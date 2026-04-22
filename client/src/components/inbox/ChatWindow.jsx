@@ -4,6 +4,36 @@ import { API, ACCENT, ACCENT_LIGHT, NAVY, EMOJIS, DEFAULT_TEMPLATES } from '../.
 import { fmtSGT } from '../../utils/dates'
 import { io } from 'socket.io-client'
 
+// Module-level scroll position cache — survives remounts within the session.
+// Map of conversationId -> last scrollTop. We store here instead of component
+// state so the value persists even when the messages container briefly unmounts.
+const scrollMemory = new Map()
+
+// Returns a label for a message's date group: "Today", "Yesterday",
+// "Monday 21 Apr" (if within the past 7 days), or "22 Apr 2026" (older).
+function dateGroupLabel(iso) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  const now = new Date()
+
+  // Compare using SGT calendar days — strip time to midnight in Asia/Singapore
+  const toSGTDateString = x => x.toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' })
+  const msgDay = toSGTDateString(d)
+  const today = toSGTDateString(now)
+  const y = new Date(now); y.setDate(y.getDate() - 1)
+  const yesterday = toSGTDateString(y)
+
+  if (msgDay === today) return 'Today'
+  if (msgDay === yesterday) return 'Yesterday'
+
+  const diffDays = Math.floor((new Date(today) - new Date(msgDay)) / 86400000)
+  if (diffDays > 0 && diffDays < 7) {
+    return d.toLocaleDateString('en-GB', { weekday: 'long', day: '2-digit', month: 'short', timeZone: 'Asia/Singapore' })
+  }
+  // Older than a week — include year
+  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Singapore' })
+}
+
 export default function ChatWindow({ activeConvoId, active, setActive, projects, showDrawer, setShowDrawer, isMobile, mobileView, setMobileView }) {
   const { token, user } = useAuth()
   const [input, setInput] = useState('')
@@ -11,27 +41,95 @@ export default function ChatWindow({ activeConvoId, active, setActive, projects,
   const [showEmoji, setShowEmoji] = useState(false)
   const [showReassign, setShowReassign] = useState(false)
   const [showProjectMenu, setShowProjectMenu] = useState(false)
+  const [newMessagesCount, setNewMessagesCount] = useState(0)
+  const [isAtBottom, setIsAtBottom] = useState(true)
   const messagesEndRef = useRef(null)
   const messagesRef = useRef(null)
   const textareaRef = useRef(null)
   const socketRef = useRef(null)
   const projectMenuRef = useRef(null)
+  // Track the previous convo id so we can save its scroll position before switching
+  const prevConvoIdRef = useRef(null)
 
+  // Socket for live messages
   useEffect(() => {
     const socket = io(API)
     socketRef.current = socket
     socket.on('new_message', msg => {
       if (msg.conversation_id === activeConvoId) {
         setActive(prev => prev ? { ...prev, messages: [...(prev.messages || []), msg] } : prev)
+        // If user is scrolled up, increment the unread counter for the pill
+        if (!isAtBottomRef.current) {
+          setNewMessagesCount(n => n + 1)
+        }
       }
     })
     return () => socket.disconnect()
   }, [activeConvoId, setActive])
 
+  // Keep a ref of isAtBottom so the socket callback reads current value
+  const isAtBottomRef = useRef(true)
+  useEffect(() => { isAtBottomRef.current = isAtBottom }, [isAtBottom])
+
+  // Save scroll position when the convo id changes (before new messages load)
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    // If we had a previous conversation open, save its scroll position
+    if (prevConvoIdRef.current && prevConvoIdRef.current !== activeConvoId && messagesRef.current) {
+      scrollMemory.set(prevConvoIdRef.current, messagesRef.current.scrollTop)
+    }
+    prevConvoIdRef.current = activeConvoId
+    // Reset new messages counter when switching
+    setNewMessagesCount(0)
+  }, [activeConvoId])
+
+  // Restore scroll position (or go to bottom if first visit) whenever messages load
+  useEffect(() => {
+    const el = messagesRef.current
+    if (!el || !active?.messages) return
+    const saved = scrollMemory.get(activeConvoId)
+    if (saved !== undefined) {
+      el.scrollTop = saved
+    } else {
+      // First time opening — scroll to bottom instantly, no animation
+      el.scrollTop = el.scrollHeight
+    }
+  }, [activeConvoId, active?.messages?.length === undefined ? 0 : (active?.messages?.length > 0 ? 1 : 0)])
+  // ^ triggers on first load of messages for this convo
+
+  // When a new message arrives and user is near bottom, auto-scroll
+  useEffect(() => {
+    const el = messagesRef.current
+    if (!el || !active?.messages?.length) return
+    if (isAtBottomRef.current) {
+      el.scrollTop = el.scrollHeight
+      setNewMessagesCount(0)
+    }
   }, [active?.messages?.length])
 
+  // Track whether user is near the bottom of the scroll area
+  function handleScroll() {
+    const el = messagesRef.current
+    if (!el) return
+    // "At bottom" = within 60px of the bottom (allows a little slack)
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 60
+    setIsAtBottom(atBottom)
+    if (atBottom && newMessagesCount > 0) setNewMessagesCount(0)
+    // Update saved position live so refreshing doesn't lose it
+    if (activeConvoId) scrollMemory.set(activeConvoId, el.scrollTop)
+  }
+
+  function scrollToBottom(smooth = true) {
+    const el = messagesRef.current
+    if (!el) return
+    if (smooth) {
+      el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
+    } else {
+      el.scrollTop = el.scrollHeight
+    }
+    setNewMessagesCount(0)
+  }
+
+  // Close project menu on outside click
   useEffect(() => {
     function onClickOutside(e) {
       if (projectMenuRef.current && !projectMenuRef.current.contains(e.target)) {
@@ -50,6 +148,8 @@ export default function ChatWindow({ activeConvoId, active, setActive, projects,
       body: JSON.stringify({ conversation_id: activeConvoId, direction: 'out', text: input })
     })
     setInput(''); setShowEmoji(false)
+    // Send action implies user is present — jump to bottom
+    setTimeout(() => scrollToBottom(true), 50)
   }
 
   async function resolveConvo(newStatus) {
@@ -164,25 +264,52 @@ export default function ChatWindow({ activeConvoId, active, setActive, projects,
       </div>
 
       {/* Messages */}
-      <div ref={messagesRef} style={{ flex: 1, overflowY: 'auto', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <div ref={messagesRef} onScroll={handleScroll}
+        style={{ flex: 1, overflowY: 'auto', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 2, position: 'relative' }}>
         {active?.messages?.map((m, i) => {
           const prev = active.messages[i - 1]
           const showSender = !prev || prev.direction !== m.direction
+          // Show a date divider if this is the first message OR the day changed from previous
+          const prevDay = prev?.created_at ? new Date(prev.created_at).toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' }) : null
+          const thisDay = m.created_at ? new Date(m.created_at).toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' }) : null
+          const showDateDivider = thisDay && prevDay !== thisDay
           return (
-            <div key={m.id || i} style={{ display: 'flex', flexDirection: 'column', alignItems: m.direction === 'out' ? 'flex-end' : 'flex-start', marginBottom: 2 }}>
-              {showSender && <div style={{ fontSize: 10, color: '#9ca3af', marginBottom: 2, padding: '0 3px', textAlign: m.direction === 'out' ? 'right' : 'left' }}>{m.direction === 'out' ? (active.assigned_to || 'Agent') : active.name}</div>}
-              <div style={{ maxWidth: isMobile ? '85%' : '74%', padding: '8px 12px', borderRadius: 12, fontSize: 12, lineHeight: 1.6, wordBreak: 'break-word', whiteSpace: 'pre-wrap', background: m.direction === 'out' ? ACCENT : '#f1f4f9', color: m.direction === 'out' ? '#fff' : '#111827', borderBottomRightRadius: m.direction === 'out' ? 3 : 12, borderBottomLeftRadius: m.direction === 'in' ? 3 : 12 }}>
-                {m.text}
-              </div>
-              <div style={{ fontSize: 9, color: '#9ca3af', marginTop: 2, padding: '0 3px', display: 'flex', alignItems: 'center', gap: 3, justifyContent: m.direction === 'out' ? 'flex-end' : 'flex-start' }}>
-                {fmtSGT(m.created_at)}
-                {m.direction === 'out' && <svg width="13" height="8" viewBox="0 0 18 10"><path d="M1 5l3 3 7-7" stroke="#60a5fa" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/><path d="M6 5l3 3 7-7" stroke="#60a5fa" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+            <div key={m.id || i} style={{ display: 'contents' }}>
+              {showDateDivider && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '14px 0 10px', padding: '0 4px' }}>
+                  <div style={{ flex: 1, height: 1, background: '#e5e7eb' }} />
+                  <div style={{ fontSize: 10, color: '#6b7280', fontWeight: 500, padding: '2px 10px', background: '#f9fafb', border: '0.5px solid #e5e7eb', borderRadius: 11, letterSpacing: '0.2px' }}>
+                    {dateGroupLabel(m.created_at)}
+                  </div>
+                  <div style={{ flex: 1, height: 1, background: '#e5e7eb' }} />
+                </div>
+              )}
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: m.direction === 'out' ? 'flex-end' : 'flex-start', marginBottom: 2 }}>
+                {showSender && <div style={{ fontSize: 10, color: '#9ca3af', marginBottom: 2, padding: '0 3px', textAlign: m.direction === 'out' ? 'right' : 'left' }}>{m.direction === 'out' ? (active.assigned_to || 'Agent') : active.name}</div>}
+                <div style={{ maxWidth: isMobile ? '85%' : '74%', padding: '8px 12px', borderRadius: 12, fontSize: 12, lineHeight: 1.6, wordBreak: 'break-word', whiteSpace: 'pre-wrap', background: m.direction === 'out' ? ACCENT : '#f1f4f9', color: m.direction === 'out' ? '#fff' : '#111827', borderBottomRightRadius: m.direction === 'out' ? 3 : 12, borderBottomLeftRadius: m.direction === 'in' ? 3 : 12 }}>
+                  {m.text}
+                </div>
+                <div style={{ fontSize: 9, color: '#9ca3af', marginTop: 2, padding: '0 3px', display: 'flex', alignItems: 'center', gap: 3, justifyContent: m.direction === 'out' ? 'flex-end' : 'flex-start' }}>
+                  {fmtSGT(m.created_at)}
+                  {m.direction === 'out' && <svg width="13" height="8" viewBox="0 0 18 10"><path d="M1 5l3 3 7-7" stroke="#60a5fa" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/><path d="M6 5l3 3 7-7" stroke="#60a5fa" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                </div>
               </div>
             </div>
           )
         })}
         <div ref={messagesEndRef} />
       </div>
+
+      {/* "New messages" pill — shows only when scrolled up AND new messages arrived */}
+      {!isAtBottom && newMessagesCount > 0 && (
+        <button onClick={() => scrollToBottom(true)}
+          style={{ position: 'absolute', bottom: 128, right: 18, padding: '6px 12px 6px 10px', background: ACCENT, color: '#fff', border: 'none', borderRadius: 16, fontSize: 11, fontWeight: 500, cursor: 'pointer', boxShadow: '0 4px 14px rgba(37, 99, 235, 0.35)', display: 'flex', alignItems: 'center', gap: 5, zIndex: 10 }}>
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M4 6l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+          {newMessagesCount} new {newMessagesCount === 1 ? 'message' : 'messages'}
+        </button>
+      )}
 
       {/* Composer */}
       <div style={{ borderTop: '0.5px solid #e5e7eb', padding: '9px 14px', flexShrink: 0, background: '#fff' }}>

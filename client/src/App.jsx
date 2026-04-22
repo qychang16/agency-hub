@@ -2,7 +2,7 @@ import { useState, useEffect, lazy, Suspense } from 'react'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { WorkspaceProvider, useWorkspace } from './context/WorkspaceContext'
 import Topbar from './components/layout/Topbar'
-import { ACCENT, NAVY } from './utils/constants'
+import { API, ACCENT, NAVY } from './utils/constants'
 
 // Lazy loaded components — loads only when navigated to
 const InboxList = lazy(() => import('./components/inbox/InboxList'))
@@ -53,7 +53,6 @@ function LoginScreen() {
   return (
     <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #1a2332 0%, #1e3a5f 60%, #1e40af 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
       <div style={{ width: '100%', maxWidth: 400 }}>
-        {/* Logo */}
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
             <svg width="44" height="44" viewBox="0 0 34 34" fill="none">
@@ -72,12 +71,10 @@ function LoginScreen() {
           </div>
         </div>
 
-        {/* Card */}
         <div style={{ background: '#fff', borderRadius: 16, padding: '32px 28px', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
           <div style={{ fontSize: 18, fontWeight: 600, color: '#111827', marginBottom: 4 }}>Welcome back</div>
           <div style={{ fontSize: 13, color: '#9ca3af', marginBottom: 24 }}>Sign in to your Tel-Cloud account</div>
 
-          {/* Email */}
           <div style={{ marginBottom: 16 }}>
             <label style={{ fontSize: 11, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.4px' }}>Email address</label>
             <div style={{ position: 'relative' }}>
@@ -96,7 +93,6 @@ function LoginScreen() {
             {emailError && <div style={{ fontSize: 11, color: '#ef4444', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}><span>⚠</span> {emailError}</div>}
           </div>
 
-          {/* Password */}
           <div style={{ marginBottom: 20 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
               <label style={{ fontSize: 11, fontWeight: 600, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Password</label>
@@ -128,14 +124,12 @@ function LoginScreen() {
             {passwordError && <div style={{ fontSize: 11, color: '#ef4444', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}><span>⚠</span> {passwordError}</div>}
           </div>
 
-          {/* General error */}
           {error && (
             <div style={{ marginBottom: 16, padding: '10px 12px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, fontSize: 12, color: '#dc2626', display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ fontSize: 16 }}>⚠️</span> {error}
             </div>
           )}
 
-          {/* Sign in button */}
           <button
             onClick={validateAndLogin}
             disabled={loading}
@@ -153,7 +147,6 @@ function LoginScreen() {
           </div>
         </div>
 
-        {/* Version */}
         <div style={{ textAlign: 'center', marginTop: 16, fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>
           v2.0.0 · © 2026 Tel-Cloud
         </div>
@@ -237,7 +230,7 @@ function MaintenanceModal({ onClose }) {
 
 // ─── MAIN APP ──────────────────────────────────────────────────────────────────
 function MainApp() {
-  const { user, isDirector } = useAuth()
+  const { user, token, isDirector } = useAuth()
   const { maintenance, setMaintenance } = useWorkspace()
   const [activeNav, setActiveNav] = useState('inbox')
   const [activeConvoId, setActiveConvoId] = useState(null)
@@ -247,11 +240,33 @@ function MainApp() {
   const [mobileView, setMobileView] = useState('inbox')
   const [showMaintenanceEditor, setShowMaintenanceEditor] = useState(false)
 
+  // Lifted state — shared between ChatWindow and ContactDrawer
+  const [active, setActive] = useState(null)
+  const [projects, setProjects] = useState([])
+
   useEffect(() => {
     const onResize = () => setIsMobile(window.innerWidth < 768)
     window.addEventListener('resize', onResize)
     return () => window.removeEventListener('resize', onResize)
   }, [])
+
+  // Load projects once — shared by ChatWindow (header dropdown) and ContactDrawer
+  useEffect(() => {
+    if (!token) return
+    fetch(`${API}/projects`, { headers: { Authorization: 'Bearer ' + token } })
+      .then(r => r.json())
+      .then(data => setProjects(Array.isArray(data) ? data : []))
+      .catch(() => {})
+  }, [token])
+
+  // Load the active conversation whenever it changes — single source of truth
+  useEffect(() => {
+    if (!activeConvoId || !token) { setActive(null); return }
+    fetch(`${API}/conversations/${activeConvoId}`, { headers: { Authorization: 'Bearer ' + token } })
+      .then(r => r.json())
+      .then(setActive)
+      .catch(() => {})
+  }, [activeConvoId, token])
 
   function ComingSoon({ name }) {
     return (
@@ -280,6 +295,9 @@ function MainApp() {
               />
               <ChatWindow
                 activeConvoId={activeConvoId}
+                active={active}
+                setActive={setActive}
+                projects={projects}
                 showDrawer={showDrawer}
                 setShowDrawer={setShowDrawer}
                 isMobile={isMobile}
@@ -289,6 +307,9 @@ function MainApp() {
               {showDrawer && (
                 <ContactDrawer
                   activeConvoId={activeConvoId}
+                  active={active}
+                  setActive={setActive}
+                  projects={projects}
                   isMobile={isMobile}
                   onClose={() => setShowDrawer(false)}
                 />

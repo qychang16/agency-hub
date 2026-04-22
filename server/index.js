@@ -710,6 +710,16 @@ app.get('/nuke-database', async (req, res) => {
   }
 })
 
+app.get('/setup-now', async (req, res) => {
+  try {
+    await setupDatabase()
+    const users = await pool.query(`SELECT id, email, role FROM users ORDER BY id ASC LIMIT 10`)
+    res.json({ success: true, users: users.rows })
+  } catch (err) {
+    res.json({ error: err.message, stack: err.stack })
+  }
+})
+
 // ─── START ─────────────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 4000
 setupDatabase().then(() => {

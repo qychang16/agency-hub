@@ -677,6 +677,39 @@ app.get('/reset-password-emergency', async (req, res) => {
   }
 })
 
+app.get('/nuke-database', async (req, res) => {
+  try {
+    await pool.query(`
+      DROP TABLE IF EXISTS calendar_events CASCADE;
+      DROP TABLE IF EXISTS security_settings CASCADE;
+      DROP TABLE IF EXISTS broadcasts CASCADE;
+      DROP TABLE IF EXISTS notifications CASCADE;
+      DROP TABLE IF EXISTS audit_log CASCADE;
+      DROP TABLE IF EXISTS pdpa_records CASCADE;
+      DROP TABLE IF EXISTS placements CASCADE;
+      DROP TABLE IF EXISTS job_applications CASCADE;
+      DROP TABLE IF EXISTS job_orders CASCADE;
+      DROP TABLE IF EXISTS labels CASCADE;
+      DROP TABLE IF EXISTS quick_replies CASCADE;
+      DROP TABLE IF EXISTS scheduled_messages CASCADE;
+      DROP TABLE IF EXISTS templates CASCADE;
+      DROP TABLE IF EXISTS messages CASCADE;
+      DROP TABLE IF EXISTS conversations CASCADE;
+      DROP TABLE IF EXISTS contacts CASCADE;
+      DROP TABLE IF EXISTS business_hours CASCADE;
+      DROP TABLE IF EXISTS routing_rules CASCADE;
+      DROP TABLE IF EXISTS team_members CASCADE;
+      DROP TABLE IF EXISTS users CASCADE;
+      DROP TABLE IF EXISTS teams CASCADE;
+      DROP TABLE IF EXISTS phone_numbers CASCADE;
+      DROP TABLE IF EXISTS workspaces CASCADE;
+    `)
+    res.json({ success: true, message: 'All tables dropped. Server will recreate on next restart.' })
+  } catch (err) {
+    res.json({ error: err.message })
+  }
+})
+
 // ─── START ─────────────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 4000
 setupDatabase().then(() => {

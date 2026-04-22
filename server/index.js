@@ -349,6 +349,45 @@ app.patch('/conversations/:id/assign', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
+// Create a conversation for an existing contact
+app.post('/conversations', auth, async (req, res) => {
+  try {
+    const wsId = await getWorkspaceId(req.user.id)
+    const { contact_id, phone_number_id } = req.body
+    if (!contact_id) return res.status(400).json({ error: 'contact_id is required' })
+
+    // Check if an open conversation already exists for this contact
+    const existing = await pool.query(
+      `SELECT id FROM conversations WHERE contact_id=$1 AND workspace_id=$2 AND status='open' LIMIT 1`,
+      [contact_id, wsId]
+    )
+    if (existing.rows.length > 0) {
+      return res.json({ id: existing.rows[0].id, reused: true })
+    }
+
+    // Use first phone line if not specified
+    let phoneId = phone_number_id
+    if (!phoneId) {
+      const phoneRow = await pool.query(
+        `SELECT id FROM phone_numbers WHERE workspace_id=$1 ORDER BY is_primary DESC, id ASC LIMIT 1`,
+        [wsId]
+      )
+      phoneId = phoneRow.rows[0]?.id
+    }
+    if (!phoneId) return res.status(400).json({ error: 'No phone line configured' })
+
+    const r = await pool.query(
+      `INSERT INTO conversations (workspace_id, phone_number_id, contact_id, status, last_message_at)
+       VALUES ($1, $2, $3, 'open', NOW()) RETURNING *`,
+      [wsId, phoneId, contact_id]
+    )
+    res.json(r.rows[0])
+  } catch (err) {
+    console.error('POST /conversations error:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
 // ─── WHATSAPP SEND HELPER ──────────────────────────────────────────────────────
 async function sendWhatsAppMessage(toPhone, text) {
   const token = process.env.META_ACCESS_TOKEN

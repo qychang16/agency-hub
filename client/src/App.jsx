@@ -175,7 +175,7 @@ function PageLoader() {
 
 // ─── MAINTENANCE MODAL ─────────────────────────────────────────────────────────
 function MaintenanceModal({ onClose }) {
-  const { setMaintenance } = useWorkspace()
+  const { maintenance, setMaintenance } = useWorkspace()
   const [maintDate, setMaintDate] = useState('')
   const [maintStartTime, setMaintStartTime] = useState('')
   const [maintEndTime, setMaintEndTime] = useState('')
@@ -192,11 +192,28 @@ function MaintenanceModal({ onClose }) {
     onClose()
   }
 
+  function clearMaintenance() {
+    if (!confirm('Remove the maintenance banner? All users will stop seeing it.')) return
+    setMaintenance(null)
+    onClose()
+  }
+
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60, padding: 16 }}>
       <div style={{ background: '#fff', borderRadius: 14, padding: 24, width: '100%', maxWidth: 400 }}>
-        <div style={{ fontSize: 14, fontWeight: 600, color: '#111827', marginBottom: 4 }}>⚠️ Schedule Maintenance</div>
-        <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 16 }}>This banner will be visible to all users.</div>
+        <div style={{ fontSize: 14, fontWeight: 600, color: '#111827', marginBottom: 4 }}>Schedule Maintenance</div>
+        <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 16 }}>
+          {maintenance ? 'A maintenance window is currently scheduled. You can edit it below or clear it entirely.' : 'This banner will be visible to all users.'}
+        </div>
+
+        {maintenance && (
+          <div style={{ marginBottom: 16, padding: '10px 12px', background: '#fde8e1', border: '0.5px solid #d14a2b', borderRadius: 8 }}>
+            <div style={{ fontSize: 10, fontWeight: 600, color: '#8e2a12', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 4 }}>Currently scheduled</div>
+            <div style={{ fontSize: 12, color: '#8e2a12', lineHeight: 1.5 }}>{maintenance.datetime}</div>
+            <div style={{ fontSize: 11, color: '#8e2a12', opacity: 0.85, lineHeight: 1.5 }}>{maintenance.message}</div>
+          </div>
+        )}
+
         <div style={{ marginBottom: 12 }}>
           <label style={{ fontSize: 11, color: '#6b7280', display: 'block', marginBottom: 4 }}>Date (SGT)</label>
           <input type="date" value={maintDate} onChange={e => setMaintDate(e.target.value)}
@@ -221,8 +238,15 @@ function MaintenanceModal({ onClose }) {
             style={{ width: '100%', padding: '7px 10px', border: '0.5px solid #d1d5db', borderRadius: 7, fontSize: 12, outline: 'none', background: '#f9fafb', color: '#111827', boxSizing: 'border-box' }} />
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
+          {maintenance && (
+            <button onClick={clearMaintenance} style={{ flex: 1, padding: '8px', background: 'transparent', color: '#8e2a12', border: '0.5px solid #d14a2b', borderRadius: 8, fontSize: 12, fontWeight: 500, cursor: 'pointer' }}>
+              Clear maintenance
+            </button>
+          )}
           <button onClick={onClose} style={{ flex: 1, padding: '8px', border: '0.5px solid #d1d5db', borderRadius: 8, fontSize: 12, color: '#6b7280', background: 'transparent', cursor: 'pointer' }}>Cancel</button>
-          <button onClick={save} style={{ flex: 1, padding: '8px', background: '#92400e', color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 500, cursor: 'pointer' }}>Publish Banner</button>
+          <button onClick={save} style={{ flex: 1, padding: '8px', background: '#2d2a7a', color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 500, cursor: 'pointer' }}>
+            {maintenance ? 'Update' : 'Publish'}
+          </button>
         </div>
       </div>
     </div>

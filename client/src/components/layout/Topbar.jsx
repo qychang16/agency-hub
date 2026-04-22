@@ -1,201 +1,411 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { useWorkspace } from '../../context/WorkspaceContext'
-import { NAVY, ACCENT } from '../../utils/constants'
-import { hasPermission } from '../../utils/permissions'
+import { ink, accent, semantic, fonts, textSize, textWeight, space, radius, border, shadow } from '../../utils/designTokens'
 
-function DualRingsLogo() {
+const NAV_ITEMS = [
+  { key: 'inbox',       label: 'Inbox' },
+  { key: 'projects',    label: 'Projects' },
+  { key: 'scheduled',   label: 'Scheduled' },
+  { key: 'broadcasts',  label: 'Broadcasts' },
+  { key: 'templates',   label: 'Templates' },
+  { key: 'analytics',   label: 'Analytics' },
+  { key: 'pipeline',    label: 'Pipeline' },
+  { key: 'jobs',        label: 'Jobs' },
+  { key: 'contacts',    label: 'Contacts' },
+  { key: 'pdpa',        label: 'PDPA' },
+  { key: 'settings',    label: 'Settings' },
+]
+
+function Logo() {
   return (
-    <svg width="34" height="34" viewBox="0 0 34 34" fill="none">
-      <rect width="34" height="34" rx="9" fill="#1e3a5f"/>
-      <circle cx="13" cy="17" r="6.5" stroke="#60a5fa" strokeWidth="1.8"/>
-      <circle cx="21" cy="17" r="6.5" stroke="#fff" strokeWidth="1.8"/>
-      <path d="M17 11.2c1.8 1.5 1.8 7.1 0 11.6" stroke="#1e3a5f" strokeWidth="3.5"/>
-      <path d="M17 11.2c-1.8 1.5-1.8 7.1 0 11.6" stroke="#1e3a5f" strokeWidth="3.5"/>
-      <path d="M17 11.2c1.8 1.5 1.8 7.1 0 11.6" stroke="#93c5fd" strokeWidth="1.2"/>
-      <path d="M17 11.2c-1.8 1.5-1.8 7.1 0 11.6" stroke="#93c5fd" strokeWidth="1.2"/>
-    </svg>
+    <div style={{ display: 'flex', alignItems: 'center', gap: space[3], flexShrink: 0 }}>
+      {/* Floating 3D chrome rings — no container */}
+      <svg width="46" height="46" viewBox="0 0 34 34" fill="none" style={{ filter: 'drop-shadow(0 2px 5px rgba(10, 9, 7, 0.2))' }}>
+        <defs>
+          <radialGradient id="tc-indigo-ring" cx="11" cy="14" r="11" gradientUnits="userSpaceOnUse">
+            <stop offset="0" stopColor="#8a87ff"/>
+            <stop offset="0.5" stopColor="#3d3a9e"/>
+            <stop offset="1" stopColor="#14134a"/>
+          </radialGradient>
+          <radialGradient id="tc-indigo-hl" cx="10" cy="13" r="4" gradientUnits="userSpaceOnUse">
+            <stop offset="0" stopColor="#ffffff" stopOpacity="0.9"/>
+            <stop offset="1" stopColor="#ffffff" stopOpacity="0"/>
+          </radialGradient>
+          <radialGradient id="tc-white-ring" cx="19" cy="14" r="11" gradientUnits="userSpaceOnUse">
+            <stop offset="0" stopColor="#ffffff"/>
+            <stop offset="0.5" stopColor="#b8b6cf"/>
+            <stop offset="1" stopColor="#4a4760"/>
+          </radialGradient>
+          <radialGradient id="tc-white-hl" cx="18" cy="13" r="4" gradientUnits="userSpaceOnUse">
+            <stop offset="0" stopColor="#ffffff" stopOpacity="1"/>
+            <stop offset="1" stopColor="#ffffff" stopOpacity="0"/>
+          </radialGradient>
+        </defs>
+        <circle cx="13" cy="17" r="6.5" stroke="url(#tc-indigo-ring)" strokeWidth="2.8" fill="none"/>
+        <circle cx="13" cy="17" r="6.5" stroke="url(#tc-indigo-hl)" strokeWidth="2.8" fill="none"/>
+        <circle cx="21" cy="17" r="6.5" stroke="url(#tc-white-ring)" strokeWidth="2.8" fill="none"/>
+        <circle cx="21" cy="17" r="6.5" stroke="url(#tc-white-hl)" strokeWidth="2.8" fill="none"/>
+      </svg>
+      <span style={{
+        fontFamily: fonts.display,
+        fontSize: '18px',
+        fontWeight: textWeight.bold,
+        color: ink[900],
+        letterSpacing: '-0.5px',
+        lineHeight: 1,
+      }}>Tel-Cloud</span>
+    </div>
   )
 }
 
-const NAV_ITEMS = [
-  { key: 'inbox', label: 'Inbox' },
-  { key: 'projects', label: 'Projects' },
-  { key: 'scheduled', label: 'Scheduled' },
-  { key: 'broadcasts', label: 'Broadcasts' },
-  { key: 'templates', label: 'Templates' },
-  { key: 'analytics', label: 'Analytics' },
-  { key: 'pipeline', label: 'Pipeline' },
-  { key: 'jobs', label: 'Jobs' },
-  { key: 'contacts', label: 'Contacts' },
-  { key: 'pdpa', label: 'PDPA' },
-  { key: 'settings', label: 'Settings' },
-]
+function NavTab({ label, active, onClick }) {
+  const [hover, setHover] = useState(false)
+  return (
+    <button onClick={onClick}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{
+        position: 'relative',
+        padding: `${space[2] + 2}px ${space[3]}px`,
+        background: active ? ink[100] : hover ? ink[100] : 'transparent',
+        border: 'none',
+        borderRadius: radius.md,
+        fontSize: textSize.sm,
+        fontWeight: active ? textWeight.semibold : textWeight.medium,
+        color: active ? ink[900] : hover ? ink[900] : ink[600],
+        cursor: 'pointer',
+        fontFamily: fonts.body,
+        letterSpacing: '0.1px',
+        transition: 'background 0.08s, color 0.08s',
+      }}>
+      {label}
+      {active && (
+        <span style={{
+          position: 'absolute',
+          left: space[3],
+          right: space[3],
+          bottom: -1,
+          height: 2,
+          background: accent.DEFAULT,
+          borderRadius: 2,
+        }} />
+      )}
+    </button>
+  )
+}
 
-export default function Topbar({ activeNav, setActiveNav, onNewContact, isMobile }) {
-  const { user, logout, isDirector } = useAuth()
-  const { workspace, maintenance, setMaintenance, setShowMaintenanceEditor } = useWorkspace()
-  const [showUserMenu, setShowUserMenu] = useState(false)
+function MaintenanceIndicator({ onClick, maintenance }) {
+  return (
+    <button onClick={onClick}
+      style={{
+        display: 'flex', alignItems: 'center', gap: space[1] + 2,
+        padding: `${space[1] + 2}px ${space[2] + 2}px`,
+        background: maintenance ? '#fde8e1' : 'transparent',
+        border: `0.5px solid ${maintenance ? '#d14a2b' : ink[300]}`,
+        borderRadius: radius.md,
+        cursor: 'pointer',
+        fontSize: textSize.xs,
+        fontWeight: textWeight.semibold,
+        color: maintenance ? '#8e2a12' : ink[600],
+        fontFamily: fonts.body,
+        letterSpacing: '0.2px',
+      }}>
+      <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+        <path d="M8 2l6.5 11.5h-13L8 2z" strokeLinejoin="round"/>
+        <path d="M8 6v3" strokeLinecap="round"/>
+        <circle cx="8" cy="11.5" r="0.5" fill="currentColor"/>
+      </svg>
+      {maintenance ? 'Maintenance active' : 'Maintenance'}
+    </button>
+  )
+}
 
-  const visibleNav = NAV_ITEMS.filter(item => {
-    switch (item.key) {
-      case 'inbox': return hasPermission(user, 'view_own_conversations') || hasPermission(user, 'view_all_conversations')
-      case 'projects': return true
-      case 'scheduled': return hasPermission(user, 'schedule_messages') || hasPermission(user, 'bulk_schedule')
-      case 'broadcasts': return hasPermission(user, 'send_broadcasts') || hasPermission(user, 'send_own_broadcasts')
-      case 'templates': return hasPermission(user, 'send_approved_templates') || hasPermission(user, 'create_templates')
-      case 'analytics': return hasPermission(user, 'view_own_analytics') || hasPermission(user, 'view_all_analytics')
-      case 'pipeline': return hasPermission(user, 'view_pipeline')
-      case 'jobs': return hasPermission(user, 'manage_job_orders')
-      case 'contacts': return hasPermission(user, 'add_contacts') || hasPermission(user, 'import_contacts')
-      case 'pdpa': return hasPermission(user, 'manage_pdpa')
-      case 'settings': return hasPermission(user, 'manage_settings') || hasPermission(user, 'manage_agents')
-      default: return false
+function NewButton({ onClick }) {
+  const [hover, setHover] = useState(false)
+  return (
+    <button onClick={onClick}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{
+        display: 'flex', alignItems: 'center', gap: space[1] + 2,
+        padding: `${space[1] + 2}px ${space[3]}px ${space[1] + 2}px ${space[2] + 2}px`,
+        background: hover ? accent.hover : accent.DEFAULT,
+        border: 'none',
+        borderRadius: radius.md,
+        cursor: 'pointer',
+        fontSize: textSize.xs,
+        fontWeight: textWeight.semibold,
+        color: '#fff',
+        fontFamily: fonts.body,
+        letterSpacing: '0.3px',
+        transition: 'background 0.12s',
+      }}>
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+        <line x1="6" y1="1.5" x2="6" y2="10.5"/>
+        <line x1="1.5" y1="6" x2="10.5" y2="6"/>
+      </svg>
+      New
+    </button>
+  )
+}
+
+function UserMenu() {
+  const { user, logout } = useAuth()
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+
+  useEffect(() => {
+    function onClickOutside(e) {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false)
     }
-  })
+    if (open) document.addEventListener('mousedown', onClickOutside)
+    return () => document.removeEventListener('mousedown', onClickOutside)
+  }, [open])
 
-  const roleColors = {
-    director: '#fbbf24',
-    manager: '#60a5fa',
-    senior_consultant: '#a78bfa',
-    consultant: '#34d399',
-    admin: '#fb923c',
-    viewer: '#9ca3af',
-  }
+  const initials = (user?.name || 'User').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
+  const role = user?.role || 'Member'
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button onClick={() => setOpen(!open)}
+        style={{
+          display: 'flex', alignItems: 'center', gap: space[2],
+          padding: `${space[1]}px ${space[1] + 2}px ${space[1]}px ${space[1]}px`,
+          background: open ? ink[100] : 'transparent',
+          border: `0.5px solid ${ink[300]}`,
+          borderRadius: radius.md,
+          cursor: 'pointer',
+          fontFamily: fonts.body,
+        }}>
+        <div style={{
+          width: 26, height: 26, borderRadius: radius.pill,
+          background: accent.DEFAULT,
+          color: '#fff',
+          fontSize: 10, fontWeight: textWeight.bold,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>{initials}</div>
+        <div style={{ textAlign: 'left', marginRight: space[1] }}>
+          <div style={{ fontSize: textSize.xs, fontWeight: textWeight.semibold, color: ink[900], lineHeight: 1.1 }}>
+            {user?.name || 'User'}
+          </div>
+          <div style={{ fontSize: 9, color: ink[600], lineHeight: 1.1, textTransform: 'capitalize', marginTop: 1 }}>
+            {role}
+          </div>
+        </div>
+        <svg width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ color: ink[600] }}>
+          <path d="M4 6l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      </button>
+
+      {open && (
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 6px)', right: 0,
+          minWidth: 200,
+          background: '#fff',
+          border: border.subtle,
+          borderRadius: radius.md,
+          boxShadow: shadow.floating,
+          overflow: 'hidden',
+          zIndex: 50,
+        }}>
+          <div style={{ padding: `${space[3]}px ${space[3]}px ${space[2]}px`, borderBottom: border.subtle }}>
+            <div style={{ fontSize: textSize.xs, fontWeight: textWeight.semibold, color: ink[900] }}>{user?.name}</div>
+            <div style={{ fontSize: 10, color: ink[600], marginTop: 1 }}>{user?.email}</div>
+          </div>
+          <button onClick={() => { setOpen(false); alert('Profile screen coming soon.') }}
+            style={{
+              width: '100%', textAlign: 'left',
+              padding: `${space[2]}px ${space[3]}px`,
+              background: 'transparent', border: 'none',
+              fontSize: textSize.xs, color: ink[800],
+              cursor: 'pointer',
+              fontFamily: fonts.body, fontWeight: textWeight.medium,
+            }}
+            onMouseEnter={e => e.currentTarget.style.background = ink[100]}
+            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+            Profile &amp; preferences
+          </button>
+          <button onClick={() => { setOpen(false); alert('Help coming soon.') }}
+            style={{
+              width: '100%', textAlign: 'left',
+              padding: `${space[2]}px ${space[3]}px`,
+              background: 'transparent', border: 'none',
+              fontSize: textSize.xs, color: ink[800],
+              cursor: 'pointer',
+              fontFamily: fonts.body, fontWeight: textWeight.medium,
+            }}
+            onMouseEnter={e => e.currentTarget.style.background = ink[100]}
+            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+            Help &amp; shortcuts
+          </button>
+          <div style={{ borderTop: border.subtle }} />
+          <button onClick={() => { setOpen(false); logout() }}
+            style={{
+              width: '100%', textAlign: 'left',
+              padding: `${space[2]}px ${space[3]}px`,
+              background: 'transparent', border: 'none',
+              fontSize: textSize.xs, color: semantic.danger,
+              cursor: 'pointer',
+              fontFamily: fonts.body, fontWeight: textWeight.medium,
+            }}
+            onMouseEnter={e => e.currentTarget.style.background = semantic.dangerSoft}
+            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+            Sign out
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function MobileNav({ activeNav, setActiveNav, open, onClose }) {
+  if (!open) return null
+  return (
+    <>
+      <div onClick={onClose} style={{
+        position: 'fixed', inset: 0, background: 'rgba(10, 9, 7, 0.4)', zIndex: 40,
+      }} />
+      <div style={{
+        position: 'fixed', top: 0, right: 0, bottom: 0,
+        width: 260, background: '#fff',
+        boxShadow: shadow.overlay,
+        zIndex: 41,
+        padding: space[4],
+        display: 'flex', flexDirection: 'column', gap: space[1],
+      }}>
+        <div style={{ marginBottom: space[3], paddingBottom: space[3], borderBottom: border.subtle }}>
+          <Logo />
+        </div>
+        {NAV_ITEMS.map(item => (
+          <button key={item.key}
+            onClick={() => { setActiveNav(item.key); onClose() }}
+            style={{
+              padding: `${space[2] + 2}px ${space[3]}px`,
+              background: activeNav === item.key ? ink[100] : 'transparent',
+              border: 'none',
+              borderRadius: radius.md,
+              fontSize: textSize.sm,
+              fontWeight: activeNav === item.key ? textWeight.semibold : textWeight.medium,
+              color: activeNav === item.key ? accent.DEFAULT : ink[700],
+              cursor: 'pointer',
+              textAlign: 'left',
+              fontFamily: fonts.body,
+              borderLeft: activeNav === item.key ? `2px solid ${accent.DEFAULT}` : '2px solid transparent',
+            }}>
+            {item.label}
+          </button>
+        ))}
+      </div>
+    </>
+  )
+}
+
+export default function Topbar({ activeNav, setActiveNav, onNewContact, isMobile, showMaintenanceEditor, setShowMaintenanceEditor }) {
+  const { isDirector } = useAuth()
+  const { maintenance } = useWorkspace()
+  const [mobileOpen, setMobileOpen] = useState(false)
 
   return (
     <>
-      {/* Maintenance Banner */}
+      <style>{`
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+      `}</style>
+      {/* Maintenance banner (when active) — sits above topbar */}
       {maintenance && (
-        <div style={{ background: '#92400e', color: '#fff', padding: '8px 16px', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, gap: 10 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span>⚠️</span>
-            <span><strong>Scheduled Maintenance:</strong> {maintenance.datetime} · {maintenance.message}</span>
-          </div>
-          {isDirector && (
-            <button onClick={() => setMaintenance(null)}
-              style={{ background: 'transparent', border: '0.5px solid rgba(255,255,255,0.4)', color: '#fff', borderRadius: 5, padding: '2px 8px', fontSize: 10, cursor: 'pointer' }}>
-              Dismiss
-            </button>
-          )}
+        <div style={{
+          padding: `${space[1] + 2}px ${space[4]}px`,
+          background: semantic.warningSoft,
+          borderBottom: `0.5px solid ${semantic.warning}`,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: space[2],
+          fontSize: textSize.xs,
+          fontFamily: fonts.body,
+          color: semantic.warning,
+          flexShrink: 0,
+        }}>
+          <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <path d="M8 2l6.5 11.5h-13L8 2z" strokeLinejoin="round"/>
+            <path d="M8 6v3" strokeLinecap="round"/>
+            <circle cx="8" cy="11.5" r="0.5" fill="currentColor"/>
+          </svg>
+          <span style={{ fontWeight: textWeight.semibold }}>Scheduled maintenance:</span>
+          <span>{maintenance.datetime}</span>
+          <span style={{ opacity: 0.8 }}>· {maintenance.message}</span>
         </div>
       )}
 
-      {/* Main Topbar */}
-      <div style={{ height: 52, background: NAVY, display: 'flex', alignItems: 'center', padding: '0 16px', flexShrink: 0, borderBottom: '0.5px solid rgba(255,255,255,0.08)', position: 'relative', zIndex: 30 }}>
+      <div style={{
+        display: 'flex', alignItems: 'center',
+        padding: `${space[2]}px ${space[4]}px`,
+        background: '#fff',
+        borderBottom: border.subtle,
+        flexShrink: 0,
+        height: 52,
+        boxSizing: 'border-box',
+        gap: space[4],
+        fontFamily: fonts.body,
+      }}>
+        {/* Left: Logo */}
+        <Logo />
 
-        {/* Logo */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginRight: 14, flexShrink: 0 }}>
-          <DualRingsLogo />
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <span style={{ fontSize: 14, fontWeight: 500, color: '#fff' }}>{workspace?.name || 'Tel-Cloud'}</span>
-            {!isMobile && <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.5)', letterSpacing: '0.4px', textTransform: 'uppercase', marginTop: 1 }}>by tel-cloud</span>}
-          </div>
-        </div>
-
-        {/* Divider */}
-        {!isMobile && <div style={{ width: 1, height: 20, background: 'rgba(255,255,255,0.15)', margin: '0 10px' }} />}
-
-        {/* Nav Items */}
+        {/* Middle: Nav tabs (desktop) — scrollable if too many */}
         {!isMobile && (
-          <div style={{ display: 'flex', gap: 2, overflowX: 'auto', flex: 1 }}>
-            {visibleNav.map(n => (
-              <button key={n.key} onClick={() => setActiveNav(n.key)}
-                style={{ padding: '6px 11px', borderRadius: 7, fontSize: 12, color: activeNav === n.key ? '#fff' : '#cbd5e1', background: activeNav === n.key ? 'rgba(255,255,255,0.15)' : 'transparent', border: 'none', cursor: 'pointer', fontWeight: activeNav === n.key ? 500 : 400, whiteSpace: 'nowrap', flexShrink: 0 }}>
-                {n.label}
-              </button>
+          <div style={{
+            display: 'flex', alignItems: 'center',
+            gap: space[1],
+            flex: 1,
+            overflowX: 'auto',
+            scrollbarWidth: 'none',
+            msOverflowStyle: 'none',
+          }}
+            className="hide-scrollbar">
+            {NAV_ITEMS.map(item => (
+              <NavTab key={item.key}
+                label={item.label}
+                active={activeNav === item.key}
+                onClick={() => setActiveNav(item.key)} />
             ))}
           </div>
         )}
 
-        {/* Right side actions */}
-        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+        {/* Spacer on mobile */}
+        {isMobile && <div style={{ flex: 1 }} />}
 
-          {/* Maintenance button — Director only */}
-          {isDirector && (
-            <button onClick={() => setShowMaintenanceEditor(true)}
-              style={{ padding: '5px 9px', borderRadius: 7, border: '0.5px solid rgba(255,165,0,0.5)', background: 'transparent', fontSize: 10, color: '#fbbf24', cursor: 'pointer' }}>
-              ⚠️ Maintenance
-            </button>
+        {/* Right: Actions */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: space[2], flexShrink: 0 }}>
+          {isDirector && !isMobile && (
+            <MaintenanceIndicator
+              maintenance={maintenance}
+              onClick={() => setShowMaintenanceEditor(true)} />
           )}
+          {!isMobile && <NewButton onClick={onNewContact} />}
+          {!isMobile && <UserMenu />}
 
-          {/* New contact button */}
-          {hasPermission(user, 'add_contacts') && (
-            <button onClick={onNewContact}
-              style={{ padding: '5px 10px', borderRadius: 7, border: '0.5px solid rgba(255,255,255,0.25)', background: 'transparent', fontSize: 11, color: '#e2e8f0', cursor: 'pointer' }}>
-              + New
-            </button>
-          )}
-
-          {/* User menu */}
-          <div style={{ position: 'relative' }}>
-            <button onClick={() => setShowUserMenu(!showUserMenu)}
-              style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '4px 8px', borderRadius: 8, border: '0.5px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.06)', cursor: 'pointer' }}>
-              <div style={{ width: 24, height: 24, borderRadius: 7, background: roleColors[user?.role] || '#9ca3af', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: '#fff' }}>
-                {user?.name?.[0]?.toUpperCase()}
-              </div>
-              {!isMobile && (
-                <div style={{ textAlign: 'left' }}>
-                  <div style={{ fontSize: 11, color: '#fff', fontWeight: 500, lineHeight: 1.2 }}>{user?.name}</div>
-                  <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.5)', textTransform: 'capitalize' }}>{user?.role?.replace('_', ' ')}</div>
-                </div>
-              )}
-              <svg width="10" height="10" viewBox="0 0 10 10" fill="none" style={{ opacity: 0.5 }}>
-                <path d="M2 4l3 3 3-3" stroke="white" strokeWidth="1.5" strokeLinecap="round"/>
+          {/* Mobile: hamburger */}
+          {isMobile && (
+            <button onClick={() => setMobileOpen(true)}
+              style={{
+                width: 32, height: 32,
+                border: `0.5px solid ${ink[300]}`,
+                borderRadius: radius.md,
+                background: 'transparent',
+                cursor: 'pointer',
+                color: ink[700],
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <path d="M2 4h12M2 8h12M2 12h12" strokeLinecap="round"/>
               </svg>
             </button>
-
-            {showUserMenu && (
-              <div style={{ position: 'absolute', right: 0, top: 38, background: '#fff', borderRadius: 10, border: '0.5px solid #e5e7eb', boxShadow: '0 8px 24px rgba(0,0,0,0.12)', minWidth: 180, zIndex: 100, overflow: 'hidden' }}
-                onMouseLeave={() => setShowUserMenu(false)}>
-                <div style={{ padding: '12px 14px', borderBottom: '0.5px solid #f1f4f9' }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: '#111827' }}>{user?.name}</div>
-                  <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 1 }}>{user?.email}</div>
-                  <div style={{ marginTop: 5 }}>
-                    <span style={{ fontSize: 9, padding: '2px 7px', borderRadius: 4, background: roleColors[user?.role] + '20', color: roleColors[user?.role], fontWeight: 600, textTransform: 'capitalize' }}>
-                      {user?.role?.replace('_', ' ')}
-                    </span>
-                  </div>
-                </div>
-                {hasPermission(user, 'manage_settings') && (
-                  <button onClick={() => { setActiveNav('settings'); setShowUserMenu(false) }}
-                    style={{ width: '100%', padding: '10px 14px', border: 'none', background: 'transparent', textAlign: 'left', fontSize: 12, color: '#374151', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}
-                    onMouseEnter={e => e.currentTarget.style.background = '#f9fafb'}
-                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                    <span>⚙️</span> Settings
-                  </button>
-                )}
-                <button onClick={() => { setActiveNav('settings'); setShowUserMenu(false) }}
-                  style={{ width: '100%', padding: '10px 14px', border: 'none', background: 'transparent', textAlign: 'left', fontSize: 12, color: '#374151', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}
-                  onMouseEnter={e => e.currentTarget.style.background = '#f9fafb'}
-                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                  <span>👤</span> My Profile
-                </button>
-                <div style={{ height: '0.5px', background: '#f1f4f9' }} />
-                <button onClick={() => { logout(); setShowUserMenu(false) }}
-                  style={{ width: '100%', padding: '10px 14px', border: 'none', background: 'transparent', textAlign: 'left', fontSize: 12, color: '#dc2626', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}
-                  onMouseEnter={e => e.currentTarget.style.background = '#fef2f2'}
-                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                  <span>🚪</span> Sign out
-                </button>
-              </div>
-            )}
-          </div>
+          )}
         </div>
       </div>
 
-      {/* Mobile Bottom Nav */}
-      {isMobile && (
-        <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, display: 'flex', borderTop: '0.5px solid #e5e7eb', background: '#fff', zIndex: 30 }}>
-          {visibleNav.slice(0, 5).map(n => (
-            <button key={n.key} onClick={() => setActiveNav(n.key)}
-              style={{ flex: 1, padding: '8px 4px 10px', border: 'none', background: 'transparent', fontSize: 9, color: activeNav === n.key ? ACCENT : '#6b7280', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, fontWeight: activeNav === n.key ? 600 : 400 }}>
-              <span style={{ fontSize: 18 }}>{n.icon}</span>
-              {n.label}
-            </button>
-          ))}
-        </div>
-      )}
+      <MobileNav
+        activeNav={activeNav}
+        setActiveNav={setActiveNav}
+        open={mobileOpen}
+        onClose={() => setMobileOpen(false)} />
     </>
   )
 }

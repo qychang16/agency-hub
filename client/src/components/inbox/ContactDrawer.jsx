@@ -1,218 +1,390 @@
 import { useState, useEffect } from 'react'
-import { API, ACCENT, ACCENT_LIGHT, ACCENT_MID } from '../../utils/constants'
-import { fmtSGT } from '../../utils/dates'
 import { useAuth } from '../../context/AuthContext'
+import { API } from '../../utils/constants'
+import { ink, accent, semantic, fonts, textSize, textWeight, space, radius, border, shadow, microLabel } from '../../utils/designTokens'
+import { fmtSGT } from '../../utils/dates'
 
-function parseNotes(raw) {
-  if (!raw) return []
-  try {
-    const v = typeof raw === 'string' ? JSON.parse(raw) : raw
-    return Array.isArray(v) ? v : []
-  } catch {
-    return raw ? [{ id: 'legacy', text: raw, by: '—', ts: '' }] : []
-  }
+const PIPELINE_STAGES = ['new', 'screened', 'interviewed', 'offered', 'placed', 'rejected']
+
+function Section({ title, children }) {
+  return (
+    <div style={{ marginBottom: space[5] }}>
+      <div style={{ ...microLabel, marginBottom: space[2] }}>{title}</div>
+      {children}
+    </div>
+  )
+}
+
+function Row({ k, v, accent: isAccent }) {
+  return (
+    <div style={{
+      display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
+      padding: `${space[1] + 2}px 0`,
+      borderBottom: `0.5px solid ${ink[200]}`,
+      gap: space[3],
+    }}>
+      <span style={{ fontSize: textSize.xs, color: ink[600], fontWeight: textWeight.medium, flexShrink: 0 }}>{k}</span>
+      <span style={{
+        fontSize: textSize.xs,
+        color: isAccent ? accent.DEFAULT : ink[800],
+        fontWeight: textWeight.medium,
+        textAlign: 'right',
+        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+      }}>{v || '—'}</span>
+    </div>
+  )
 }
 
 export default function ContactDrawer({ activeConvoId, active, setActive, projects, isMobile, onClose }) {
-  const { token, user } = useAuth()
-  const [drawerTab, setDrawerTab] = useState('info')
+  const { token } = useAuth()
   const [notes, setNotes] = useState([])
-  const [noteInput, setNoteInput] = useState('')
-  const [editingId, setEditingId] = useState(null)
-  const [editingText, setEditingText] = useState('')
-  const [saving, setSaving] = useState(false)
+  const [newNote, setNewNote] = useState('')
+  const [editingNoteId, setEditingNoteId] = useState(null)
+  const [editText, setEditText] = useState('')
+  const [showProjectMenu, setShowProjectMenu] = useState(false)
+  const [showStageMenu, setShowStageMenu] = useState(false)
+  const [busy, setBusy] = useState(false)
 
   useEffect(() => {
-    setNotes(parseNotes(active?.contact_notes))
-    setEditingId(null); setEditingText(''); setNoteInput('')
-  }, [active?.contact_id, active?.contact_notes])
+    if (active?.notes) {
+      try {
+        const parsed = typeof active.notes === 'string' ? JSON.parse(active.notes) : active.notes
+        setNotes(Array.isArray(parsed) ? parsed : [])
+      } catch { setNotes([]) }
+    } else setNotes([])
+  }, [active?.id, active?.notes])
 
-  async function persistNotes(nextNotes) {
-    if (!active?.contact_id) return
-    setSaving(true)
+  async function saveNotes(newList) {
+    setBusy(true)
     try {
-      const res = await fetch(`${API}/contacts/${active.contact_id}`, {
+      await fetch(`${API}/contacts/${active.contact_id}/notes`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-        body: JSON.stringify({
-          name: active.name,
-          phone: active.phone,
-          email: active.email,
-          type: active.type,
-          pipeline_stage: active.pipeline_stage,
-          pdpa_consented: active.pdpa_consented,
-          dnc: active.dnc,
-          notes: JSON.stringify(nextNotes)
-        })
+        body: JSON.stringify({ notes: JSON.stringify(newList) })
       })
-      if (!res.ok) throw new Error('Save failed')
-      setNotes(nextNotes)
-      setActive(prev => prev ? { ...prev, contact_notes: JSON.stringify(nextNotes) } : prev)
-    } catch (err) {
-      alert('Could not save note. Please try again.')
-    } finally {
-      setSaving(false)
-    }
+      setNotes(newList)
+      setActive(prev => prev ? { ...prev, notes: JSON.stringify(newList) } : prev)
+    } catch { alert('Could not save note.') }
+    setBusy(false)
   }
 
   async function addNote() {
-    const text = noteInput.trim()
-    if (!text) return
-    const newNote = {
-      id: Date.now().toString(),
-      text,
-      by: user?.name || 'Agent',
-      ts: new Date().toISOString()
+    if (!newNote.trim()) return
+    const entry = {
+      id: Date.now(),
+      text: newNote.trim(),
+      created_at: new Date().toISOString(),
+      author: 'You',
     }
-    const next = [newNote, ...notes]
-    setNoteInput('')
-    await persistNotes(next)
-  }
-
-  function startEdit(note) {
-    setEditingId(note.id)
-    setEditingText(note.text)
-  }
-
-  async function saveEdit() {
-    const text = editingText.trim()
-    if (!text) return
-    const next = notes.map(n => n.id === editingId ? { ...n, text, edited_at: new Date().toISOString() } : n)
-    setEditingId(null); setEditingText('')
-    await persistNotes(next)
+    await saveNotes([entry, ...notes])
+    setNewNote('')
   }
 
   async function deleteNote(id) {
     if (!confirm('Delete this note?')) return
-    const next = notes.filter(n => n.id !== id)
-    await persistNotes(next)
+    await saveNotes(notes.filter(n => n.id !== id))
+  }
+
+  async function updateNote(id) {
+    if (!editText.trim()) return
+    await saveNotes(notes.map(n => n.id === id ? { ...n, text: editText.trim(), edited_at: new Date().toISOString() } : n))
+    setEditingNoteId(null); setEditText('')
   }
 
   async function assignProject(projectId) {
-    if (!activeConvoId) return
     try {
       await fetch(`${API}/conversations/${activeConvoId}/project`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-        body: JSON.stringify({ project_id: projectId || null })
+        body: JSON.stringify({ project_id: projectId })
       })
-      setActive(prev => prev ? { ...prev, project_id: projectId || null } : prev)
-    } catch {
-      alert('Could not update project. Please try again.')
-    }
+      setActive(prev => prev ? { ...prev, project_id: projectId } : prev)
+      setShowProjectMenu(false)
+    } catch { alert('Could not assign project.') }
   }
 
-  const currentProject = projects?.find(p => p.id === active?.project_id)
+  async function setStage(stage) {
+    try {
+      await fetch(`${API}/contacts/${active.contact_id}/stage`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({ pipeline_stage: stage })
+      })
+      setActive(prev => prev ? { ...prev, pipeline_stage: stage } : prev)
+      setShowStageMenu(false)
+    } catch { alert('Could not update stage.') }
+  }
+
+  if (!active) return null
+
+  const currentProject = projects?.find(p => p.id === active.project_id)
   const activeProjects = (projects || []).filter(p => p.status === 'active')
+  const isClient = active.type === 'client'
 
-  function formatNoteTime(iso) {
-    if (!iso) return ''
-    try { return fmtSGT(iso) } catch { return iso }
-  }
+  const panel = (
+    <div style={{
+      width: isMobile ? '100%' : 280,
+      flexShrink: 0,
+      background: '#fff',
+      borderLeft: isMobile ? 'none' : border.subtle,
+      overflowY: 'auto',
+      padding: space[4],
+      fontFamily: fonts.body,
+      height: isMobile ? '100%' : 'auto',
+    }}>
 
-  const content = (
-    <>
-      <div style={{ display: 'flex', borderBottom: '0.5px solid #e5e7eb', flexShrink: 0 }}>
-        {['info', 'notes'].map(t => (
-          <button key={t} onClick={() => setDrawerTab(t)}
-            style={{ flex: 1, padding: '8px 2px', fontSize: 10, color: drawerTab === t ? '#111827' : '#6b7280', background: 'transparent', border: 'none', borderBottom: drawerTab === t ? `2px solid ${ACCENT}` : '2px solid transparent', cursor: 'pointer', fontWeight: drawerTab === t ? 500 : 400, textTransform: 'uppercase', letterSpacing: '0.4px' }}>
-            {t === 'info' ? 'Contact' : `Notes${notes.length ? ` (${notes.length})` : ''}`}
-          </button>
-        ))}
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: space[4] }}>
+        <div style={{ ...microLabel }}>Contact</div>
+        <button onClick={onClose}
+          title="Close"
+          style={{
+            width: 22, height: 22, borderRadius: radius.md,
+            border: `0.5px solid ${ink[300]}`,
+            background: 'transparent', cursor: 'pointer',
+            color: ink[600], display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+          <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <path d="M3 3l10 10" strokeLinecap="round"/>
+            <path d="M13 3l-10 10" strokeLinecap="round"/>
+          </svg>
+        </button>
       </div>
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: 10 }}>
-        {!active ? (
-          <div style={{ fontSize: 11, color: '#9ca3af', textAlign: 'center', padding: '20px 0' }}>
-            Select a conversation to view contact details
-          </div>
-        ) : drawerTab === 'info' ? (
-          <div>
-            <div style={{ padding: '8px 0 12px', borderBottom: '0.5px solid #f1f4f9', marginBottom: 8 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: '#111827', marginBottom: 2 }}>{active.name || '—'}</div>
-              <div style={{ fontSize: 10, color: '#6b7280', fontFamily: 'monospace' }}>{active.phone || '—'}</div>
-            </div>
+      {/* Name + phone */}
+      <div style={{ marginBottom: space[5] }}>
+        <div style={{
+          fontFamily: fonts.display,
+          fontSize: textSize.xl,
+          fontWeight: textWeight.semibold,
+          color: ink[900],
+          letterSpacing: '-0.2px',
+          marginBottom: 2,
+        }}>{active.name}</div>
+        <div style={{ fontFamily: fonts.mono, fontSize: textSize.xs, color: ink[600] }}>{active.phone}</div>
+      </div>
 
-            <div style={{ marginBottom: 10 }}>
-              <div style={{ fontSize: 9, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 4 }}>Project</div>
-              <select
-                value={active.project_id || ''}
-                onChange={e => assignProject(e.target.value ? parseInt(e.target.value) : null)}
-                style={{ width: '100%', padding: '6px 8px', border: '0.5px solid #d1d5db', borderRadius: 7, fontSize: 11, background: '#f9fafb', color: currentProject ? (currentProject.colour || '#111827') : '#6b7280', outline: 'none', fontWeight: currentProject ? 600 : 400 }}>
-                <option value="">— No project —</option>
-                {activeProjects.map(p => (
-                  <option key={p.id} value={p.id}>
-                    {p.client_name} · {p.start_month} {p.start_year}
-                  </option>
+      {/* Details */}
+      <Section title="Details">
+        <Row k="Type" v={isClient ? 'Client' : 'Candidate'} />
+        {!isClient && <Row k="Stage" v={active.pipeline_stage ? active.pipeline_stage.charAt(0).toUpperCase() + active.pipeline_stage.slice(1) : 'New'} />}
+        <Row k="Project" v={currentProject ? currentProject.client_name : '— none —'} accent={!currentProject} />
+        <Row k="Assigned" v={active.assigned_to || 'Unassigned'} />
+        <Row k="PDPA" v={active.pdpa_consent ? 'Consented' : 'Not recorded'} />
+        <Row k="Status" v={active.status === 'open' ? 'Open' : 'Resolved'} />
+        {active.dnc && <Row k="DNC" v="Yes — do not contact" />}
+      </Section>
+
+      {/* Quick actions */}
+      <Section title="Quick actions">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: space[1] }}>
+          {/* Project */}
+          <div style={{ position: 'relative' }}>
+            <button onClick={() => setShowProjectMenu(!showProjectMenu)}
+              style={{
+                width: '100%',
+                padding: `${space[2]}px ${space[3]}px`,
+                border: `0.5px solid ${ink[300]}`,
+                borderRadius: radius.md,
+                background: showProjectMenu ? ink[100] : 'transparent',
+                fontSize: textSize.xs,
+                color: ink[700],
+                cursor: 'pointer',
+                textAlign: 'left',
+                fontFamily: fonts.body,
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                fontWeight: textWeight.medium,
+              }}>
+              <span>{currentProject ? currentProject.client_name : 'Assign to project'}</span>
+              <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <path d="M4 6l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
+            {showProjectMenu && (
+              <div style={{
+                position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0,
+                background: '#fff',
+                border: border.subtle,
+                borderRadius: radius.md,
+                boxShadow: shadow.floating,
+                maxHeight: 240, overflowY: 'auto',
+                zIndex: 20,
+              }}>
+                <button onClick={() => assignProject(null)}
+                  style={{
+                    width: '100%', textAlign: 'left',
+                    padding: `${space[2]}px ${space[3]}px`,
+                    background: !currentProject ? ink[100] : 'transparent',
+                    border: 'none',
+                    fontSize: textSize.xs, color: ink[600],
+                    cursor: 'pointer', fontStyle: 'italic',
+                    fontFamily: fonts.body,
+                  }}>— No project —</button>
+                {activeProjects.length === 0 ? (
+                  <div style={{ padding: space[3], fontSize: textSize.xs, color: ink[500], textAlign: 'center' }}>No active projects</div>
+                ) : activeProjects.map(p => (
+                  <button key={p.id} onClick={() => assignProject(p.id)}
+                    style={{
+                      width: '100%', textAlign: 'left',
+                      padding: `${space[2]}px ${space[3]}px`,
+                      background: currentProject?.id === p.id ? ink[100] : 'transparent',
+                      border: 'none',
+                      fontSize: textSize.xs, color: ink[800],
+                      cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', gap: space[2],
+                      fontFamily: fonts.body,
+                    }}>
+                    <span style={{ width: 6, height: 6, borderRadius: radius.pill, background: p.colour || accent.DEFAULT, flexShrink: 0 }} />
+                    {p.client_name}
+                  </button>
                 ))}
-              </select>
-              {activeProjects.length === 0 && (
-                <div style={{ fontSize: 9, color: '#9ca3af', marginTop: 3, fontStyle: 'italic' }}>
-                  No active projects. Create one in the Projects tab.
+              </div>
+            )}
+          </div>
+
+          {/* Pipeline stage (candidates only) */}
+          {!isClient && (
+            <div style={{ position: 'relative' }}>
+              <button onClick={() => setShowStageMenu(!showStageMenu)}
+                style={{
+                  width: '100%',
+                  padding: `${space[2]}px ${space[3]}px`,
+                  border: `0.5px solid ${ink[300]}`,
+                  borderRadius: radius.md,
+                  background: showStageMenu ? ink[100] : 'transparent',
+                  fontSize: textSize.xs,
+                  color: ink[700],
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  fontFamily: fonts.body,
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                  fontWeight: textWeight.medium,
+                }}>
+                <span>Stage: <strong style={{ color: ink[800] }}>{active.pipeline_stage ? active.pipeline_stage.charAt(0).toUpperCase() + active.pipeline_stage.slice(1) : 'New'}</strong></span>
+                <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                  <path d="M4 6l4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </button>
+              {showStageMenu && (
+                <div style={{
+                  position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0,
+                  background: '#fff',
+                  border: border.subtle,
+                  borderRadius: radius.md,
+                  boxShadow: shadow.floating,
+                  zIndex: 20,
+                }}>
+                  {PIPELINE_STAGES.map(s => (
+                    <button key={s} onClick={() => setStage(s)}
+                      style={{
+                        width: '100%', textAlign: 'left',
+                        padding: `${space[2]}px ${space[3]}px`,
+                        background: active.pipeline_stage === s ? ink[100] : 'transparent',
+                        border: 'none',
+                        fontSize: textSize.xs, color: ink[800],
+                        cursor: 'pointer',
+                        textTransform: 'capitalize',
+                        fontFamily: fonts.body,
+                        fontWeight: textWeight.medium,
+                      }}>{s}</button>
+                  ))}
                 </div>
               )}
             </div>
+          )}
+        </div>
+      </Section>
 
-            {[
-              ['Email', active.email],
-              ['Type', active.type],
-              ['Stage', active.pipeline_stage],
-              ['Assigned to', active.assigned_to],
-              ['Status', active.status],
-              ['Phone line', active.phone_line],
-              ['PDPA', active.pdpa_consented ? '✓ Consented' : 'Not consented'],
-              ['DNC', active.dnc ? '⚠ Yes' : 'No'],
-            ].map(([l, v]) => (
-              <div key={l} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '0.5px solid #f1f4f9', fontSize: 11, gap: 6 }}>
-                <span style={{ color: '#9ca3af', flexShrink: 0 }}>{l}</span>
-                <span style={{ color: '#111827', fontWeight: 500, textAlign: 'right', fontSize: 10, wordBreak: 'break-all', textTransform: l === 'Type' || l === 'Stage' || l === 'Status' ? 'capitalize' : 'none' }}>
-                  {v || '—'}
-                </span>
-              </div>
-            ))}
+      {/* Notes */}
+      <Section title={`Notes · ${notes.length}`}>
+        <div style={{ display: 'flex', gap: space[1], marginBottom: space[2] }}>
+          <input value={newNote} onChange={e => setNewNote(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && addNote()}
+            placeholder="Add a private note…"
+            style={{
+              flex: 1,
+              padding: `${space[1] + 2}px ${space[2]}px`,
+              border: `0.5px solid ${ink[300]}`,
+              borderRadius: radius.md,
+              fontSize: textSize.xs,
+              outline: 'none',
+              background: ink[100],
+              color: ink[800],
+              fontFamily: fonts.body,
+            }} />
+          <button onClick={addNote} disabled={busy || !newNote.trim()}
+            style={{
+              padding: `${space[1] + 2}px ${space[3]}px`,
+              background: newNote.trim() ? ink[900] : ink[200],
+              color: newNote.trim() ? ink[50] : ink[500],
+              border: 'none', borderRadius: radius.md,
+              fontSize: textSize.xs, fontWeight: textWeight.medium,
+              cursor: newNote.trim() ? 'pointer' : 'default',
+              fontFamily: fonts.body,
+            }}>Add</button>
+        </div>
+
+        {notes.length === 0 ? (
+          <div style={{ fontSize: textSize.xs, color: ink[500], fontStyle: 'italic', padding: `${space[2]}px 0` }}>
+            No notes yet.
           </div>
         ) : (
-          <div>
-            <textarea value={noteInput} onChange={e => setNoteInput(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter' && e.ctrlKey) addNote() }}
-              style={{ width: '100%', padding: '6px 8px', border: '0.5px solid #d1d5db', borderRadius: 7, fontSize: 11, background: '#f9fafb', color: '#111827', resize: 'none', minHeight: 64, marginBottom: 5, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
-              placeholder="Type a note… (Ctrl+Enter to save)" rows={3} />
-            <button onClick={addNote} disabled={saving || !noteInput.trim()}
-              style={{ width: '100%', padding: '6px', background: saving || !noteInput.trim() ? '#e5e7eb' : ACCENT_LIGHT, border: `0.5px solid ${ACCENT_MID}`, borderRadius: 7, fontSize: 11, cursor: saving || !noteInput.trim() ? 'default' : 'pointer', color: saving || !noteInput.trim() ? '#9ca3af' : '#1e40af', fontWeight: 500, marginBottom: 10 }}>
-              {saving ? 'Saving…' : 'Save note'}
-            </button>
-
-            {notes.length === 0 ? (
-              <div style={{ fontSize: 11, color: '#9ca3af', textAlign: 'center', padding: '10px 0' }}>No notes yet</div>
-            ) : notes.map(n => (
-              <div key={n.id} style={{ padding: '8px 9px', background: '#fefce8', borderRadius: 7, fontSize: 11, color: '#854d0e', marginBottom: 6, border: '0.5px solid #fef08a', lineHeight: 1.5 }}>
-                {editingId === n.id ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: space[2] }}>
+            {notes.map(n => (
+              <div key={n.id} style={{
+                padding: space[2] + 2,
+                background: ink[100],
+                borderRadius: radius.md,
+                border: border.subtle,
+                fontSize: textSize.xs,
+              }}>
+                {editingNoteId === n.id ? (
                   <>
-                    <textarea value={editingText} onChange={e => setEditingText(e.target.value)}
-                      autoFocus
-                      style={{ width: '100%', padding: '5px 7px', border: '0.5px solid #fcd34d', borderRadius: 5, fontSize: 11, background: '#fff', color: '#111827', resize: 'vertical', minHeight: 50, marginBottom: 5, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', lineHeight: 1.5 }} />
-                    <div style={{ display: 'flex', gap: 5, justifyContent: 'flex-end' }}>
-                      <button onClick={() => { setEditingId(null); setEditingText('') }}
-                        style={{ padding: '3px 8px', background: 'transparent', border: '0.5px solid #d1d5db', borderRadius: 5, fontSize: 10, color: '#6b7280', cursor: 'pointer' }}>Cancel</button>
-                      <button onClick={saveEdit} disabled={!editingText.trim() || saving}
-                        style={{ padding: '3px 8px', background: !editingText.trim() || saving ? '#e5e7eb' : ACCENT, border: 'none', borderRadius: 5, fontSize: 10, color: !editingText.trim() || saving ? '#9ca3af' : '#fff', cursor: !editingText.trim() || saving ? 'default' : 'pointer', fontWeight: 500 }}>
-                        {saving ? 'Saving…' : 'Save'}
+                    <textarea value={editText} onChange={e => setEditText(e.target.value)} rows={2}
+                      style={{
+                        width: '100%',
+                        padding: space[2],
+                        border: `0.5px solid ${ink[300]}`,
+                        borderRadius: radius.sm,
+                        fontSize: textSize.xs,
+                        outline: 'none',
+                        background: '#fff',
+                        color: ink[800],
+                        resize: 'none',
+                        fontFamily: fonts.body,
+                        marginBottom: space[1],
+                        boxSizing: 'border-box',
+                      }} />
+                    <div style={{ display: 'flex', gap: space[1], justifyContent: 'flex-end' }}>
+                      <button onClick={() => { setEditingNoteId(null); setEditText('') }}
+                        style={{ padding: `2px ${space[2]}px`, fontSize: 10, background: 'transparent', border: `0.5px solid ${ink[300]}`, borderRadius: radius.sm, color: ink[600], cursor: 'pointer', fontFamily: fonts.body }}>
+                        Cancel
+                      </button>
+                      <button onClick={() => updateNote(n.id)}
+                        style={{ padding: `2px ${space[2]}px`, fontSize: 10, background: ink[900], border: 'none', borderRadius: radius.sm, color: ink[50], cursor: 'pointer', fontWeight: textWeight.medium, fontFamily: fonts.body }}>
+                        Save
                       </button>
                     </div>
                   </>
                 ) : (
                   <>
-                    <div style={{ marginBottom: 4, whiteSpace: 'pre-wrap' }}>{n.text}</div>
-                    <div style={{ fontSize: 9, color: '#a16207', borderTop: '0.5px solid #fef08a', paddingTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <span style={{ fontWeight: 500 }}>{n.by || '—'}</span>
-                      {n.ts && <><span>·</span><span>{formatNoteTime(n.ts)}</span></>}
-                      {n.edited_at && <span style={{ fontStyle: 'italic' }}>(edited)</span>}
-                      <span style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
-                        <button onClick={() => startEdit(n)}
-                          style={{ background: 'transparent', border: 'none', color: '#a16207', fontSize: 10, cursor: 'pointer', padding: 0, fontWeight: 500 }}>Edit</button>
-                        <button onClick={() => deleteNote(n.id)}
-                          style={{ background: 'transparent', border: 'none', color: '#dc2626', fontSize: 10, cursor: 'pointer', padding: 0, fontWeight: 500 }}>Delete</button>
+                    <div style={{ color: ink[800], lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word', marginBottom: space[1] }}>
+                      {n.text}
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: space[2] }}>
+                      <span style={{ fontSize: 10, color: ink[500], fontFamily: fonts.mono }}>
+                        {fmtSGT(n.created_at)}{n.edited_at ? ' · edited' : ''} · {n.author || 'Unknown'}
                       </span>
+                      <div style={{ display: 'flex', gap: 4 }}>
+                        <button onClick={() => { setEditingNoteId(n.id); setEditText(n.text) }}
+                          style={{ padding: `1px 6px`, fontSize: 10, background: 'transparent', border: `0.5px solid ${ink[300]}`, borderRadius: radius.sm, color: ink[600], cursor: 'pointer', fontFamily: fonts.body }}>
+                          Edit
+                        </button>
+                        <button onClick={() => deleteNote(n.id)}
+                          style={{ padding: `1px 6px`, fontSize: 10, background: 'transparent', border: `0.5px solid ${semantic.danger}`, borderRadius: radius.sm, color: semantic.danger, cursor: 'pointer', fontFamily: fonts.body }}>
+                          Delete
+                        </button>
+                      </div>
                     </div>
                   </>
                 )}
@@ -220,25 +392,40 @@ export default function ContactDrawer({ activeConvoId, active, setActive, projec
             ))}
           </div>
         )}
-      </div>
-    </>
+      </Section>
+
+      {/* Open profile */}
+      <button style={{
+        width: '100%',
+        padding: `${space[2] + 1}px`,
+        background: 'transparent',
+        border: `0.5px solid ${ink[300]}`,
+        color: ink[700],
+        borderRadius: radius.md,
+        fontSize: textSize.xs, fontWeight: textWeight.medium,
+        cursor: 'pointer',
+        fontFamily: fonts.body,
+        letterSpacing: '0.2px',
+      }}>
+        Open full profile
+      </button>
+    </div>
   )
 
+  // Mobile: full-screen overlay. Desktop: inline panel.
   if (isMobile) {
     return (
-      <div style={{ position: 'absolute', inset: 0, background: '#fff', zIndex: 15, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <div style={{ padding: '10px 14px', borderBottom: '0.5px solid #e5e7eb', display: 'flex', alignItems: 'center', gap: 9 }}>
-          <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: 7, border: '0.5px solid #d1d5db', background: 'transparent', cursor: 'pointer', fontSize: 18, color: '#6b7280', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>‹</button>
-          <span style={{ fontSize: 13, fontWeight: 500, color: '#111827' }}>{active?.name || 'Contact'}</span>
+      <div style={{
+        position: 'fixed', inset: 0, zIndex: 50,
+        background: 'rgba(10, 9, 7, 0.4)',
+        display: 'flex', justifyContent: 'flex-end',
+      }} onClick={onClose}>
+        <div onClick={e => e.stopPropagation()} style={{ width: '85%', maxWidth: 340, height: '100%', background: '#fff' }}>
+          {panel}
         </div>
-        {content}
       </div>
     )
   }
 
-  return (
-    <div style={{ width: 260, borderLeft: '0.5px solid #e5e7eb', background: '#fff', display: 'flex', flexDirection: 'column', flexShrink: 0, overflow: 'hidden' }}>
-      {content}
-    </div>
-  )
+  return panel
 }

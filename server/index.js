@@ -67,6 +67,8 @@ async function setupDatabase() {
     await client.query(`ALTER TABLE conversations ADD COLUMN IF NOT EXISTS project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL`)    
     await client.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS whatsapp_message_id VARCHAR(255)`)
     await client.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS delivered_at TIMESTAMP`)
+    await client.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS pinned_at TIMESTAMP`)
+    await client.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS pinned_by INTEGER`)
     await client.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS read_at TIMESTAMP`)
     await client.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS is_note BOOLEAN DEFAULT false`)
     await client.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS is_scheduled BOOLEAN DEFAULT false`)
@@ -330,10 +332,12 @@ app.get('/conversations/:id', auth, async (req, res) => {
     const wsId = await getWorkspaceId(req.user.id)
     const convo = await pool.query(`SELECT c.*, ct.name, ct.phone, ct.email, ct.type, ct.pipeline_stage, ct.pdpa_consented, ct.dnc, ct.notes as contact_notes, u.name as assigned_name, pn.number as phone_number, pn.display_name as phone_line FROM conversations c JOIN contacts ct ON ct.id=c.contact_id LEFT JOIN users u ON u.id=c.assigned_to LEFT JOIN phone_numbers pn ON pn.id=c.phone_number_id WHERE c.id=$1 AND c.workspace_id=$2`, [req.params.id, wsId])
     if (!convo.rows.length) return res.status(404).json({ error: 'Not found' })
-    const messages = await pool.query(`SELECT m.*, u.name as sender_name FROM messages m LEFT JOIN users u ON u.id=m.user_id WHERE m.conversation_id=$1 ORDER BY m.created_at ASC`, [req.params.id])
+    const messages = await pool.query(`SELECT m.*, u.name as sender_name, pu.name as pinned_by_name FROM messages m LEFT JOIN users u ON u.id=m.user_id LEFT JOIN users pu ON pu.id=m.pinned_by WHERE m.conversation_id=$1 ORDER BY m.created_at ASC`, [req.params.id])
     const result = convo.rows[0]
     result.assigned_to = result.assigned_name
     result.messages = messages.rows
+    // Pinned messages, most recently pinned first
+    result.pinned_messages = messages.rows.filter(m => m.pinned_at).sort((a, b) => new Date(b.pinned_at) - new Date(a.pinned_at))
     res.json(result)
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
@@ -912,6 +916,80 @@ app.get('/create-projects-table', async (req, res) => {
     res.json({ success: true, message: 'Projects table created' })
   } catch (err) {
     res.json({ error: err.message })
+  }
+})
+
+// ─── PIN MESSAGES ──────────────────────────────────────────────────────────────
+// Toggle pin on a message. Enforces max 3 pins per conversation.
+app.patch('/messages/:id/pin', auth, async (req, res) => {
+  try {
+    const wsId = await getWorkspaceId(req.user.id)
+    const msgId = req.params.id
+
+    // Find the message and verify it belongs to this workspace
+    const msg = await pool.query(
+      `SELECT id, conversation_id, pinned_at FROM messages WHERE id=$1 AND workspace_id=$2`,
+      [msgId, wsId]
+    )
+    if (!msg.rows.length) return res.status(404).json({ error: 'Message not found' })
+    const { conversation_id, pinned_at } = msg.rows[0]
+
+    if (pinned_at) {
+      // Currently pinned — unpin
+      await pool.query(
+        `UPDATE messages SET pinned_at=NULL, pinned_by=NULL WHERE id=$1`,
+        [msgId]
+      )
+      return res.json({ id: msgId, pinned: false })
+    }
+
+    // Check current pin count for this conversation
+    const count = await pool.query(
+      `SELECT COUNT(*) FROM messages WHERE conversation_id=$1 AND pinned_at IS NOT NULL`,
+      [conversation_id]
+    )
+    if (parseInt(count.rows[0].count) >= 3) {
+      return res.status(400).json({ error: 'Maximum 3 pins per conversation. Unpin one first.' })
+    }
+
+    await pool.query(
+      `UPDATE messages SET pinned_at=NOW(), pinned_by=$1 WHERE id=$2`,
+      [req.user.id, msgId]
+    )
+    res.json({ id: msgId, pinned: true })
+  } catch (err) {
+    console.error('Pin error:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// ─── GLOBAL MESSAGE SEARCH ─────────────────────────────────────────────────────
+app.get('/search', auth, async (req, res) => {
+  try {
+    const wsId = await getWorkspaceId(req.user.id)
+    const q = (req.query.q || '').trim()
+    if (!q || q.length < 2) return res.json({ results: [] })
+
+    // Search message text + contact name/phone across all conversations in this workspace.
+    // Returns top 30 matches sorted by most recent.
+    const searchLike = `%${q}%`
+    const r = await pool.query(
+      `SELECT m.id as message_id, m.text, m.direction, m.created_at, m.conversation_id,
+              ct.name as contact_name, ct.phone as contact_phone, ct.type as contact_type,
+              c.status as conversation_status
+       FROM messages m
+       JOIN conversations c ON c.id = m.conversation_id
+       JOIN contacts ct ON ct.id = c.contact_id
+       WHERE m.workspace_id = $1
+         AND (m.text ILIKE $2 OR ct.name ILIKE $2 OR ct.phone ILIKE $2)
+       ORDER BY m.created_at DESC
+       LIMIT 30`,
+      [wsId, searchLike]
+    )
+    res.json({ results: r.rows, query: q })
+  } catch (err) {
+    console.error('Search error:', err)
+    res.status(500).json({ error: err.message })
   }
 })
 

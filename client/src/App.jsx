@@ -8,6 +8,7 @@ import { API, ACCENT, NAVY } from './utils/constants'
 const InboxList = lazy(() => import('./components/inbox/InboxList'))
 const ChatWindow = lazy(() => import('./components/inbox/ChatWindow'))
 const ContactDrawer = lazy(() => import('./components/inbox/ContactDrawer'))
+const GlobalSearch = lazy(() => import('./components/search/GlobalSearch'))
 const Broadcasts = lazy(() => import('./components/broadcasts/Broadcasts'))
 const Templates = lazy(() => import('./components/templates/Templates'))
 const Analytics = lazy(() => import('./components/analytics/Analytics'))
@@ -239,6 +240,10 @@ function MainApp() {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768)
   const [mobileView, setMobileView] = useState('inbox')
   const [showMaintenanceEditor, setShowMaintenanceEditor] = useState(false)
+  const [showSearch, setShowSearch] = useState(false)
+  // When a search result is picked, we pass the message id down so ChatWindow
+  // can scroll to it once the conversation loads
+  const [jumpToMessageId, setJumpToMessageId] = useState(null)
 
   // Lifted state — shared between ChatWindow and ContactDrawer
   const [active, setActive] = useState(null)
@@ -248,6 +253,18 @@ function MainApp() {
     const onResize = () => setIsMobile(window.innerWidth < 768)
     window.addEventListener('resize', onResize)
     return () => window.removeEventListener('resize', onResize)
+  }, [])
+
+  // Global Ctrl+K / ⌘K — open search overlay. Ignored while typing in inputs.
+  useEffect(() => {
+    function onKey(e) {
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')) {
+        e.preventDefault()
+        setShowSearch(true)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
   }, [])
 
   // Load projects once — shared by ChatWindow (header dropdown) and ContactDrawer
@@ -267,6 +284,15 @@ function MainApp() {
       .then(setActive)
       .catch(() => {})
   }, [activeConvoId, token])
+
+  // Handle a search-result pick: switch tabs to inbox, open the convo, tell
+  // ChatWindow which message to scroll to
+  function handleSearchSelect({ conversationId, messageId }) {
+    setActiveNav('inbox')
+    setActiveConvoId(conversationId)
+    setJumpToMessageId(messageId)
+    if (isMobile) setMobileView('chat')
+  }
 
   function ComingSoon({ name }) {
     return (
@@ -303,6 +329,8 @@ function MainApp() {
                 isMobile={isMobile}
                 mobileView={mobileView}
                 setMobileView={setMobileView}
+                jumpToMessageId={jumpToMessageId}
+                clearJumpToMessage={() => setJumpToMessageId(null)}
               />
               {showDrawer && (
                 <ContactDrawer
@@ -352,6 +380,14 @@ function MainApp() {
       </div>
       {showMaintenanceEditor && (
         <MaintenanceModal onClose={() => setShowMaintenanceEditor(false)} />
+      )}
+      {showSearch && (
+        <Suspense fallback={null}>
+          <GlobalSearch
+            onClose={() => setShowSearch(false)}
+            onSelect={handleSearchSelect}
+          />
+        </Suspense>
       )}
     </div>
   )

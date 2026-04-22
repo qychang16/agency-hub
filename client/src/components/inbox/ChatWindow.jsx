@@ -4,19 +4,13 @@ import { API, ACCENT, ACCENT_LIGHT, NAVY, EMOJIS, DEFAULT_TEMPLATES } from '../.
 import { fmtSGT } from '../../utils/dates'
 import { io } from 'socket.io-client'
 
-// Module-level scroll position cache — survives remounts within the session.
-// Map of conversationId -> last scrollTop. We store here instead of component
-// state so the value persists even when the messages container briefly unmounts.
+// Module-level scroll cache — survives remounts within the session
 const scrollMemory = new Map()
 
-// Returns a label for a message's date group: "Today", "Yesterday",
-// "Monday 21 Apr" (if within the past 7 days), or "22 Apr 2026" (older).
 function dateGroupLabel(iso) {
   if (!iso) return ''
   const d = new Date(iso)
   const now = new Date()
-
-  // Compare using SGT calendar days — strip time to midnight in Asia/Singapore
   const toSGTDateString = x => x.toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' })
   const msgDay = toSGTDateString(d)
   const today = toSGTDateString(now)
@@ -30,11 +24,10 @@ function dateGroupLabel(iso) {
   if (diffDays > 0 && diffDays < 7) {
     return d.toLocaleDateString('en-GB', { weekday: 'long', day: '2-digit', month: 'short', timeZone: 'Asia/Singapore' })
   }
-  // Older than a week — include year
   return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Singapore' })
 }
 
-export default function ChatWindow({ activeConvoId, active, setActive, projects, showDrawer, setShowDrawer, isMobile, mobileView, setMobileView }) {
+export default function ChatWindow({ activeConvoId, active, setActive, projects, showDrawer, setShowDrawer, isMobile, mobileView, setMobileView, jumpToMessageId, clearJumpToMessage }) {
   const { token, user } = useAuth()
   const [input, setInput] = useState('')
   const [compMode, setCompMode] = useState('text')
@@ -43,13 +36,17 @@ export default function ChatWindow({ activeConvoId, active, setActive, projects,
   const [showProjectMenu, setShowProjectMenu] = useState(false)
   const [newMessagesCount, setNewMessagesCount] = useState(0)
   const [isAtBottom, setIsAtBottom] = useState(true)
-  const messagesEndRef = useRef(null)
+  const [hoveredMsgId, setHoveredMsgId] = useState(null)
+  const [pinError, setPinError] = useState('')
+  const [flashedMsgId, setFlashedMsgId] = useState(null)
+  const [expandedPinId, setExpandedPinId] = useState(null)
   const messagesRef = useRef(null)
   const textareaRef = useRef(null)
   const socketRef = useRef(null)
   const projectMenuRef = useRef(null)
-  // Track the previous convo id so we can save its scroll position before switching
   const prevConvoIdRef = useRef(null)
+  const isAtBottomRef = useRef(true)
+  const messageRefs = useRef(new Map())
 
   // Socket for live messages
   useEffect(() => {
@@ -58,7 +55,6 @@ export default function ChatWindow({ activeConvoId, active, setActive, projects,
     socket.on('new_message', msg => {
       if (msg.conversation_id === activeConvoId) {
         setActive(prev => prev ? { ...prev, messages: [...(prev.messages || []), msg] } : prev)
-        // If user is scrolled up, increment the unread counter for the pill
         if (!isAtBottomRef.current) {
           setNewMessagesCount(n => n + 1)
         }
@@ -67,36 +63,41 @@ export default function ChatWindow({ activeConvoId, active, setActive, projects,
     return () => socket.disconnect()
   }, [activeConvoId, setActive])
 
-  // Keep a ref of isAtBottom so the socket callback reads current value
-  const isAtBottomRef = useRef(true)
   useEffect(() => { isAtBottomRef.current = isAtBottom }, [isAtBottom])
 
-  // Save scroll position when the convo id changes (before new messages load)
+  // Save scroll when switching convos
   useEffect(() => {
-    // If we had a previous conversation open, save its scroll position
     if (prevConvoIdRef.current && prevConvoIdRef.current !== activeConvoId && messagesRef.current) {
       scrollMemory.set(prevConvoIdRef.current, messagesRef.current.scrollTop)
     }
     prevConvoIdRef.current = activeConvoId
-    // Reset new messages counter when switching
     setNewMessagesCount(0)
+    setExpandedPinId(null)
   }, [activeConvoId])
 
-  // Restore scroll position (or go to bottom if first visit) whenever messages load
+  // Restore scroll position when messages load
   useEffect(() => {
     const el = messagesRef.current
     if (!el || !active?.messages) return
+
+    // If a jump target is set (from search), scroll to that message
+    if (jumpToMessageId) {
+      setTimeout(() => {
+        scrollToMessage(jumpToMessageId)
+        clearJumpToMessage?.()
+      }, 100)
+      return
+    }
+
     const saved = scrollMemory.get(activeConvoId)
     if (saved !== undefined) {
       el.scrollTop = saved
     } else {
-      // First time opening — scroll to bottom instantly, no animation
       el.scrollTop = el.scrollHeight
     }
   }, [activeConvoId, active?.messages?.length === undefined ? 0 : (active?.messages?.length > 0 ? 1 : 0)])
-  // ^ triggers on first load of messages for this convo
 
-  // When a new message arrives and user is near bottom, auto-scroll
+  // Auto-scroll on new message if at bottom
   useEffect(() => {
     const el = messagesRef.current
     if (!el || !active?.messages?.length) return
@@ -106,15 +107,12 @@ export default function ChatWindow({ activeConvoId, active, setActive, projects,
     }
   }, [active?.messages?.length])
 
-  // Track whether user is near the bottom of the scroll area
   function handleScroll() {
     const el = messagesRef.current
     if (!el) return
-    // "At bottom" = within 60px of the bottom (allows a little slack)
     const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 60
     setIsAtBottom(atBottom)
     if (atBottom && newMessagesCount > 0) setNewMessagesCount(0)
-    // Update saved position live so refreshing doesn't lose it
     if (activeConvoId) scrollMemory.set(activeConvoId, el.scrollTop)
   }
 
@@ -129,7 +127,15 @@ export default function ChatWindow({ activeConvoId, active, setActive, projects,
     setNewMessagesCount(0)
   }
 
-  // Close project menu on outside click
+  function scrollToMessage(msgId) {
+    const el = messageRefs.current.get(msgId)
+    if (!el) return
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    // Flash the message yellow briefly so the user can find it visually
+    setFlashedMsgId(msgId)
+    setTimeout(() => setFlashedMsgId(null), 1800)
+  }
+
   useEffect(() => {
     function onClickOutside(e) {
       if (projectMenuRef.current && !projectMenuRef.current.contains(e.target)) {
@@ -148,7 +154,6 @@ export default function ChatWindow({ activeConvoId, active, setActive, projects,
       body: JSON.stringify({ conversation_id: activeConvoId, direction: 'out', text: input })
     })
     setInput(''); setShowEmoji(false)
-    // Send action implies user is present — jump to bottom
     setTimeout(() => scrollToBottom(true), 50)
   }
 
@@ -175,6 +180,39 @@ export default function ChatWindow({ activeConvoId, active, setActive, projects,
     }
   }
 
+  async function togglePin(msgId) {
+    setPinError('')
+    try {
+      const r = await fetch(`${API}/messages/${msgId}/pin`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }
+      })
+      const data = await r.json()
+      if (!r.ok) {
+        setPinError(data.error || 'Could not pin message')
+        setTimeout(() => setPinError(''), 4000)
+        return
+      }
+      // Update local state: flip pinned_at for this message
+      setActive(prev => {
+        if (!prev) return prev
+        const messages = prev.messages.map(m => {
+          if (m.id === msgId) {
+            return data.pinned
+              ? { ...m, pinned_at: new Date().toISOString(), pinned_by_name: user?.name || 'You' }
+              : { ...m, pinned_at: null, pinned_by_name: null }
+          }
+          return m
+        })
+        const pinned_messages = messages.filter(m => m.pinned_at).sort((a, b) => new Date(b.pinned_at) - new Date(a.pinned_at))
+        return { ...prev, messages, pinned_messages }
+      })
+    } catch (err) {
+      setPinError('Network error. Try again.')
+      setTimeout(() => setPinError(''), 4000)
+    }
+  }
+
   function insertEmoji(emoji) {
     const ta = textareaRef.current; if (!ta) return
     const s = ta.selectionStart
@@ -187,6 +225,7 @@ export default function ChatWindow({ activeConvoId, active, setActive, projects,
 
   const currentProject = projects?.find(p => p.id === active?.project_id)
   const activeProjects = (projects || []).filter(p => p.status === 'active')
+  const pinnedMessages = active?.pinned_messages || []
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative', background: '#fff' }}>
@@ -263,16 +302,66 @@ export default function ChatWindow({ activeConvoId, active, setActive, projects,
         )}
       </div>
 
+      {/* Pinned messages bar */}
+      {pinnedMessages.length > 0 && (
+        <div style={{ borderBottom: '0.5px solid #fde68a', background: '#fffbeb', padding: '6px 14px', display: 'flex', flexDirection: 'column', gap: 4, flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: '#92400e', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 2 }}>
+            <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M9.5 1.5a1 1 0 0 1 .707.293l4 4a1 1 0 0 1-.707 1.707h-1.586l-1 4h.586a.5.5 0 0 1 0 1H9l-.5 3a.5.5 0 0 1-1 0L7 11.5H3.5a.5.5 0 0 1 0-1h.586l-1-4H1.5a1 1 0 0 1-.707-1.707l4-4A1 1 0 0 1 5.5 1.5h4z"/>
+            </svg>
+            {pinnedMessages.length} pinned
+          </div>
+          {pinnedMessages.map(pm => {
+            const preview = (pm.text || '').slice(0, 60)
+            const truncated = (pm.text || '').length > 60
+            const isExpanded = expandedPinId === pm.id
+            return (
+              <div key={pm.id}
+                onClick={() => scrollToMessage(pm.id)}
+                onMouseEnter={() => truncated && setExpandedPinId(pm.id)}
+                onMouseLeave={() => setExpandedPinId(null)}
+                style={{ fontSize: 11, color: '#78350f', padding: '4px 7px', borderRadius: 5, background: 'rgba(255,255,255,0.5)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, transition: 'background 0.1s' }}
+                onMouseOver={e => e.currentTarget.style.background = 'rgba(255,255,255,0.9)'}
+                onMouseOut={e => e.currentTarget.style.background = 'rgba(255,255,255,0.5)'}>
+                <span style={{ fontSize: 9, color: '#a16207', fontWeight: 500, flexShrink: 0 }}>
+                  {pm.direction === 'out' ? '→' : '←'}
+                </span>
+                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: isExpanded ? 'normal' : 'nowrap', lineHeight: 1.4 }}>
+                  {isExpanded ? pm.text : preview}{!isExpanded && truncated ? '…' : ''}
+                </span>
+                <button onClick={e => { e.stopPropagation(); togglePin(pm.id) }}
+                  title="Unpin"
+                  style={{ padding: 2, background: 'transparent', border: 'none', cursor: 'pointer', color: '#a16207', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                  <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor">
+                    <path d="M2.146 2.146a.5.5 0 0 1 .708 0l11 11a.5.5 0 0 1-.708.708l-11-11a.5.5 0 0 1 0-.708z"/>
+                    <path d="M9.5 1.5a1 1 0 0 1 .707.293l4 4a1 1 0 0 1-.707 1.707h-1.586l-1 4h.586a.5.5 0 0 1 0 1H9l-.5 3a.5.5 0 0 1-1 0L7 11.5H3.5a.5.5 0 0 1 0-1h.586l-1-4H1.5a1 1 0 0 1-.707-1.707l4-4A1 1 0 0 1 5.5 1.5h4z" opacity="0.4"/>
+                  </svg>
+                </button>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Pin error toast */}
+      {pinError && (
+        <div style={{ position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)', background: '#fee2e2', color: '#991b1b', padding: '6px 12px', borderRadius: 8, fontSize: 11, fontWeight: 500, boxShadow: '0 4px 12px rgba(0,0,0,0.1)', zIndex: 50, border: '0.5px solid #fca5a5' }}>
+          {pinError}
+        </div>
+      )}
+
       {/* Messages */}
       <div ref={messagesRef} onScroll={handleScroll}
         style={{ flex: 1, overflowY: 'auto', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 2, position: 'relative' }}>
         {active?.messages?.map((m, i) => {
           const prev = active.messages[i - 1]
           const showSender = !prev || prev.direction !== m.direction
-          // Show a date divider if this is the first message OR the day changed from previous
           const prevDay = prev?.created_at ? new Date(prev.created_at).toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' }) : null
           const thisDay = m.created_at ? new Date(m.created_at).toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' }) : null
           const showDateDivider = thisDay && prevDay !== thisDay
+          const isPinned = !!m.pinned_at
+          const isFlashing = flashedMsgId === m.id
+          const isHovered = hoveredMsgId === m.id
           return (
             <div key={m.id || i} style={{ display: 'contents' }}>
               {showDateDivider && (
@@ -284,10 +373,34 @@ export default function ChatWindow({ activeConvoId, active, setActive, projects,
                   <div style={{ flex: 1, height: 1, background: '#e5e7eb' }} />
                 </div>
               )}
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: m.direction === 'out' ? 'flex-end' : 'flex-start', marginBottom: 2 }}>
+              <div
+                ref={el => { if (el && m.id) messageRefs.current.set(m.id, el); else if (m.id) messageRefs.current.delete(m.id) }}
+                onMouseEnter={() => setHoveredMsgId(m.id)}
+                onMouseLeave={() => setHoveredMsgId(null)}
+                style={{ display: 'flex', flexDirection: 'column', alignItems: m.direction === 'out' ? 'flex-end' : 'flex-start', marginBottom: 2, padding: '2px 4px', borderRadius: 8, background: isFlashing ? '#fef08a' : 'transparent', transition: 'background 0.6s', position: 'relative' }}>
                 {showSender && <div style={{ fontSize: 10, color: '#9ca3af', marginBottom: 2, padding: '0 3px', textAlign: m.direction === 'out' ? 'right' : 'left' }}>{m.direction === 'out' ? (active.assigned_to || 'Agent') : active.name}</div>}
-                <div style={{ maxWidth: isMobile ? '85%' : '74%', padding: '8px 12px', borderRadius: 12, fontSize: 12, lineHeight: 1.6, wordBreak: 'break-word', whiteSpace: 'pre-wrap', background: m.direction === 'out' ? ACCENT : '#f1f4f9', color: m.direction === 'out' ? '#fff' : '#111827', borderBottomRightRadius: m.direction === 'out' ? 3 : 12, borderBottomLeftRadius: m.direction === 'in' ? 3 : 12 }}>
-                  {m.text}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, maxWidth: '100%', flexDirection: m.direction === 'out' ? 'row-reverse' : 'row' }}>
+                  <div style={{ maxWidth: isMobile ? '85%' : '74%', padding: '8px 12px', borderRadius: 12, fontSize: 12, lineHeight: 1.6, wordBreak: 'break-word', whiteSpace: 'pre-wrap', background: m.direction === 'out' ? ACCENT : '#f1f4f9', color: m.direction === 'out' ? '#fff' : '#111827', borderBottomRightRadius: m.direction === 'out' ? 3 : 12, borderBottomLeftRadius: m.direction === 'in' ? 3 : 12, position: 'relative' }}>
+                    {isPinned && (
+                      <span title={`Pinned${m.pinned_by_name ? ` by ${m.pinned_by_name}` : ''}`}
+                        style={{ position: 'absolute', top: -6, [m.direction === 'out' ? 'left' : 'right']: -6, width: 16, height: 16, borderRadius: '50%', background: '#fbbf24', color: '#78350f', fontSize: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.15)' }}>
+                        <svg width="8" height="8" viewBox="0 0 16 16" fill="currentColor">
+                          <path d="M9.5 1.5a1 1 0 0 1 .707.293l4 4a1 1 0 0 1-.707 1.707h-1.586l-1 4h.586a.5.5 0 0 1 0 1H9l-.5 3a.5.5 0 0 1-1 0L7 11.5H3.5a.5.5 0 0 1 0-1h.586l-1-4H1.5a1 1 0 0 1-.707-1.707l4-4A1 1 0 0 1 5.5 1.5h4z"/>
+                        </svg>
+                      </span>
+                    )}
+                    {m.text}
+                  </div>
+                  {/* Pin/unpin button — shown on hover or always if pinned */}
+                  {m.id && (isHovered || isPinned) && (
+                    <button onClick={() => togglePin(m.id)}
+                      title={isPinned ? 'Unpin' : 'Pin message'}
+                      style={{ width: 22, height: 22, borderRadius: 5, border: 'none', background: isPinned ? '#fef3c7' : '#f1f4f9', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: isPinned ? '#92400e' : '#6b7280', opacity: isPinned ? 1 : 0.85, flexShrink: 0 }}>
+                      <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor">
+                        <path d="M9.5 1.5a1 1 0 0 1 .707.293l4 4a1 1 0 0 1-.707 1.707h-1.586l-1 4h.586a.5.5 0 0 1 0 1H9l-.5 3a.5.5 0 0 1-1 0L7 11.5H3.5a.5.5 0 0 1 0-1h.586l-1-4H1.5a1 1 0 0 1-.707-1.707l4-4A1 1 0 0 1 5.5 1.5h4z"/>
+                      </svg>
+                    </button>
+                  )}
                 </div>
                 <div style={{ fontSize: 9, color: '#9ca3af', marginTop: 2, padding: '0 3px', display: 'flex', alignItems: 'center', gap: 3, justifyContent: m.direction === 'out' ? 'flex-end' : 'flex-start' }}>
                   {fmtSGT(m.created_at)}
@@ -297,10 +410,9 @@ export default function ChatWindow({ activeConvoId, active, setActive, projects,
             </div>
           )
         })}
-        <div ref={messagesEndRef} />
       </div>
 
-      {/* "New messages" pill — shows only when scrolled up AND new messages arrived */}
+      {/* New messages pill */}
       {!isAtBottom && newMessagesCount > 0 && (
         <button onClick={() => scrollToBottom(true)}
           style={{ position: 'absolute', bottom: 128, right: 18, padding: '6px 12px 6px 10px', background: ACCENT, color: '#fff', border: 'none', borderRadius: 16, fontSize: 11, fontWeight: 500, cursor: 'pointer', boxShadow: '0 4px 14px rgba(37, 99, 235, 0.35)', display: 'flex', alignItems: 'center', gap: 5, zIndex: 10 }}>
@@ -353,7 +465,7 @@ export default function ChatWindow({ activeConvoId, active, setActive, projects,
           </button>
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
-          <span style={{ fontSize: 10, color: '#9ca3af' }}>Enter to send · Shift+Enter for new line</span>
+          <span style={{ fontSize: 10, color: '#9ca3af' }}>Enter to send · Shift+Enter for new line · <strong>Ctrl+K</strong> to search</span>
           <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 6, fontWeight: 500, background: active?.status === 'open' ? ACCENT_LIGHT : '#fef3c7', color: active?.status === 'open' ? '#1e40af' : '#92400e' }}>
             {active?.status === 'open' ? '24hr window open' : 'Template required'}
           </span>

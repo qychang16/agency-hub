@@ -1,4 +1,4 @@
-export const API = 'https://agency-hub-production-e5af.up.railway.app'
+export const API = import.meta.env.VITE_API_URL || 'https://agency-hub-production-e5af.up.railway.app'
 
 export const NAVY = '#1a2332'
 export const ACCENT = '#2563eb'

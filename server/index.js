@@ -47,6 +47,49 @@ async function setupDatabase() {
     await client.query(`CREATE TABLE IF NOT EXISTS phone_numbers (id SERIAL PRIMARY KEY, workspace_id INTEGER REFERENCES workspaces(id) ON DELETE CASCADE, number VARCHAR(50), display_name VARCHAR(255), whatsapp_phone_id VARCHAR(255), connected BOOLEAN DEFAULT false, is_primary BOOLEAN DEFAULT false, team_id INTEGER, status VARCHAR(20) DEFAULT 'active', daily_limit INTEGER DEFAULT 1000, created_at TIMESTAMP DEFAULT NOW())`)
     await client.query(`CREATE TABLE IF NOT EXISTS teams (id SERIAL PRIMARY KEY, workspace_id INTEGER REFERENCES workspaces(id) ON DELETE CASCADE, name VARCHAR(255), key VARCHAR(100), type VARCHAR(50) DEFAULT 'recruitment', lead_user_id INTEGER, color VARCHAR(20) DEFAULT '#2563eb', description TEXT, created_at TIMESTAMP DEFAULT NOW())`)
     await client.query(`CREATE TABLE IF NOT EXISTS users (id SERIAL PRIMARY KEY, workspace_id INTEGER REFERENCES workspaces(id) ON DELETE CASCADE, name VARCHAR(255), email VARCHAR(255) UNIQUE, password_hash VARCHAR(255), role VARCHAR(50) DEFAULT 'consultant', team_id INTEGER, status VARCHAR(20) DEFAULT 'offline', capacity INTEGER DEFAULT 20, active BOOLEAN DEFAULT true, is_super_admin BOOLEAN DEFAULT false, email_signature TEXT, send_behaviour VARCHAR(20) DEFAULT 'enter', force_password_change BOOLEAN DEFAULT false, last_login_at TIMESTAMP, failed_login_attempts INTEGER DEFAULT 0, locked_until TIMESTAMP, permissions JSONB, created_at TIMESTAMP DEFAULT NOW(), updated_at TIMESTAMP DEFAULT NOW())`)
+
+    // ─── Legacy users table repair (backfills old agency-hub DB) ──────────────
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS workspace_id INTEGER REFERENCES workspaces(id) ON DELETE CASCADE`)
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash VARCHAR(255)`)
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS team_id INTEGER`)
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'offline'`)
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS capacity INTEGER DEFAULT 20`)
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS active BOOLEAN DEFAULT true`)
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_super_admin BOOLEAN DEFAULT false`)
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS email_signature TEXT`)
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS send_behaviour VARCHAR(20) DEFAULT 'enter'`)
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS force_password_change BOOLEAN DEFAULT false`)
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMP`)
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS failed_login_attempts INTEGER DEFAULT 0`)
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS locked_until TIMESTAMP`)
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS permissions JSONB`)
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()`)
+    await client.query(`
+      DO $$
+      BEGIN
+        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='password') THEN
+          UPDATE users SET password_hash = password WHERE password_hash IS NULL AND password IS NOT NULL;
+        END IF;
+      END $$;
+    `)
+
+    // Relax NOT NULL on legacy `password` column so new users using password_hash-only work
+    await client.query(`
+      DO $$
+      BEGIN
+        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='password' AND is_nullable='NO') THEN
+          ALTER TABLE users ALTER COLUMN password DROP NOT NULL;
+        END IF;
+      END $$;
+    `)
+
+    // ─── Legacy contacts/conversations/messages wipe ─────────────────────────
+    // These tables from the old agency-hub era are missing too many columns to patch.
+    // Dev data only (6/6/18 rows). Safe to drop — CREATE TABLE IF NOT EXISTS recreates fresh below.
+    await client.query(`DROP TABLE IF EXISTS messages CASCADE`)
+    await client.query(`DROP TABLE IF EXISTS conversations CASCADE`)
+    await client.query(`DROP TABLE IF EXISTS contacts CASCADE`)
+
     await client.query(`CREATE TABLE IF NOT EXISTS team_members (id SERIAL PRIMARY KEY, team_id INTEGER REFERENCES teams(id) ON DELETE CASCADE, user_id INTEGER REFERENCES users(id) ON DELETE CASCADE, UNIQUE(team_id, user_id))`)
     await client.query(`CREATE TABLE IF NOT EXISTS routing_rules (id SERIAL PRIMARY KEY, workspace_id INTEGER REFERENCES workspaces(id) ON DELETE CASCADE, mode VARCHAR(20) DEFAULT 'smart', sticky_assignment BOOLEAN DEFAULT true, round_robin BOOLEAN DEFAULT true, candidate_team_id INTEGER, client_team_id INTEGER, max_capacity INTEGER DEFAULT 20, escalation_enabled BOOLEAN DEFAULT true, escalation_steps JSONB DEFAULT '[]', after_hours_action VARCHAR(20) DEFAULT 'auto_reply', unassigned_queue BOOLEAN DEFAULT true, blackout_start VARCHAR(5) DEFAULT '22:00', blackout_end VARCHAR(5) DEFAULT '08:00', created_at TIMESTAMP DEFAULT NOW(), updated_at TIMESTAMP DEFAULT NOW())`)
     await client.query(`CREATE TABLE IF NOT EXISTS business_hours (id SERIAL PRIMARY KEY, workspace_id INTEGER REFERENCES workspaces(id) ON DELETE CASCADE, phone_number_id INTEGER, day_of_week VARCHAR(20), is_open BOOLEAN DEFAULT true, open_time VARCHAR(5) DEFAULT '09:00', close_time VARCHAR(5) DEFAULT '18:00', created_at TIMESTAMP DEFAULT NOW())`)
@@ -64,7 +107,7 @@ async function setupDatabase() {
     await client.query(`CREATE TABLE IF NOT EXISTS audit_log (id SERIAL PRIMARY KEY, workspace_id INTEGER, user_id INTEGER, action VARCHAR(100), entity_type VARCHAR(50), entity_id INTEGER, old_values JSONB, new_values JSONB, ip_address VARCHAR(50), created_at TIMESTAMP DEFAULT NOW())`)
     await client.query(`CREATE TABLE IF NOT EXISTS notifications (id SERIAL PRIMARY KEY, workspace_id INTEGER REFERENCES workspaces(id) ON DELETE CASCADE, user_id INTEGER REFERENCES users(id) ON DELETE CASCADE, type VARCHAR(100), title VARCHAR(255), body TEXT, entity_type VARCHAR(50), entity_id INTEGER, read BOOLEAN DEFAULT false, read_at TIMESTAMP, created_at TIMESTAMP DEFAULT NOW())`)
     await client.query(`CREATE TABLE IF NOT EXISTS projects (id SERIAL PRIMARY KEY, workspace_id INTEGER REFERENCES workspaces(id) ON DELETE CASCADE, client_name VARCHAR(255) NOT NULL, start_month VARCHAR(10) NOT NULL, start_year INTEGER NOT NULL, colour VARCHAR(20) DEFAULT '#2563eb', status VARCHAR(20) DEFAULT 'active', archived_at TIMESTAMP, created_by INTEGER, created_at TIMESTAMP DEFAULT NOW(), updated_at TIMESTAMP DEFAULT NOW())`)
-    await client.query(`ALTER TABLE conversations ADD COLUMN IF NOT EXISTS project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL`)    
+    await client.query(`ALTER TABLE conversations ADD COLUMN IF NOT EXISTS project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL`)
     await client.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS whatsapp_message_id VARCHAR(255)`)
     await client.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS delivered_at TIMESTAMP`)
     await client.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS pinned_at TIMESTAMP`)
@@ -75,12 +118,23 @@ async function setupDatabase() {
     await client.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS scheduled_at TIMESTAMP`)
     await client.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_at TIMESTAMP`)
     await client.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS template_id INTEGER`)
+
+    // ─── Multi-tenant access control migrations (Session D1) ─────────────────
+    await client.query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS team_id INTEGER REFERENCES teams(id) ON DELETE SET NULL`)
+    await client.query(`ALTER TABLE phone_numbers ADD COLUMN IF NOT EXISTS project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL`)
+    await client.query(`ALTER TABLE phone_numbers ADD COLUMN IF NOT EXISTS owner_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL`)
+    await client.query(`CREATE TABLE IF NOT EXISTS project_members (project_id INTEGER REFERENCES projects(id) ON DELETE CASCADE, user_id INTEGER REFERENCES users(id) ON DELETE CASCADE, role_in_project VARCHAR(20) DEFAULT 'member', created_at TIMESTAMP DEFAULT NOW(), PRIMARY KEY (project_id, user_id))`)
+    await client.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_as_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL`)
+    await client.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL`)
+    await client.query(`CREATE TABLE IF NOT EXISTS _migrations (id VARCHAR(100) PRIMARY KEY, ran_at TIMESTAMP DEFAULT NOW())`)
+
     await client.query(`CREATE TABLE IF NOT EXISTS broadcasts (id SERIAL PRIMARY KEY, workspace_id INTEGER REFERENCES workspaces(id) ON DELETE CASCADE, phone_number_id INTEGER, created_by INTEGER, name VARCHAR(255), template_id INTEGER, message TEXT, recipient_count INTEGER DEFAULT 0, sent_count INTEGER DEFAULT 0, failed_count INTEGER DEFAULT 0, status VARCHAR(20) DEFAULT 'draft', scheduled_at TIMESTAMP, sent_at TIMESTAMP, created_at TIMESTAMP DEFAULT NOW())`)
     await client.query(`CREATE TABLE IF NOT EXISTS security_settings (id SERIAL PRIMARY KEY, workspace_id INTEGER REFERENCES workspaces(id) ON DELETE CASCADE UNIQUE, session_timeout_minutes INTEGER DEFAULT 480, max_failed_logins INTEGER DEFAULT 5, force_password_change BOOLEAN DEFAULT false, two_factor_required BOOLEAN DEFAULT false, password_min_length INTEGER DEFAULT 8, password_require_special BOOLEAN DEFAULT false, created_at TIMESTAMP DEFAULT NOW(), updated_at TIMESTAMP DEFAULT NOW())`)
     await client.query(`CREATE TABLE IF NOT EXISTS calendar_events (id SERIAL PRIMARY KEY, workspace_id INTEGER REFERENCES workspaces(id) ON DELETE CASCADE, conversation_id INTEGER, contact_id INTEGER, job_order_id INTEGER, created_by INTEGER, title VARCHAR(255), event_date DATE, event_time TIME, location TEXT, notes TEXT, type VARCHAR(50) DEFAULT 'interview', status VARCHAR(20) DEFAULT 'scheduled', created_at TIMESTAMP DEFAULT NOW())`)
     await client.query('COMMIT')
     console.log('✅ Database schema ready')
     await seedDatabase()
+    await runPlatformCleanupMigration()
   } catch (err) {
     await client.query('ROLLBACK')
     console.error('❌ DB setup error:', err.message)
@@ -91,46 +145,16 @@ async function seedDatabase() {
   try {
     const existing = await pool.query('SELECT id FROM workspaces WHERE slug=$1', ['telcloud-main'])
     if (existing.rows.length > 0) { console.log('✅ Seed data exists'); return }
-    const ws = await pool.query(`INSERT INTO workspaces (name, slug, workspace_type, billing_exempt, plan, email, timezone) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`, ['Tel-Cloud Demo', 'telcloud-main', 'internal', true, 'enterprise', 'admin@tel-cloud.com', 'Asia/Singapore'])
+    const ws = await pool.query(`INSERT INTO workspaces (name, slug, workspace_type, billing_exempt, plan, email, timezone) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`, ['Tel-Cloud Sandbox', 'telcloud-main', 'internal', true, 'enterprise', 'admin@tel-cloud.com', 'Asia/Singapore'])
     const wsId = ws.rows[0].id
-    const phone = await pool.query(`INSERT INTO phone_numbers (workspace_id, number, display_name, is_primary, status) VALUES ($1,$2,$3,$4,$5) RETURNING id`, [wsId, '+6591234567', 'Main Line', true, 'active'])
-    const phoneId = phone.rows[0].id
     const rt = await pool.query(`INSERT INTO teams (workspace_id, name, key, type, color) VALUES ($1,$2,$3,$4,$5) RETURNING id`, [wsId, 'Recruitment Team', 'recruitment', 'recruitment', '#2563eb'])
     const ct = await pool.query(`INSERT INTO teams (workspace_id, name, key, type, color) VALUES ($1,$2,$3,$4,$5) RETURNING id`, [wsId, 'Client Relations Team', 'client', 'client', '#7c3aed'])
     const at = await pool.query(`INSERT INTO teams (workspace_id, name, key, type, color) VALUES ($1,$2,$3,$4,$5) RETURNING id`, [wsId, 'Admin Team', 'admin', 'admin', '#059669'])
-    const hash = await bcrypt.hash('admin123', 10)
-    const dir = await pool.query(`INSERT INTO users (workspace_id, name, email, password_hash, role, active, status, is_super_admin) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`, [wsId, 'Director', 'director@tel-cloud.com', hash, 'director', true, 'online', true])
-    const dirId = dir.rows[0].id
-    const agentHash = await bcrypt.hash('agent123', 10)
-    const agents = [
-      { name: 'Aisha', email: 'aisha@tel-cloud.com', role: 'senior_consultant', teamId: rt.rows[0].id },
-      { name: 'Ben', email: 'ben@tel-cloud.com', role: 'consultant', teamId: ct.rows[0].id },
-      { name: 'Marcus', email: 'marcus@tel-cloud.com', role: 'consultant', teamId: rt.rows[0].id },
-      { name: 'Priya', email: 'priya@tel-cloud.com', role: 'consultant', teamId: rt.rows[0].id },
-      { name: 'Rachel', email: 'rachel@tel-cloud.com', role: 'consultant', teamId: ct.rows[0].id },
-      { name: 'Zara', email: 'zara@tel-cloud.com', role: 'admin', teamId: at.rows[0].id },
-    ]
-    for (const a of agents) {
-      const u = await pool.query(`INSERT INTO users (workspace_id, name, email, password_hash, role, active, status, team_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`, [wsId, a.name, a.email, agentHash, a.role, true, 'online', a.teamId])
-      await pool.query(`INSERT INTO team_members (team_id, user_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [a.teamId, u.rows[0].id])
-    }
-    const days = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday']
-    for (const day of days) {
-      await pool.query(`INSERT INTO business_hours (workspace_id, phone_number_id, day_of_week, is_open, open_time, close_time) VALUES ($1,$2,$3,$4,$5,$6)`, [wsId, phoneId, day, !['Saturday','Sunday'].includes(day), '09:00', '18:00'])
-    }
     await pool.query(`INSERT INTO routing_rules (workspace_id, mode, sticky_assignment, round_robin, candidate_team_id, client_team_id, escalation_enabled, escalation_steps) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`, [wsId, 'smart', true, true, rt.rows[0].id, ct.rows[0].id, true, JSON.stringify([{ type: 'team', target: 'recruitment', wait_minutes: 30 }, { type: 'role', target: 'manager', wait_minutes: 60 }])])
     await pool.query(`INSERT INTO security_settings (workspace_id) VALUES ($1)`, [wsId])
-    const sampleContacts = [
-      { name: 'Sarah Lim', phone: '+6591234001', email: 'sarah@example.com', type: 'candidate', stage: 'interviewed' },
-      { name: 'John Tan', phone: '+6591234002', email: 'john@example.com', type: 'candidate', stage: 'screened' },
-      { name: 'Mary Wong', phone: '+6591234003', email: 'mary@example.com', type: 'candidate', stage: 'new' },
-      { name: 'ABC Pte Ltd HR', phone: '+6591234004', email: 'hr@abc.com', type: 'client', stage: 'new' },
-      { name: 'XYZ Corp HR', phone: '+6591234005', email: 'hr@xyz.com', type: 'client', stage: 'new' },
-    ]
-    for (const contact of sampleContacts) {
-      const c = await pool.query(`INSERT INTO contacts (workspace_id, name, phone, email, type, pipeline_stage, pdpa_consented, pdpa_consented_at) VALUES ($1,$2,$3,$4,$5,$6,$7,NOW()) RETURNING id`, [wsId, contact.name, contact.phone, contact.email, contact.type, contact.stage, true])
-      const convo = await pool.query(`INSERT INTO conversations (workspace_id, phone_number_id, contact_id, status, last_message_at) VALUES ($1,$2,$3,$4,NOW()) RETURNING id`, [wsId, phoneId, c.rows[0].id, 'open'])
-      await pool.query(`INSERT INTO messages (conversation_id, workspace_id, direction, text, status) VALUES ($1,$2,$3,$4,$5)`, [convo.rows[0].id, wsId, 'in', `Hello, I am ${contact.name}. I am interested in opportunities.`, 'read'])
+    const days = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday']
+    for (const day of days) {
+      await pool.query(`INSERT INTO business_hours (workspace_id, phone_number_id, day_of_week, is_open, open_time, close_time) VALUES ($1,$2,$3,$4,$5,$6)`, [wsId, null, day, !['Saturday','Sunday'].includes(day), '09:00', '18:00'])
     }
     const defaultTemplates = [
       { name: 'interview_confirmation', category: 'utility', body: 'Dear {{name}},\n\nWe are pleased to confirm your interview for the position of {{role}} at {{company}}.\n\nDate: {{date}}\nTime: {{time}}\nVenue: {{venue}}\n\nKindly bring your NRIC and certificates.\n\nWe look forward to meeting you.', buttons: [] },
@@ -140,18 +164,120 @@ async function seedDatabase() {
       { name: 'job_opportunity_alert', category: 'marketing', body: 'Dear {{name}},\n\nWe have a new opportunity matching your profile.\n\nPosition: {{role}}\nCompany: {{company}}\nSalary: {{salary}}/month\n\nReply if interested and our consultant will be in touch.', buttons: [{ type: 'quick_reply', label: 'I Am Interested' }] },
     ]
     for (const t of defaultTemplates) {
-      await pool.query(`INSERT INTO templates (workspace_id, name, category, status, body, buttons, created_by) VALUES ($1,$2,$3,$4,$5,$6,$7)`, [wsId, t.name, t.category, 'approved', t.body, JSON.stringify(t.buttons), dirId])
+      await pool.query(`INSERT INTO templates (workspace_id, name, category, status, body, buttons) VALUES ($1,$2,$3,$4,$5,$6)`, [wsId, t.name, t.category, 'approved', t.body, JSON.stringify(t.buttons)])
     }
-    const quickReplies = [
-      { title: 'Thank you', body: 'Thank you for your message. We will be in touch shortly.', shortcut: '/ty' },
-      { title: 'Documents needed', body: 'Kindly provide:\n1. Updated resume\n2. NRIC copy\n3. Certificates', shortcut: '/docs' },
-    ]
-    for (const qr of quickReplies) {
-      await pool.query(`INSERT INTO quick_replies (workspace_id, created_by, title, body, shortcut, shared) VALUES ($1,$2,$3,$4,$5,$6)`, [wsId, dirId, qr.title, qr.body, qr.shortcut, true])
-    }
-    console.log('✅ Seed data created')
-    console.log('📧 Login: director@tel-cloud.com / admin123')
+    console.log('✅ Seed data created (Tel-Cloud Sandbox, no users)')
   } catch (err) { console.error('❌ Seed error:', err.message) }
+}
+
+// ─── PLATFORM CLEANUP MIGRATION (one-time) ──────────────────────────────────────
+// Deletes legacy agency-hub users and any demo tenant data, then creates the
+// super admin account. Runs once via _migrations lock.
+async function runPlatformCleanupMigration() {
+  const MIGRATION_ID = 'platform_cleanup_v1'
+  try {
+    const applied = await pool.query('SELECT id FROM _migrations WHERE id=$1', [MIGRATION_ID])
+    if (applied.rows.length > 0) {
+      console.log(`✅ Migration ${MIGRATION_ID} already applied, skipping`)
+      return
+    }
+    console.log(`🔧 Running migration ${MIGRATION_ID}...`)
+
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+
+      const ws = await client.query(`SELECT id FROM workspaces WHERE slug='telcloud-main' LIMIT 1`)
+      if (!ws.rows.length) throw new Error('telcloud-main workspace missing — seedDatabase must run first')
+      const wsId = ws.rows[0].id
+
+      // Rename workspace to "Tel-Cloud Sandbox" if it was the old "Tel-Cloud Demo" name
+      await client.query(
+        `UPDATE workspaces SET name='Tel-Cloud Sandbox', updated_at=NOW()
+         WHERE id=$1 AND name='Tel-Cloud Demo'`,
+        [wsId]
+      )
+
+      // Backfill workspace_id on any users missing it (legacy DB defensive patch)
+      const backfill = await client.query(
+        `UPDATE users SET workspace_id=$1 WHERE workspace_id IS NULL`,
+        [wsId]
+      )
+      if (backfill.rowCount > 0) console.log(`   backfilled workspace_id on ${backfill.rowCount} users`)
+
+      // Delete legacy agency-hub users
+      const legacyUsers = await client.query(
+        `DELETE FROM users WHERE email IN (
+          'aisha@agencyhub.com',
+          'ben@agencyhub.com',
+          'director@agencyhub.com',
+          'director2@agencyhub.com'
+        )`
+      )
+      console.log(`   deleted ${legacyUsers.rowCount} legacy agency-hub users`)
+
+      // Delete any demo users that may have been seeded under old tel-cloud emails
+      const demoUsers = await client.query(
+        `DELETE FROM users WHERE email IN (
+          'director@tel-cloud.com',
+          'aisha@tel-cloud.com',
+          'ben@tel-cloud.com',
+          'marcus@tel-cloud.com',
+          'priya@tel-cloud.com',
+          'rachel@tel-cloud.com',
+          'zara@tel-cloud.com'
+        )`
+      )
+      if (demoUsers.rowCount > 0) console.log(`   deleted ${demoUsers.rowCount} legacy tel-cloud demo users`)
+
+      // Delete demo contacts + conversations (cascades messages)
+      const demoPhones = ['+6591234001','+6591234002','+6591234003','+6591234004','+6591234005']
+      const demoContacts = await client.query(
+        `DELETE FROM contacts WHERE phone=ANY($1) AND workspace_id=$2`,
+        [demoPhones, wsId]
+      )
+      if (demoContacts.rowCount > 0) console.log(`   deleted ${demoContacts.rowCount} demo contacts`)
+
+      // Delete the demo phone line
+      const demoPhone = await client.query(
+        `DELETE FROM phone_numbers WHERE number='+6591234567' AND workspace_id=$1`,
+        [wsId]
+      )
+      if (demoPhone.rowCount > 0) console.log(`   deleted demo phone line`)
+
+      // Create super admin (or update if already exists)
+      const existingSA = await client.query(
+        `SELECT id FROM users WHERE email='superadmin@tel-cloud.com' LIMIT 1`
+      )
+      if (existingSA.rows.length > 0) {
+        console.log(`   superadmin@tel-cloud.com already exists (id=${existingSA.rows[0].id}), skipping create`)
+      } else {
+        const hash = await bcrypt.hash('admin123', 10)
+        const r = await client.query(
+          `INSERT INTO users
+             (workspace_id, name, email, password_hash, role,
+              is_super_admin, active, status, force_password_change)
+           VALUES ($1, 'Super Admin', 'superadmin@tel-cloud.com', $2, 'super_admin',
+                   true, true, 'offline', true)
+           RETURNING id`,
+          [wsId, hash]
+        )
+        console.log(`   created superadmin@tel-cloud.com (id=${r.rows[0].id}, password=admin123)`)
+      }
+
+      await client.query(`INSERT INTO _migrations (id) VALUES ($1)`, [MIGRATION_ID])
+      await client.query('COMMIT')
+      console.log(`✅ Migration ${MIGRATION_ID} complete`)
+    } catch (err) {
+      await client.query('ROLLBACK')
+      throw err
+    } finally {
+      client.release()
+    }
+  } catch (err) {
+    console.error(`❌ Migration ${MIGRATION_ID} FAILED:`, err.message)
+    throw err
+  }
 }
 
 // ─── AUTH ──────────────────────────────────────────────────────────────────────
@@ -172,6 +298,226 @@ app.post('/login', async (req, res) => {
     await logAudit(user.workspace_id, user.id, 'login', 'user', user.id, null, { email })
     res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role, workspace_id: user.workspace_id, workspace_name: user.workspace_name, is_super_admin: user.is_super_admin, billing_exempt: user.billing_exempt, plan: user.plan, permissions: user.permissions, send_behaviour: user.send_behaviour || 'enter', force_password_change: user.force_password_change } })
   } catch (err) { console.error('Login error:', err); res.status(500).json({ error: 'Server error' }) }
+})
+
+// ─── SUPER ADMIN MIDDLEWARE ────────────────────────────────────────────────────
+// Gates all /admin/* routes to users with is_super_admin=true
+async function superAdmin(req, res, next) {
+  try {
+    const r = await pool.query('SELECT is_super_admin, active FROM users WHERE id=$1', [req.user.id])
+    if (!r.rows.length || !r.rows[0].active) return res.status(401).json({ error: 'User not found or inactive' })
+    if (!r.rows[0].is_super_admin) return res.status(403).json({ error: 'Super admin access required' })
+    next()
+  } catch (err) {
+    console.error('superAdmin middleware error:', err)
+    res.status(500).json({ error: 'Auth check failed' })
+  }
+}
+
+// Helper: generate a slug from a name
+function generateSlug(name) {
+  return (name || '')
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .slice(0, 100) || 'workspace'
+}
+
+// Helper: generate a readable random password (same rules as Eque migration used)
+function generateRandomPassword() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789'
+  let out = ''
+  for (let i = 0; i < 12; i++) out += chars[Math.floor(Math.random() * chars.length)]
+  return out
+}
+
+// ─── ADMIN: WORKSPACES ─────────────────────────────────────────────────────────
+
+// GET /admin/workspaces — list all workspaces with summary counts
+app.get('/admin/workspaces', auth, superAdmin, async (req, res) => {
+  try {
+    const r = await pool.query(`
+      SELECT w.id, w.name, w.slug, w.registration_number, w.email, w.phone,
+             w.workspace_type, w.billing_exempt, w.plan, w.status,
+             w.created_at, w.updated_at,
+             (SELECT COUNT(*) FROM users u WHERE u.workspace_id=w.id AND u.active=true) as user_count,
+             (SELECT COUNT(*) FROM phone_numbers pn WHERE pn.workspace_id=w.id) as phone_count,
+             (SELECT COUNT(*) FROM conversations c WHERE c.workspace_id=w.id) as conversation_count
+      FROM workspaces w
+      ORDER BY w.created_at DESC
+    `)
+    res.json(r.rows)
+  } catch (err) {
+    console.error('GET /admin/workspaces error:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// GET /admin/workspaces/:id — single workspace detail
+app.get('/admin/workspaces/:id', auth, superAdmin, async (req, res) => {
+  try {
+    const r = await pool.query(`
+      SELECT w.*,
+             (SELECT COUNT(*) FROM users u WHERE u.workspace_id=w.id AND u.active=true) as user_count,
+             (SELECT COUNT(*) FROM phone_numbers pn WHERE pn.workspace_id=w.id) as phone_count,
+             (SELECT COUNT(*) FROM conversations c WHERE c.workspace_id=w.id) as conversation_count
+      FROM workspaces w WHERE w.id=$1
+    `, [req.params.id])
+    if (!r.rows.length) return res.status(404).json({ error: 'Workspace not found' })
+    res.json(r.rows[0])
+  } catch (err) {
+    console.error('GET /admin/workspaces/:id error:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// POST /admin/workspaces — create workspace + first director atomically
+// Body: { name, slug, registration_number, email, phone, address, plan, billing_exempt,
+//         director_name, director_email }
+app.post('/admin/workspaces', auth, superAdmin, async (req, res) => {
+  const {
+    name, slug: slugInput, registration_number, email, phone, address,
+    plan, billing_exempt, workspace_type,
+    director_name, director_email
+  } = req.body
+
+  // Validate required fields
+  if (!name || !name.trim()) return res.status(400).json({ error: 'Workspace name is required' })
+  if (!director_name || !director_name.trim()) return res.status(400).json({ error: 'Director name is required' })
+  if (!director_email || !director_email.trim()) return res.status(400).json({ error: 'Director email is required' })
+
+  const slug = (slugInput && slugInput.trim()) ? generateSlug(slugInput) : generateSlug(name)
+
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+
+    // Check slug uniqueness
+    const slugCheck = await client.query('SELECT id FROM workspaces WHERE slug=$1', [slug])
+    if (slugCheck.rows.length > 0) {
+      await client.query('ROLLBACK')
+      return res.status(409).json({ error: `Slug "${slug}" is already taken. Try a different name or slug.` })
+    }
+
+    // Check director email uniqueness across the entire platform
+    const emailCheck = await client.query('SELECT id FROM users WHERE LOWER(email)=LOWER($1)', [director_email.trim()])
+    if (emailCheck.rows.length > 0) {
+      await client.query('ROLLBACK')
+      return res.status(409).json({ error: `A user with email "${director_email}" already exists.` })
+    }
+
+    // 1. Create workspace
+    const wsResult = await client.query(
+      `INSERT INTO workspaces
+         (name, slug, registration_number, email, phone, address,
+          workspace_type, billing_exempt, plan, status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'active')
+       RETURNING *`,
+      [
+        name.trim(),
+        slug,
+        registration_number || null,
+        email || null,
+        phone || null,
+        address || null,
+        workspace_type || 'client',
+        billing_exempt === true,
+        plan || 'starter'
+      ]
+    )
+    const workspace = wsResult.rows[0]
+
+    // 2. Create director user
+    const pw = generateRandomPassword()
+    const hash = await bcrypt.hash(pw, 10)
+    const userResult = await client.query(
+      `INSERT INTO users
+         (workspace_id, name, email, password_hash, role,
+          is_super_admin, active, status, force_password_change)
+       VALUES ($1, $2, $3, $4, 'director', false, true, 'offline', true)
+       RETURNING id, name, email, role`,
+      [workspace.id, director_name.trim(), director_email.trim(), hash]
+    )
+    const director = userResult.rows[0]
+
+    // 3. Seed default sub-teams for this workspace (mirrors the seedDatabase pattern)
+    await client.query(
+      `INSERT INTO teams (workspace_id, name, key, type, color) VALUES
+         ($1, 'Recruitment Team', 'recruitment', 'recruitment', '#2563eb'),
+         ($1, 'Client Relations Team', 'client', 'client', '#7c3aed'),
+         ($1, 'Admin Team', 'admin', 'admin', '#059669')`,
+      [workspace.id]
+    )
+
+    // 4. Seed default security settings
+    await client.query(`INSERT INTO security_settings (workspace_id) VALUES ($1)`, [workspace.id])
+
+    // 5. Seed default business hours (Mon-Fri open, weekend closed)
+    const days = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday']
+    for (const day of days) {
+      await client.query(
+        `INSERT INTO business_hours (workspace_id, day_of_week, is_open, open_time, close_time)
+         VALUES ($1, $2, $3, '09:00', '18:00')`,
+        [workspace.id, day, !['Saturday','Sunday'].includes(day)]
+      )
+    }
+
+    // 6. Audit log (attributed to super admin, targeting the new workspace)
+    await client.query(
+      `INSERT INTO audit_log (workspace_id, user_id, action, entity_type, entity_id, new_values)
+       VALUES ($1, $2, 'create_workspace', 'workspace', $3, $4)`,
+      [workspace.id, req.user.id, workspace.id, JSON.stringify({ name, slug, director_email, plan, billing_exempt })]
+    )
+
+    await client.query('COMMIT')
+
+    // Return workspace + director + one-time password (shown once in the UI)
+    res.json({
+      workspace,
+      director,
+      initial_password: pw,
+      message: 'Workspace and director created. Share the initial_password with the director securely. It will not be shown again.'
+    })
+  } catch (err) {
+    await client.query('ROLLBACK')
+    console.error('POST /admin/workspaces error:', err)
+    res.status(500).json({ error: err.message })
+  } finally {
+    client.release()
+  }
+})
+
+// PATCH /admin/workspaces/:id — update workspace metadata
+// Body: any of { name, registration_number, email, phone, address, plan, billing_exempt, status, workspace_type }
+app.patch('/admin/workspaces/:id', auth, superAdmin, async (req, res) => {
+  try {
+    const { name, registration_number, email, phone, address, plan, billing_exempt, status, workspace_type } = req.body
+    const old = await pool.query('SELECT * FROM workspaces WHERE id=$1', [req.params.id])
+    if (!old.rows.length) return res.status(404).json({ error: 'Workspace not found' })
+
+    const r = await pool.query(`
+      UPDATE workspaces SET
+        name                = COALESCE($1, name),
+        registration_number = COALESCE($2, registration_number),
+        email               = COALESCE($3, email),
+        phone               = COALESCE($4, phone),
+        address             = COALESCE($5, address),
+        plan                = COALESCE($6, plan),
+        billing_exempt      = COALESCE($7, billing_exempt),
+        status              = COALESCE($8, status),
+        workspace_type      = COALESCE($9, workspace_type),
+        updated_at          = NOW()
+      WHERE id=$10 RETURNING *
+    `, [name, registration_number, email, phone, address, plan, billing_exempt, status, workspace_type, req.params.id])
+
+    await logAudit(req.params.id, req.user.id, 'update_workspace', 'workspace', req.params.id, old.rows[0], req.body)
+    res.json(r.rows[0])
+  } catch (err) {
+    console.error('PATCH /admin/workspaces/:id error:', err)
+    res.status(500).json({ error: err.message })
+  }
 })
 
 // ─── WORKSPACE ─────────────────────────────────────────────────────────────────
@@ -337,7 +683,6 @@ app.get('/conversations/:id', auth, async (req, res) => {
     const result = convo.rows[0]
     result.assigned_to = result.assigned_name
     result.messages = messages.rows
-    // Pinned messages, most recently pinned first
     result.pinned_messages = messages.rows.filter(m => m.pinned_at).sort((a, b) => new Date(b.pinned_at) - new Date(a.pinned_at))
     res.json(result)
   } catch (err) { res.status(500).json({ error: err.message }) }
@@ -362,14 +707,11 @@ app.patch('/conversations/:id/assign', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-// Create a conversation for an existing contact
 app.post('/conversations', auth, async (req, res) => {
   try {
     const wsId = await getWorkspaceId(req.user.id)
     const { contact_id, phone_number_id } = req.body
     if (!contact_id) return res.status(400).json({ error: 'contact_id is required' })
-
-    // Check if an open conversation already exists for this contact
     const existing = await pool.query(
       `SELECT id FROM conversations WHERE contact_id=$1 AND workspace_id=$2 AND status='open' LIMIT 1`,
       [contact_id, wsId]
@@ -377,8 +719,6 @@ app.post('/conversations', auth, async (req, res) => {
     if (existing.rows.length > 0) {
       return res.json({ id: existing.rows[0].id, reused: true })
     }
-
-    // Use first phone line if not specified
     let phoneId = phone_number_id
     if (!phoneId) {
       const phoneRow = await pool.query(
@@ -388,7 +728,6 @@ app.post('/conversations', auth, async (req, res) => {
       phoneId = phoneRow.rows[0]?.id
     }
     if (!phoneId) return res.status(400).json({ error: 'No phone line configured' })
-
     const r = await pool.query(
       `INSERT INTO conversations (workspace_id, phone_number_id, contact_id, status, last_message_at)
        VALUES ($1, $2, $3, 'open', NOW()) RETURNING *`,
@@ -406,32 +745,12 @@ async function sendWhatsAppMessage(toPhone, text) {
   const token = process.env.META_ACCESS_TOKEN
   const phoneNumberId = process.env.META_PHONE_NUMBER_ID
   const apiVersion = process.env.META_API_VERSION || 'v25.0'
-
-  if (!token || !phoneNumberId) {
-    throw new Error('Meta credentials not configured')
-  }
-
-  // Strip '+' and any non-digits from the phone number — Meta wants digits only
+  if (!token || !phoneNumberId) throw new Error('Meta credentials not configured')
   const cleanPhone = (toPhone || '').replace(/\D/g, '')
   if (!cleanPhone) throw new Error('Invalid recipient phone number')
-
   const url = `https://graph.facebook.com/${apiVersion}/${phoneNumberId}/messages`
-  const body = {
-    messaging_product: 'whatsapp',
-    to: cleanPhone,
-    type: 'text',
-    text: { body: text }
-  }
-
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Authorization': 'Bearer ' + token,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(body)
-  })
-
+  const body = { messaging_product: 'whatsapp', to: cleanPhone, type: 'text', text: { body: text } }
+  const res = await fetch(url, { method: 'POST', headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
   const data = await res.json()
   if (!res.ok) {
     const errMsg = data?.error?.message || 'WhatsApp send failed'
@@ -447,55 +766,38 @@ app.post('/messages', auth, async (req, res) => {
   try {
     const wsId = await getWorkspaceId(req.user.id)
     const { conversation_id, direction, text, type, is_note, template_id } = req.body
-
-    // Insert the message first, as 'pending'
     const r = await pool.query(
       `INSERT INTO messages (conversation_id, workspace_id, user_id, direction, text, type, is_note, template_id, status, sent_at)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'pending',NOW()) RETURNING *`,
       [conversation_id, wsId, req.user.id, direction, text, type || 'text', is_note || false, template_id]
     )
     const msg = r.rows[0]
-
-    // Update conversation preview regardless of send outcome
     await pool.query(
       `UPDATE conversations SET last_message_at=NOW(), last_message_preview=$1, updated_at=NOW() WHERE id=$2`,
       [text?.slice(0, 100), conversation_id]
     )
-
-    // If this is an outbound, non-note message, send it to WhatsApp
     if (direction === 'out' && !is_note) {
       try {
-        // Look up recipient phone from the conversation's contact
         const phoneRow = await pool.query(
           `SELECT ct.phone FROM conversations c JOIN contacts ct ON ct.id = c.contact_id WHERE c.id = $1 AND c.workspace_id = $2`,
           [conversation_id, wsId]
         )
         const toPhone = phoneRow.rows[0]?.phone
         if (!toPhone) throw new Error('No recipient phone number on contact')
-
         const waMessageId = await sendWhatsAppMessage(toPhone, text)
-
-        await pool.query(
-          `UPDATE messages SET status='sent', whatsapp_message_id=$1 WHERE id=$2`,
-          [waMessageId, msg.id]
-        )
+        await pool.query(`UPDATE messages SET status='sent', whatsapp_message_id=$1 WHERE id=$2`, [waMessageId, msg.id])
         msg.status = 'sent'
         msg.whatsapp_message_id = waMessageId
       } catch (sendErr) {
         console.error('WhatsApp send failed for message', msg.id, ':', sendErr.message)
-        await pool.query(
-          `UPDATE messages SET status='failed' WHERE id=$1`,
-          [msg.id]
-        )
+        await pool.query(`UPDATE messages SET status='failed' WHERE id=$1`, [msg.id])
         msg.status = 'failed'
         msg.error = sendErr.message
       }
     } else {
-      // Internal notes and inbound messages skip WhatsApp — mark as sent
       await pool.query(`UPDATE messages SET status='sent' WHERE id=$1`, [msg.id])
       msg.status = 'sent'
     }
-
     io.emit('new_message', { ...msg, conversation_id })
     res.json(msg)
   } catch (err) {
@@ -852,7 +1154,6 @@ app.patch('/projects/:id', auth, async (req, res) => {
 app.delete('/projects/:id', auth, async (req, res) => {
   try {
     const wsId = await getWorkspaceId(req.user.id)
-    // Unassign all conversations first
     await pool.query('UPDATE conversations SET project_id=NULL WHERE project_id=$1 AND workspace_id=$2', [req.params.id, wsId])
     await pool.query('DELETE FROM projects WHERE id=$1 AND workspace_id=$2', [req.params.id, wsId])
     res.json({ success: true })
@@ -910,53 +1211,23 @@ app.patch('/conversations/:id/project', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-app.get('/create-projects-table', async (req, res) => {
-  try {
-    await pool.query(`CREATE TABLE IF NOT EXISTS projects (id SERIAL PRIMARY KEY, workspace_id INTEGER REFERENCES workspaces(id) ON DELETE CASCADE, client_name VARCHAR(255) NOT NULL, start_month VARCHAR(10) NOT NULL, start_year INTEGER NOT NULL, colour VARCHAR(20) DEFAULT '#2563eb', status VARCHAR(20) DEFAULT 'active', archived_at TIMESTAMP, created_by INTEGER, created_at TIMESTAMP DEFAULT NOW(), updated_at TIMESTAMP DEFAULT NOW())`)
-    await pool.query(`ALTER TABLE conversations ADD COLUMN IF NOT EXISTS project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL`)
-    res.json({ success: true, message: 'Projects table created' })
-  } catch (err) {
-    res.json({ error: err.message })
-  }
-})
-
 // ─── PIN MESSAGES ──────────────────────────────────────────────────────────────
-// Toggle pin on a message. Enforces max 3 pins per conversation.
 app.patch('/messages/:id/pin', auth, async (req, res) => {
   try {
     const wsId = await getWorkspaceId(req.user.id)
     const msgId = req.params.id
-
-    // Find the message and verify it belongs to this workspace
-    const msg = await pool.query(
-      `SELECT id, conversation_id, pinned_at FROM messages WHERE id=$1 AND workspace_id=$2`,
-      [msgId, wsId]
-    )
+    const msg = await pool.query(`SELECT id, conversation_id, pinned_at FROM messages WHERE id=$1 AND workspace_id=$2`, [msgId, wsId])
     if (!msg.rows.length) return res.status(404).json({ error: 'Message not found' })
     const { conversation_id, pinned_at } = msg.rows[0]
-
     if (pinned_at) {
-      // Currently pinned — unpin
-      await pool.query(
-        `UPDATE messages SET pinned_at=NULL, pinned_by=NULL WHERE id=$1`,
-        [msgId]
-      )
+      await pool.query(`UPDATE messages SET pinned_at=NULL, pinned_by=NULL WHERE id=$1`, [msgId])
       return res.json({ id: msgId, pinned: false })
     }
-
-    // Check current pin count for this conversation
-    const count = await pool.query(
-      `SELECT COUNT(*) FROM messages WHERE conversation_id=$1 AND pinned_at IS NOT NULL`,
-      [conversation_id]
-    )
+    const count = await pool.query(`SELECT COUNT(*) FROM messages WHERE conversation_id=$1 AND pinned_at IS NOT NULL`, [conversation_id])
     if (parseInt(count.rows[0].count) >= 3) {
       return res.status(400).json({ error: 'Maximum 3 pins per conversation. Unpin one first.' })
     }
-
-    await pool.query(
-      `UPDATE messages SET pinned_at=NOW(), pinned_by=$1 WHERE id=$2`,
-      [req.user.id, msgId]
-    )
+    await pool.query(`UPDATE messages SET pinned_at=NOW(), pinned_by=$1 WHERE id=$2`, [req.user.id, msgId])
     res.json({ id: msgId, pinned: true })
   } catch (err) {
     console.error('Pin error:', err)
@@ -970,9 +1241,6 @@ app.get('/search', auth, async (req, res) => {
     const wsId = await getWorkspaceId(req.user.id)
     const q = (req.query.q || '').trim()
     if (!q || q.length < 2) return res.json({ results: [] })
-
-    // Search message text + contact name/phone across all conversations in this workspace.
-    // Returns top 30 matches sorted by most recent.
     const searchLike = `%${q}%`
     const r = await pool.query(
       `SELECT m.id as message_id, m.text, m.direction, m.created_at, m.conversation_id,
@@ -995,14 +1263,11 @@ app.get('/search', auth, async (req, res) => {
 })
 
 // ─── WHATSAPP WEBHOOK ──────────────────────────────────────────────────────────
-
-// GET /webhook — Meta calls this once to verify the URL
 app.get('/webhook', (req, res) => {
   const mode = req.query['hub.mode']
   const token = req.query['hub.verify_token']
   const challenge = req.query['hub.challenge']
   const verifyToken = process.env.META_VERIFY_TOKEN
-
   if (mode === 'subscribe' && token === verifyToken) {
     console.log('✅ Webhook verified by Meta')
     return res.status(200).send(challenge)
@@ -1011,110 +1276,50 @@ app.get('/webhook', (req, res) => {
   return res.sendStatus(403)
 })
 
-// POST /webhook — Meta sends every message event here
 app.post('/webhook', async (req, res) => {
-  // Respond to Meta immediately — they require a 200 within 20 seconds
   res.sendStatus(200)
-
   try {
     const body = req.body
     if (body?.object !== 'whatsapp_business_account') return
-
     for (const entry of body.entry || []) {
       for (const change of entry.changes || []) {
         if (change.field !== 'messages') continue
         const value = change.value || {}
-        const phoneNumberId = value?.metadata?.phone_number_id
-        const wabaId = entry.id
-
-        // Find the workspace this WABA belongs to
-        // For now we only have one workspace — look it up by Meta phone number id
-        // (later we'll match by phone_numbers.whatsapp_phone_id)
-        const wsRow = await pool.query(
-          `SELECT id FROM workspaces WHERE workspace_type='internal' OR plan='enterprise' ORDER BY id ASC LIMIT 1`
-        )
+        const wsRow = await pool.query(`SELECT id FROM workspaces WHERE workspace_type='internal' OR plan='enterprise' ORDER BY id ASC LIMIT 1`)
         const wsId = wsRow.rows[0]?.id
         if (!wsId) { console.warn('No workspace found for webhook'); continue }
-
-        const phoneRow = await pool.query(
-          `SELECT id FROM phone_numbers WHERE workspace_id=$1 ORDER BY is_primary DESC, id ASC LIMIT 1`,
-          [wsId]
-        )
+        const phoneRow = await pool.query(`SELECT id FROM phone_numbers WHERE workspace_id=$1 ORDER BY is_primary DESC, id ASC LIMIT 1`, [wsId])
         const phoneId = phoneRow.rows[0]?.id
-
-        // Handle incoming messages
         for (const msg of value.messages || []) {
           const fromPhone = '+' + msg.from
           const text = msg.text?.body || msg.button?.text || `[${msg.type} message]`
           const waMessageId = msg.id
-
-          // Find or create contact
-          let contactRow = await pool.query(
-            `SELECT id, name FROM contacts WHERE phone=$1 AND workspace_id=$2 LIMIT 1`,
-            [fromPhone, wsId]
-          )
+          let contactRow = await pool.query(`SELECT id, name FROM contacts WHERE phone=$1 AND workspace_id=$2 LIMIT 1`, [fromPhone, wsId])
           let contactId = contactRow.rows[0]?.id
-          let contactName = contactRow.rows[0]?.name
           if (!contactId) {
-            const newContact = await pool.query(
-              `INSERT INTO contacts (workspace_id, name, phone, type, pipeline_stage)
-               VALUES ($1, $2, $3, 'candidate', 'new') RETURNING id, name`,
-              [wsId, fromPhone, fromPhone]
-            )
+            const newContact = await pool.query(`INSERT INTO contacts (workspace_id, name, phone, type, pipeline_stage) VALUES ($1, $2, $3, 'candidate', 'new') RETURNING id, name`, [wsId, fromPhone, fromPhone])
             contactId = newContact.rows[0].id
-            contactName = newContact.rows[0].name
           }
-
-          // Find or create open conversation
-          let convoRow = await pool.query(
-            `SELECT id FROM conversations WHERE contact_id=$1 AND workspace_id=$2 AND status='open' LIMIT 1`,
-            [contactId, wsId]
-          )
+          let convoRow = await pool.query(`SELECT id FROM conversations WHERE contact_id=$1 AND workspace_id=$2 AND status='open' LIMIT 1`, [contactId, wsId])
           let convoId = convoRow.rows[0]?.id
           if (!convoId) {
-            const newConvo = await pool.query(
-              `INSERT INTO conversations (workspace_id, phone_number_id, contact_id, status, last_message_at)
-               VALUES ($1, $2, $3, 'open', NOW()) RETURNING id`,
-              [wsId, phoneId, contactId]
-            )
+            const newConvo = await pool.query(`INSERT INTO conversations (workspace_id, phone_number_id, contact_id, status, last_message_at) VALUES ($1, $2, $3, 'open', NOW()) RETURNING id`, [wsId, phoneId, contactId])
             convoId = newConvo.rows[0].id
           }
-
-          // Insert inbound message
-          const insertedMsg = await pool.query(
-            `INSERT INTO messages (conversation_id, workspace_id, direction, text, type, status, whatsapp_message_id, sent_at)
-             VALUES ($1, $2, 'in', $3, 'text', 'received', $4, NOW()) RETURNING *`,
-            [convoId, wsId, text, waMessageId]
-          )
-
-          // Update conversation preview and bump unread
-          await pool.query(
-            `UPDATE conversations SET last_message_at=NOW(), last_message_preview=$1,
-             unread_count=COALESCE(unread_count,0)+1, updated_at=NOW() WHERE id=$2`,
-            [text.slice(0, 100), convoId]
-          )
-
-          // Push to any listening UI clients in real time
+          const insertedMsg = await pool.query(`INSERT INTO messages (conversation_id, workspace_id, direction, text, type, status, whatsapp_message_id, sent_at) VALUES ($1, $2, 'in', $3, 'text', 'received', $4, NOW()) RETURNING *`, [convoId, wsId, text, waMessageId])
+          await pool.query(`UPDATE conversations SET last_message_at=NOW(), last_message_preview=$1, unread_count=COALESCE(unread_count,0)+1, updated_at=NOW() WHERE id=$2`, [text.slice(0, 100), convoId])
           io.emit('new_message', { ...insertedMsg.rows[0], conversation_id: convoId })
           console.log(`📥 Inbound message from ${fromPhone} saved to convo ${convoId}`)
         }
-
-        // Handle delivery/read status updates
         for (const statusUpdate of value.statuses || []) {
           const waId = statusUpdate.id
-          const status = statusUpdate.status // sent, delivered, read, failed
+          const status = statusUpdate.status
           const timestamp = new Date(parseInt(statusUpdate.timestamp) * 1000)
           const column = status === 'delivered' ? 'delivered_at' : status === 'read' ? 'read_at' : null
           if (column) {
-            await pool.query(
-              `UPDATE messages SET status=$1, ${column}=$2 WHERE whatsapp_message_id=$3`,
-              [status, timestamp, waId]
-            )
+            await pool.query(`UPDATE messages SET status=$1, ${column}=$2 WHERE whatsapp_message_id=$3`, [status, timestamp, waId])
           } else {
-            await pool.query(
-              `UPDATE messages SET status=$1 WHERE whatsapp_message_id=$2`,
-              [status, waId]
-            )
+            await pool.query(`UPDATE messages SET status=$1 WHERE whatsapp_message_id=$2`, [status, waId])
           }
         }
       }
@@ -1137,18 +1342,13 @@ io.on('connection', socket => {
 })
 
 // ─── HEALTH CHECK ──────────────────────────────────────────────────────────────
-app.get('/', (req, res) => res.json({
-  status: 'ok',
-  platform: 'Tel-Cloud',
-  version: '2.0.0',
-  timestamp: new Date().toISOString()
-}))
+app.get('/', (req, res) => res.json({ status: 'ok', platform: 'Tel-Cloud', version: '2.0.0', timestamp: new Date().toISOString() }))
 
 // ─── START ─────────────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 4000
 setupDatabase().then(() => {
   httpServer.listen(PORT, () => {
     console.log(`🚀 Tel-Cloud server running on port ${PORT}`)
-    console.log(`📧 Login: director@tel-cloud.com / admin123`)
+    console.log(`📧 Super admin login: superadmin@tel-cloud.com / admin123`)
   })
 })

@@ -86,8 +86,8 @@ export default function Topbar({ activeNav, setActiveNav, onNewContact, isMobile
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginRight: 14, flexShrink: 0 }}>
           <DualRingsLogo />
           <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <span style={{ fontSize: 14, fontWeight: 500, color: '#fff' }}>{workspace?.name || 'Agency Hub'}</span>
-            {!isMobile && <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.5)', letterSpacing: '0.4px', textTransform: 'uppercase', marginTop: 1 }}>recruitment platform</span>}
+            <span style={{ fontSize: 14, fontWeight: 500, color: '#fff' }}>{workspace?.name || 'Tel-Cloud'}</span>
+            {!isMobile && <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.5)', letterSpacing: '0.4px', textTransform: 'uppercase', marginTop: 1 }}>by tel-cloud</span>}
           </div>
         </div>
 

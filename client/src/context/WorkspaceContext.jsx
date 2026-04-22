@@ -6,7 +6,7 @@ const WorkspaceContext = createContext(null)
 
 const DEFAULT_WORKSPACE = {
   id: 'ws_default',
-  name: 'My Agency',
+  name: 'Tel-Cloud',
   logo: null,
   email: '',
   phone: '',

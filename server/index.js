@@ -349,17 +349,107 @@ app.patch('/conversations/:id/assign', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
+// ─── WHATSAPP SEND HELPER ──────────────────────────────────────────────────────
+async function sendWhatsAppMessage(toPhone, text) {
+  const token = process.env.META_ACCESS_TOKEN
+  const phoneNumberId = process.env.META_PHONE_NUMBER_ID
+  const apiVersion = process.env.META_API_VERSION || 'v25.0'
+
+  if (!token || !phoneNumberId) {
+    throw new Error('Meta credentials not configured')
+  }
+
+  // Strip '+' and any non-digits from the phone number — Meta wants digits only
+  const cleanPhone = (toPhone || '').replace(/\D/g, '')
+  if (!cleanPhone) throw new Error('Invalid recipient phone number')
+
+  const url = `https://graph.facebook.com/${apiVersion}/${phoneNumberId}/messages`
+  const body = {
+    messaging_product: 'whatsapp',
+    to: cleanPhone,
+    type: 'text',
+    text: { body: text }
+  }
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Authorization': 'Bearer ' + token,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(body)
+  })
+
+  const data = await res.json()
+  if (!res.ok) {
+    const errMsg = data?.error?.message || 'WhatsApp send failed'
+    const errCode = data?.error?.code || 'unknown'
+    console.error('WhatsApp API error:', errCode, errMsg, data?.error)
+    throw new Error(`${errMsg} (code ${errCode})`)
+  }
+  return data.messages?.[0]?.id || null
+}
+
 // ─── MESSAGES ──────────────────────────────────────────────────────────────────
 app.post('/messages', auth, async (req, res) => {
   try {
     const wsId = await getWorkspaceId(req.user.id)
     const { conversation_id, direction, text, type, is_note, template_id } = req.body
-    const r = await pool.query(`INSERT INTO messages (conversation_id, workspace_id, user_id, direction, text, type, is_note, template_id, status, sent_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'sent',NOW()) RETURNING *`, [conversation_id, wsId, req.user.id, direction, text, type || 'text', is_note || false, template_id])
-    await pool.query(`UPDATE conversations SET last_message_at=NOW(), last_message_preview=$1, updated_at=NOW() WHERE id=$2`, [text?.slice(0, 100), conversation_id])
+
+    // Insert the message first, as 'pending'
+    const r = await pool.query(
+      `INSERT INTO messages (conversation_id, workspace_id, user_id, direction, text, type, is_note, template_id, status, sent_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'pending',NOW()) RETURNING *`,
+      [conversation_id, wsId, req.user.id, direction, text, type || 'text', is_note || false, template_id]
+    )
     const msg = r.rows[0]
+
+    // Update conversation preview regardless of send outcome
+    await pool.query(
+      `UPDATE conversations SET last_message_at=NOW(), last_message_preview=$1, updated_at=NOW() WHERE id=$2`,
+      [text?.slice(0, 100), conversation_id]
+    )
+
+    // If this is an outbound, non-note message, send it to WhatsApp
+    if (direction === 'out' && !is_note) {
+      try {
+        // Look up recipient phone from the conversation's contact
+        const phoneRow = await pool.query(
+          `SELECT ct.phone FROM conversations c JOIN contacts ct ON ct.id = c.contact_id WHERE c.id = $1 AND c.workspace_id = $2`,
+          [conversation_id, wsId]
+        )
+        const toPhone = phoneRow.rows[0]?.phone
+        if (!toPhone) throw new Error('No recipient phone number on contact')
+
+        const waMessageId = await sendWhatsAppMessage(toPhone, text)
+
+        await pool.query(
+          `UPDATE messages SET status='sent', whatsapp_message_id=$1 WHERE id=$2`,
+          [waMessageId, msg.id]
+        )
+        msg.status = 'sent'
+        msg.whatsapp_message_id = waMessageId
+      } catch (sendErr) {
+        console.error('WhatsApp send failed for message', msg.id, ':', sendErr.message)
+        await pool.query(
+          `UPDATE messages SET status='failed' WHERE id=$1`,
+          [msg.id]
+        )
+        msg.status = 'failed'
+        msg.error = sendErr.message
+      }
+    } else {
+      // Internal notes and inbound messages skip WhatsApp — mark as sent
+      await pool.query(`UPDATE messages SET status='sent' WHERE id=$1`, [msg.id])
+      msg.status = 'sent'
+    }
+
     io.emit('new_message', { ...msg, conversation_id })
     res.json(msg)
-  } catch (err) { res.status(500).json({ error: err.message }) }
+  } catch (err) {
+    console.error('POST /messages error:', err)
+    res.status(500).json({ error: err.message })
+  }
 })
 
 // ─── CONTACTS ──────────────────────────────────────────────────────────────────

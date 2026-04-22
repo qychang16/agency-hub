@@ -1,22 +1,24 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, lazy, Suspense } from 'react'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { WorkspaceProvider, useWorkspace } from './context/WorkspaceContext'
 import Topbar from './components/layout/Topbar'
-import InboxList from './components/inbox/InboxList'
-import ChatWindow from './components/inbox/ChatWindow'
-import ContactDrawer from './components/inbox/ContactDrawer'
-import Broadcasts from './components/broadcasts/Broadcasts'
-import Templates from './components/templates/Templates'
-import Analytics from './components/analytics/Analytics'
-import Scheduled from './components/scheduled/Scheduled'
-import Settings from './components/settings/Settings'
-import Pipeline from './components/pipeline/Pipeline'
-import JobOrders from './components/jobs/JobOrders'
-import Contacts from './components/contacts/Contacts'
-import PDPA from './components/pdpa/PDPA'
 import { ACCENT, NAVY } from './utils/constants'
-import { hasPermission } from './utils/permissions'
 
+// Lazy loaded components — loads only when navigated to
+const InboxList = lazy(() => import('./components/inbox/InboxList'))
+const ChatWindow = lazy(() => import('./components/inbox/ChatWindow'))
+const ContactDrawer = lazy(() => import('./components/inbox/ContactDrawer'))
+const Broadcasts = lazy(() => import('./components/broadcasts/Broadcasts'))
+const Templates = lazy(() => import('./components/templates/Templates'))
+const Analytics = lazy(() => import('./components/analytics/Analytics'))
+const Scheduled = lazy(() => import('./components/scheduled/Scheduled'))
+const Settings = lazy(() => import('./components/settings/Settings'))
+const Pipeline = lazy(() => import('./components/pipeline/Pipeline'))
+const JobOrders = lazy(() => import('./components/jobs/JobOrders'))
+const Contacts = lazy(() => import('./components/contacts/Contacts'))
+const PDPA = lazy(() => import('./components/pdpa/PDPA'))
+
+// ─── LOGIN SCREEN ──────────────────────────────────────────────────────────────
 function LoginScreen() {
   const { login } = useAuth()
   const [email, setEmail] = useState('')
@@ -41,7 +43,7 @@ function LoginScreen() {
     setLoading(true)
     try {
       await login(email, password)
-    } catch(e) {
+    } catch (e) {
       setError(e.message || 'Cannot connect to server.')
     }
     setLoading(false)
@@ -110,9 +112,7 @@ function LoginScreen() {
                 onFocus={e => e.target.style.borderColor = passwordError ? '#ef4444' : '#2563eb'}
                 onBlur={e => e.target.style.borderColor = passwordError ? '#ef4444' : '#e5e7eb'}
               />
-              {/* Lock icon left */}
               <svg style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', width: 14, height: 14, color: '#9ca3af', pointerEvents: 'none' }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
-              {/* Show/hide toggle right */}
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
@@ -166,99 +166,21 @@ function LoginScreen() {
   )
 }
 
-function MainApp() {
-  const { user, isDirector } = useAuth()
-  const { maintenance, setMaintenance, setShowMaintenanceEditor } = useWorkspace()
-  const [activeNav, setActiveNav] = useState('inbox')
-  const [activeConvoId, setActiveConvoId] = useState(null)
-  const [showDrawer, setShowDrawer] = useState(false)
-  const [showNewContact, setShowNewContact] = useState(false)
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 768)
-  const [mobileView, setMobileView] = useState('inbox')
-  const [showMaintenanceEditor, setShowMaintenanceEditorLocal] = useState(false)
-
-  useEffect(() => {
-    const onResize = () => setIsMobile(window.innerWidth < 768)
-    window.addEventListener('resize', onResize)
-    return () => window.removeEventListener('resize', onResize)
-  }, [])
-
-  function ComingSoon({ name }) {
-    return (
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f1f4f9' }}>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: 48, marginBottom: 12 }}>🚧</div>
-          <div style={{ fontSize: 16, fontWeight: 600, color: '#374151', marginBottom: 6, textTransform: 'capitalize' }}>{name}</div>
-          <div style={{ fontSize: 13, color: '#9ca3af' }}>Coming soon</div>
-        </div>
-      </div>
-    )
-  }
-
-  function renderScreen() {
-    switch(activeNav) {
-      case 'inbox':
-        return (
-          <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-            <InboxList
-              activeConvoId={activeConvoId}
-              setActiveConvoId={setActiveConvoId}
-              isMobile={isMobile}
-              mobileView={mobileView}
-              setMobileView={setMobileView}
-            />
-            <ChatWindow
-              activeConvoId={activeConvoId}
-              showDrawer={showDrawer}
-              setShowDrawer={setShowDrawer}
-              isMobile={isMobile}
-              mobileView={mobileView}
-              setMobileView={setMobileView}
-            />
-            {showDrawer && (
-              <ContactDrawer
-                activeConvoId={activeConvoId}
-                isMobile={isMobile}
-                onClose={() => setShowDrawer(false)}
-              />
-            )}
-          </div>
-        )
-      case 'broadcasts': return <Broadcasts />
-      case 'templates': return <Templates />
-      case 'analytics': return <Analytics />
-      case 'scheduled': return <Scheduled />
-      case 'settings': return <Settings />
-      case 'pipeline': return <Pipeline />
-      case 'jobs': return <JobOrders />
-      case 'contacts': return <Contacts />
-      case 'pdpa': return <PDPA />
-      default: return <ComingSoon name={activeNav} />
-    }
-  }
-
+// ─── LOADING FALLBACK ──────────────────────────────────────────────────────────
+function PageLoader() {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', fontFamily: 'system-ui,-apple-system,sans-serif', background: '#f1f4f9', overflow: 'hidden' }}>
-      <Topbar
-        activeNav={activeNav}
-        setActiveNav={setActiveNav}
-        onNewContact={() => setShowNewContact(true)}
-        isMobile={isMobile}
-      />
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-        {renderScreen()}
+    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f1f4f9' }}>
+      <div style={{ textAlign: 'center' }}>
+        <div style={{ fontSize: 28, marginBottom: 10 }}>⚙️</div>
+        <div style={{ fontSize: 13, color: '#9ca3af' }}>Loading…</div>
       </div>
-
-      {/* Maintenance Editor Modal */}
-      {showMaintenanceEditor && (
-        <MaintenanceModal onClose={() => setShowMaintenanceEditorLocal(false)} />
-      )}
     </div>
   )
 }
 
+// ─── MAINTENANCE MODAL ─────────────────────────────────────────────────────────
 function MaintenanceModal({ onClose }) {
-  const { maintenance, setMaintenance } = useWorkspace()
+  const { setMaintenance } = useWorkspace()
   const [maintDate, setMaintDate] = useState('')
   const [maintStartTime, setMaintStartTime] = useState('')
   const [maintEndTime, setMaintEndTime] = useState('')
@@ -299,7 +221,8 @@ function MaintenanceModal({ onClose }) {
         </div>
         <div style={{ marginBottom: 16 }}>
           <label style={{ fontSize: 11, color: '#6b7280', display: 'block', marginBottom: 4 }}>Message (optional)</label>
-          <input type="text" value={maintMessage} onChange={e => setMaintMessage(e.target.value)} placeholder="e.g. System upgrade. Service may be intermittent."
+          <input type="text" value={maintMessage} onChange={e => setMaintMessage(e.target.value)}
+            placeholder="e.g. System upgrade. Service may be intermittent."
             style={{ width: '100%', padding: '7px 10px', border: '0.5px solid #d1d5db', borderRadius: 7, fontSize: 12, outline: 'none', background: '#f9fafb', color: '#111827', boxSizing: 'border-box' }} />
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
@@ -311,6 +234,107 @@ function MaintenanceModal({ onClose }) {
   )
 }
 
+// ─── MAIN APP ──────────────────────────────────────────────────────────────────
+function MainApp() {
+  const { user, isDirector } = useAuth()
+  const { maintenance, setMaintenance } = useWorkspace()
+  const [activeNav, setActiveNav] = useState('inbox')
+  const [activeConvoId, setActiveConvoId] = useState(null)
+  const [showDrawer, setShowDrawer] = useState(false)
+  const [showNewContact, setShowNewContact] = useState(false)
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768)
+  const [mobileView, setMobileView] = useState('inbox')
+  const [showMaintenanceEditor, setShowMaintenanceEditor] = useState(false)
+
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth < 768)
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+
+  function ComingSoon({ name }) {
+    return (
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f1f4f9' }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: 48, marginBottom: 12 }}>🚧</div>
+          <div style={{ fontSize: 16, fontWeight: 600, color: '#374151', marginBottom: 6, textTransform: 'capitalize' }}>{name}</div>
+          <div style={{ fontSize: 13, color: '#9ca3af' }}>Coming soon</div>
+        </div>
+      </div>
+    )
+  }
+
+  function renderScreen() {
+    const screen = (() => {
+      switch (activeNav) {
+        case 'inbox':
+          return (
+            <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+              <InboxList
+                activeConvoId={activeConvoId}
+                setActiveConvoId={setActiveConvoId}
+                isMobile={isMobile}
+                mobileView={mobileView}
+                setMobileView={setMobileView}
+              />
+              <ChatWindow
+                activeConvoId={activeConvoId}
+                showDrawer={showDrawer}
+                setShowDrawer={setShowDrawer}
+                isMobile={isMobile}
+                mobileView={mobileView}
+                setMobileView={setMobileView}
+              />
+              {showDrawer && (
+                <ContactDrawer
+                  activeConvoId={activeConvoId}
+                  isMobile={isMobile}
+                  onClose={() => setShowDrawer(false)}
+                />
+              )}
+            </div>
+          )
+        case 'broadcasts': return <Broadcasts />
+        case 'templates': return <Templates />
+        case 'analytics': return <Analytics />
+        case 'scheduled': return <Scheduled />
+        case 'settings': return <Settings />
+        case 'pipeline': return <Pipeline />
+        case 'jobs': return <JobOrders />
+        case 'contacts': return <Contacts />
+        case 'pdpa': return <PDPA />
+        default: return <ComingSoon name={activeNav} />
+      }
+    })()
+
+    return (
+      <Suspense fallback={<PageLoader />}>
+        {screen}
+      </Suspense>
+    )
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', fontFamily: 'system-ui,-apple-system,sans-serif', background: '#f1f4f9', overflow: 'hidden' }}>
+      <Topbar
+        activeNav={activeNav}
+        setActiveNav={setActiveNav}
+        onNewContact={() => setShowNewContact(true)}
+        isMobile={isMobile}
+        showMaintenanceEditor={showMaintenanceEditor}
+        setShowMaintenanceEditor={setShowMaintenanceEditor}
+      />
+      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+        {renderScreen()}
+      </div>
+      {showMaintenanceEditor && (
+        <MaintenanceModal onClose={() => setShowMaintenanceEditor(false)} />
+      )}
+    </div>
+  )
+}
+
+// ─── ROOT ──────────────────────────────────────────────────────────────────────
 export default function App() {
   return (
     <AuthProvider>

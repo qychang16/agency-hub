@@ -19,17 +19,17 @@ function DualRingsLogo() {
 }
 
 const NAV_ITEMS = [
-  { key: 'inbox', label: 'Inbox', icon: '💬' },
-  { key: 'projects', label: 'Projects', icon: '📁' },
-  { key: 'scheduled', label: 'Scheduled', icon: '🕐' },
-  { key: 'broadcasts', label: 'Broadcasts', icon: '📢' },
-  { key: 'templates', label: 'Templates', icon: '📋' },
-  { key: 'analytics', label: 'Analytics', icon: '📊' },
-  { key: 'pipeline', label: 'Pipeline', icon: '🎯' },
-  { key: 'jobs', label: 'Jobs', icon: '💼' },
-  { key: 'contacts', label: 'Contacts', icon: '👥' },
-  { key: 'pdpa', label: 'PDPA', icon: '🔒' },
-  { key: 'settings', label: 'Settings', icon: '⚙️' },
+  { key: 'inbox', label: 'Inbox' },
+  { key: 'projects', label: 'Projects' },
+  { key: 'scheduled', label: 'Scheduled' },
+  { key: 'broadcasts', label: 'Broadcasts' },
+  { key: 'templates', label: 'Templates' },
+  { key: 'analytics', label: 'Analytics' },
+  { key: 'pipeline', label: 'Pipeline' },
+  { key: 'jobs', label: 'Jobs' },
+  { key: 'contacts', label: 'Contacts' },
+  { key: 'pdpa', label: 'PDPA' },
+  { key: 'settings', label: 'Settings' },
 ]
 
 export default function Topbar({ activeNav, setActiveNav, onNewContact, isMobile }) {

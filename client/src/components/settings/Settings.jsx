@@ -79,7 +79,7 @@ export default function Settings() {
   }
 
   return (
-    <div style={{ display: 'flex', flex: 1, overflow: 'hidden', background: '#f1f4f9' }}>
+    <div style={{ display: 'flex', flex: 1, overflow: 'hidden', background: '#faf9f7' }}>
       {/* Sidebar */}
       {!isMobile && (
         <div style={{ width: 220, flexShrink: 0, background: '#fff', borderRight: '0.5px solid #e5e7eb', overflowY: 'auto', padding: '16px 10px' }}>

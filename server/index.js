@@ -218,14 +218,15 @@ async function resetRolePermissionsToDefaults(workspaceId) {
 
 // ─── CHUNK 5: Default permission matrix ─────────────────────────────────────
 // Seeded into role_permissions table when a workspace is created.
-// Director role is NOT in this matrix — directors always have everything.
+// Director role is NOT in this matrix �?directors always have everything.
 const ALL_PERMISSIONS_TRUE = {
   send_messages: true, write_notes: true, manage_conversations: true,
   manage_contacts: true, manage_projects: true, manage_project_members: true,
   manage_templates: true, manage_scheduled_messages: true,
   manage_phone_numbers: true, manage_teams: true,
   manage_workspace_settings: true, manage_staff: true,
-  manage_role_permissions: true
+  manage_role_permissions: true,
+  manage_quick_replies: true
 }
 const ALL_PERMISSIONS_FALSE = {
   send_messages: false, write_notes: false, manage_conversations: false,
@@ -246,7 +247,8 @@ const DEFAULT_ROLE_PERMISSIONS = {
       ...ALL_PERMISSIONS_FALSE,
       send_messages: true, write_notes: true, manage_conversations: true,
       manage_contacts: true, manage_project_members: true,
-      manage_templates: true, manage_scheduled_messages: true
+      manage_templates: true, manage_scheduled_messages: true,
+      manage_quick_replies: true
     }
   },
   senior_consultant: {
@@ -255,7 +257,8 @@ const DEFAULT_ROLE_PERMISSIONS = {
       ...ALL_PERMISSIONS_FALSE,
       send_messages: true, write_notes: true, manage_conversations: true,
       manage_contacts: true,
-      manage_templates: true, manage_scheduled_messages: true
+      manage_templates: true, manage_scheduled_messages: true,
+      manage_quick_replies: true
     }
   },
   consultant: {
@@ -263,7 +266,8 @@ const DEFAULT_ROLE_PERMISSIONS = {
     permissions: {
       ...ALL_PERMISSIONS_FALSE,
       send_messages: true, write_notes: true, manage_conversations: true,
-      manage_contacts: true
+      manage_contacts: true,
+      manage_quick_replies: true
     }
   },
   admin: {
@@ -358,20 +362,21 @@ async function setupDatabase() {
     await client.query(`CREATE TABLE IF NOT EXISTS security_settings (id SERIAL PRIMARY KEY, workspace_id INTEGER REFERENCES workspaces(id) ON DELETE CASCADE UNIQUE, session_timeout_minutes INTEGER DEFAULT 480, max_failed_logins INTEGER DEFAULT 5, force_password_change BOOLEAN DEFAULT false, two_factor_required BOOLEAN DEFAULT false, password_min_length INTEGER DEFAULT 8, password_require_special BOOLEAN DEFAULT false, created_at TIMESTAMP DEFAULT NOW(), updated_at TIMESTAMP DEFAULT NOW())`)
     await client.query(`CREATE TABLE IF NOT EXISTS calendar_events (id SERIAL PRIMARY KEY, workspace_id INTEGER REFERENCES workspaces(id) ON DELETE CASCADE, conversation_id INTEGER, contact_id INTEGER, job_order_id INTEGER, created_by INTEGER, title VARCHAR(255), event_date DATE, event_time TIME, location TEXT, notes TEXT, type VARCHAR(50) DEFAULT 'interview', status VARCHAR(20) DEFAULT 'scheduled', created_at TIMESTAMP DEFAULT NOW())`)
     await client.query('COMMIT')
-    console.log('✅ Database schema ready')
+    console.log('�?Database schema ready')
     await seedDatabase()
     await runPlatformCleanupMigration()
     await runChunk5Migration()
+    await runChunk5bMigration()
   } catch (err) {
     await client.query('ROLLBACK')
-    console.error('❌ DB setup error:', err.message)
+    console.error('�?DB setup error:', err.message)
   } finally { client.release() }
 }
 
 async function seedDatabase() {
   try {
     const existing = await pool.query('SELECT id FROM workspaces WHERE slug=$1', ['telcloud-main'])
-    if (existing.rows.length > 0) { console.log('✅ Seed data exists'); return }
+    if (existing.rows.length > 0) { console.log('�?Seed data exists'); return }
     const ws = await pool.query(`INSERT INTO workspaces (name, slug, workspace_type, billing_exempt, plan, email, timezone) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`, ['Tel-Cloud Sandbox', 'telcloud-main', 'internal', true, 'enterprise', 'admin@tel-cloud.com', 'Asia/Singapore'])
     const wsId = ws.rows[0].id
     const rt = await pool.query(`INSERT INTO teams (workspace_id, name, key, type, color) VALUES ($1,$2,$3,$4,$5) RETURNING id`, [wsId, 'Recruitment Team', 'recruitment', 'recruitment', '#2563eb'])
@@ -393,8 +398,8 @@ async function seedDatabase() {
     for (const t of defaultTemplates) {
       await pool.query(`INSERT INTO templates (workspace_id, name, category, status, body, buttons) VALUES ($1,$2,$3,$4,$5,$6)`, [wsId, t.name, t.category, 'approved', t.body, JSON.stringify(t.buttons)])
     }
-    console.log('✅ Seed data created (Tel-Cloud Sandbox, no users)')
-  } catch (err) { console.error('❌ Seed error:', err.message) }
+    console.log('�?Seed data created (Tel-Cloud Sandbox, no users)')
+  } catch (err) { console.error('�?Seed error:', err.message) }
 }
 
 // ─── PLATFORM CLEANUP MIGRATION (one-time) ──────────────────────────────────────
@@ -405,7 +410,7 @@ async function runPlatformCleanupMigration() {
   try {
     const applied = await pool.query('SELECT id FROM _migrations WHERE id=$1', [MIGRATION_ID])
     if (applied.rows.length > 0) {
-      console.log(`✅ Migration ${MIGRATION_ID} already applied, skipping`)
+      console.log(`�?Migration ${MIGRATION_ID} already applied, skipping`)
       return
     }
     console.log(`🔧 Running migration ${MIGRATION_ID}...`)
@@ -415,7 +420,7 @@ async function runPlatformCleanupMigration() {
       await client.query('BEGIN')
 
       const ws = await client.query(`SELECT id FROM workspaces WHERE slug='telcloud-main' LIMIT 1`)
-      if (!ws.rows.length) throw new Error('telcloud-main workspace missing — seedDatabase must run first')
+      if (!ws.rows.length) throw new Error('telcloud-main workspace missing �?seedDatabase must run first')
       const wsId = ws.rows[0].id
 
       // Rename workspace to "Tel-Cloud Sandbox" if it was the old "Tel-Cloud Demo" name
@@ -494,7 +499,7 @@ async function runPlatformCleanupMigration() {
 
       await client.query(`INSERT INTO _migrations (id) VALUES ($1)`, [MIGRATION_ID])
       await client.query('COMMIT')
-      console.log(`✅ Migration ${MIGRATION_ID} complete`)
+      console.log(`�?Migration ${MIGRATION_ID} complete`)
     } catch (err) {
       await client.query('ROLLBACK')
       throw err
@@ -502,7 +507,7 @@ async function runPlatformCleanupMigration() {
       client.release()
     }
   } catch (err) {
-    console.error(`❌ Migration ${MIGRATION_ID} FAILED:`, err.message)
+    console.error(`�?Migration ${MIGRATION_ID} FAILED:`, err.message)
     throw err
   }
 }
@@ -513,7 +518,7 @@ async function runChunk5Migration() {
   try {
     const applied = await pool.query('SELECT id FROM _migrations WHERE id=$1', [MIGRATION_ID])
     if (applied.rows.length > 0) {
-      console.log(`✅ Migration ${MIGRATION_ID} already applied, skipping`)
+      console.log(`�?Migration ${MIGRATION_ID} already applied, skipping`)
       return
     }
     console.log(`🔧 Running migration ${MIGRATION_ID}...`)
@@ -558,7 +563,7 @@ async function runChunk5Migration() {
 
       await client.query(`INSERT INTO _migrations (id) VALUES ($1)`, [MIGRATION_ID])
       await client.query('COMMIT')
-      console.log(`✅ Migration ${MIGRATION_ID} complete`)
+      console.log(`�?Migration ${MIGRATION_ID} complete`)
     } catch (err) {
       await client.query('ROLLBACK')
       throw err
@@ -566,7 +571,56 @@ async function runChunk5Migration() {
       client.release()
     }
   } catch (err) {
-    console.error(`❌ Migration ${MIGRATION_ID} FAILED:`, err.message)
+    console.error(`�?Migration ${MIGRATION_ID} FAILED:`, err.message)
+    throw err
+  }
+}
+
+// ─── CHUNK 5B: Backfill manage_quick_replies on existing role_permissions ─────
+async function runChunk5bMigration() {
+  const MIGRATION_ID = 'chunk_5b_quick_replies_v1'
+  try {
+    const applied = await pool.query('SELECT id FROM _migrations WHERE id=$1', [MIGRATION_ID])
+    if (applied.rows.length > 0) {
+      console.log(`�?Migration ${MIGRATION_ID} already applied, skipping`)
+      return
+    }
+    console.log(`🔧 Running migration ${MIGRATION_ID}...`)
+
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+
+      // Backfill manage_quick_replies key on every existing row.
+      // Default value matches DEFAULT_ROLE_PERMISSIONS (true for everyone except admin).
+      const rows = await client.query(`SELECT id, role, permissions FROM role_permissions`)
+
+      let updated = 0
+      for (const row of rows.rows) {
+        if (row.permissions.manage_quick_replies !== undefined) continue
+
+        const defaultValue = row.role === 'admin' ? false : true
+        const newPermissions = { ...row.permissions, manage_quick_replies: defaultValue }
+
+        await client.query(
+          `UPDATE role_permissions SET permissions=$1, updated_at=NOW() WHERE id=$2`,
+          [JSON.stringify(newPermissions), row.id]
+        )
+        updated++
+      }
+      console.log(`   backfilled manage_quick_replies on ${updated} rows`)
+
+      await client.query(`INSERT INTO _migrations (id) VALUES ($1)`, [MIGRATION_ID])
+      await client.query('COMMIT')
+      console.log(`�?Migration ${MIGRATION_ID} complete`)
+    } catch (err) {
+      await client.query('ROLLBACK')
+      throw err
+    } finally {
+      client.release()
+    }
+  } catch (err) {
+    console.error(`�?Migration ${MIGRATION_ID} FAILED:`, err.message)
     throw err
   }
 }
@@ -626,7 +680,7 @@ function generateRandomPassword() {
 
 // ─── ADMIN: WORKSPACES ─────────────────────────────────────────────────────────
 
-// GET /admin/workspaces — list all workspaces with summary counts
+// GET /admin/workspaces �?list all workspaces with summary counts
 app.get('/admin/workspaces', auth, superAdmin, async (req, res) => {
   try {
     const r = await pool.query(`
@@ -646,7 +700,7 @@ app.get('/admin/workspaces', auth, superAdmin, async (req, res) => {
   }
 })
 
-// GET /admin/workspaces/:id — single workspace detail
+// GET /admin/workspaces/:id �?single workspace detail
 app.get('/admin/workspaces/:id', auth, superAdmin, async (req, res) => {
   try {
     const r = await pool.query(`
@@ -708,7 +762,7 @@ app.post('/admin/workspaces/:id/role-permissions/reset', auth, superAdmin, async
   }
 })
 
-// POST /admin/workspaces — create workspace + first director atomically
+// POST /admin/workspaces �?create workspace + first director atomically
 // Body: { name, slug, registration_number, email, phone, address, plan, billing_exempt,
 //         director_name, director_email }
 app.post('/admin/workspaces', auth, superAdmin, async (req, res) => {
@@ -834,7 +888,7 @@ app.post('/admin/workspaces', auth, superAdmin, async (req, res) => {
   }
 })
 
-// PATCH /admin/workspaces/:id — update workspace metadata
+// PATCH /admin/workspaces/:id �?update workspace metadata
 // Body: any of { name, registration_number, email, phone, address, plan, billing_exempt, status, workspace_type }
 app.patch('/admin/workspaces/:id', auth, superAdmin, async (req, res) => {
   try {
@@ -874,7 +928,7 @@ app.get('/workspace', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-app.patch('/workspace', auth, async (req, res) => {
+app.patch('/workspace', auth, requirePermission('manage_workspace_settings'), async (req, res) => {
   try {
     const wsId = await getWorkspaceId(req.user.id)
     const { name, email, phone, address, registration_number, timezone } = req.body
@@ -903,7 +957,7 @@ app.get('/phone-numbers', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-app.post('/phone-numbers', auth, async (req, res) => {
+app.post('/phone-numbers', auth, requirePermission('manage_phone_numbers'), async (req, res) => {
   try {
     const wsId = await getWorkspaceId(req.user.id)
     const { number, display_name, whatsapp_phone_id, is_primary, owner_user_id, project_id } = req.body
@@ -918,7 +972,7 @@ app.post('/phone-numbers', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-app.patch('/phone-numbers/:id', auth, async (req, res) => {
+app.patch('/phone-numbers/:id', auth, requirePermission('manage_phone_numbers'), async (req, res) => {
   try {
     const wsId = await getWorkspaceId(req.user.id)
     const { display_name, is_primary, status, team_id, owner_user_id, project_id } = req.body
@@ -938,7 +992,7 @@ app.patch('/phone-numbers/:id', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-app.delete('/phone-numbers/:id', auth, async (req, res) => {
+app.delete('/phone-numbers/:id', auth, requirePermission('manage_phone_numbers'), async (req, res) => {
   try {
     const wsId = await getWorkspaceId(req.user.id)
     await pool.query('DELETE FROM phone_numbers WHERE id=$1 AND workspace_id=$2', [req.params.id, wsId])
@@ -995,7 +1049,7 @@ app.get('/agents', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-app.post('/agents', auth, async (req, res) => {
+app.post('/agents', auth, requirePermission('manage_staff'), async (req, res) => {
   try {
     const wsId = await getWorkspaceId(req.user.id)
     const { name, email, role, team_id, capacity, password } = req.body
@@ -1009,7 +1063,7 @@ app.post('/agents', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-app.patch('/agents/:id', auth, async (req, res) => {
+app.patch('/agents/:id', auth, requirePermission('manage_staff'), async (req, res) => {
   try {
     const wsId = await getWorkspaceId(req.user.id)
     const { name, email, role, team_id, capacity, status, active, permissions } = req.body
@@ -1024,7 +1078,7 @@ app.patch('/agents/:id', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-app.post('/agents/:id/reset-password', auth, async (req, res) => {
+app.post('/agents/:id/reset-password', auth, requirePermission('manage_staff'), async (req, res) => {
   try {
     const wsId = await getWorkspaceId(req.user.id)
     const hash = await bcrypt.hash(req.body.password || 'Welcome@123', 10)
@@ -1042,7 +1096,7 @@ app.get('/teams', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-app.post('/teams', auth, async (req, res) => {
+app.post('/teams', auth, requirePermission('manage_teams'), async (req, res) => {
   try {
     const wsId = await getWorkspaceId(req.user.id)
     const { name, key, type, lead_user_id, color, description } = req.body
@@ -1051,7 +1105,7 @@ app.post('/teams', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-app.patch('/teams/:id', auth, async (req, res) => {
+app.patch('/teams/:id', auth, requirePermission('manage_teams'), async (req, res) => {
   try {
     const wsId = await getWorkspaceId(req.user.id)
     const { name, type, lead_user_id, color, description, members } = req.body
@@ -1064,7 +1118,7 @@ app.patch('/teams/:id', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-app.delete('/teams/:id', auth, async (req, res) => {
+app.delete('/teams/:id', auth, requirePermission('manage_teams'), async (req, res) => {
   try {
     const wsId = await getWorkspaceId(req.user.id)
     await pool.query('DELETE FROM teams WHERE id=$1 AND workspace_id=$2', [req.params.id, wsId])
@@ -1121,7 +1175,7 @@ app.get('/conversations/:id', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-app.patch('/conversations/:id/status', auth, requireWrite, async (req, res) => {
+app.patch('/conversations/:id/status', auth, requirePermission('manage_conversations'), async (req, res) => {
   try {
     const access = await getAccessibleProjects(req)
     const { status } = req.body
@@ -1140,7 +1194,7 @@ app.patch('/conversations/:id/status', auth, requireWrite, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-app.patch('/conversations/:id/assign', auth, requireWrite, async (req, res) => {
+app.patch('/conversations/:id/assign', auth, requirePermission('manage_conversations'), async (req, res) => {
   try {
     const access = await getAccessibleProjects(req)
     const { assigned_to, team_id, handover_note } = req.body
@@ -1160,7 +1214,7 @@ app.patch('/conversations/:id/assign', auth, requireWrite, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-app.post('/conversations', auth, async (req, res) => {
+app.post('/conversations', auth, requirePermission('manage_conversations'), async (req, res) => {
   try {
     const wsId = await getWorkspaceId(req.user.id)
     const { contact_id, phone_number_id } = req.body
@@ -1215,7 +1269,7 @@ async function sendWhatsAppMessage(toPhone, text) {
 }
 
 // ─── MESSAGES ──────────────────────────────────────────────────────────────────
-app.post('/messages', auth, requireWrite, async (req, res) => {
+app.post('/messages', auth, requirePermission('send_messages'), async (req, res) => {
   try {
     const access = await getAccessibleProjects(req)
     const { conversation_id, direction, text, type, is_note, template_id } = req.body
@@ -1281,7 +1335,7 @@ app.get('/contacts', auth, async (req, res) => {
     let query = 'SELECT * FROM contacts WHERE workspace_id=$1'
     const params = [access.workspaceId]; let idx = 2
 
-    // Scope to accessible projects — strict: contact must have a conversation in user's project
+    // Scope to accessible projects �?strict: contact must have a conversation in user's project
     if (!access.workspaceWide) {
       query += ` AND EXISTS (SELECT 1 FROM conversations conv WHERE conv.contact_id = contacts.id AND conv.project_id = ANY($${idx}::int[]))`
       params.push(access.projectIds)
@@ -1297,7 +1351,7 @@ app.get('/contacts', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-app.post('/contacts', auth, async (req, res) => {
+app.post('/contacts', auth, requirePermission('manage_contacts'), async (req, res) => {
   try {
     const wsId = await getWorkspaceId(req.user.id)
     const { name, phone, email, type, pipeline_stage } = req.body
@@ -1311,7 +1365,7 @@ app.post('/contacts', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-app.patch('/contacts/:id', auth, async (req, res) => {
+app.patch('/contacts/:id', auth, requirePermission('manage_contacts'), async (req, res) => {
   try {
     const wsId = await getWorkspaceId(req.user.id)
     const { name, phone, email, type, pipeline_stage, pdpa_consented, dnc, dnc_reason, opted_out, tags, notes, expected_salary, notice_period, linkedin_url, current_role, current_company } = req.body
@@ -1320,7 +1374,7 @@ app.patch('/contacts/:id', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-app.delete('/contacts/:id', auth, async (req, res) => {
+app.delete('/contacts/:id', auth, requirePermission('manage_contacts'), async (req, res) => {
   try {
     const wsId = await getWorkspaceId(req.user.id)
     await pool.query('DELETE FROM contacts WHERE id=$1 AND workspace_id=$2', [req.params.id, wsId])
@@ -1337,7 +1391,7 @@ app.get('/templates', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-app.post('/templates', auth, async (req, res) => {
+app.post('/templates', auth, requirePermission('manage_templates'), async (req, res) => {
   try {
     const wsId = await getWorkspaceId(req.user.id)
     const { name, category, body, buttons, subject, type, status } = req.body
@@ -1346,7 +1400,7 @@ app.post('/templates', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-app.patch('/templates/:id', auth, async (req, res) => {
+app.patch('/templates/:id', auth, requirePermission('manage_templates'), async (req, res) => {
   try {
     const wsId = await getWorkspaceId(req.user.id)
     const { name, category, body, buttons, status, subject } = req.body
@@ -1355,7 +1409,7 @@ app.patch('/templates/:id', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-app.delete('/templates/:id', auth, async (req, res) => {
+app.delete('/templates/:id', auth, requirePermission('manage_templates'), async (req, res) => {
   try {
     const wsId = await getWorkspaceId(req.user.id)
     await pool.query('DELETE FROM templates WHERE id=$1 AND workspace_id=$2', [req.params.id, wsId])
@@ -1372,7 +1426,7 @@ app.get('/scheduled', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-app.post('/scheduled', auth, async (req, res) => {
+app.post('/scheduled', auth, requirePermission('manage_scheduled_messages'), async (req, res) => {
   try {
     const wsId = await getWorkspaceId(req.user.id)
     const { conversation_id, contact_id, phone_number_id, channel, template_id, subject, body, variables, buttons, scheduled_at, send_mode, email_to, email_cc, bulk_batch_id } = req.body
@@ -1381,7 +1435,7 @@ app.post('/scheduled', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-app.patch('/scheduled/:id/cancel', auth, async (req, res) => {
+app.patch('/scheduled/:id/cancel', auth, requirePermission('manage_scheduled_messages'), async (req, res) => {
   try {
     const wsId = await getWorkspaceId(req.user.id)
     const r = await pool.query(`UPDATE scheduled_messages SET status='cancelled' WHERE id=$1 AND workspace_id=$2 AND status='pending' RETURNING *`, [req.params.id, wsId])
@@ -1398,7 +1452,7 @@ app.get('/quick-replies', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-app.post('/quick-replies', auth, async (req, res) => {
+app.post('/quick-replies', auth, requirePermission('manage_quick_replies'), async (req, res) => {
   try {
     const wsId = await getWorkspaceId(req.user.id)
     const { title, body, shortcut, shared } = req.body
@@ -1485,7 +1539,7 @@ app.get('/business-hours', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-app.patch('/business-hours', auth, async (req, res) => {
+app.patch('/business-hours', auth, requirePermission('manage_workspace_settings'), async (req, res) => {
   try {
     const wsId = await getWorkspaceId(req.user.id)
     const { hours } = req.body
@@ -1503,7 +1557,7 @@ app.get('/routing', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-app.patch('/routing', auth, async (req, res) => {
+app.patch('/routing', auth, requirePermission('manage_workspace_settings'), async (req, res) => {
   try {
     const wsId = await getWorkspaceId(req.user.id)
     const { mode, sticky_assignment, round_robin, candidate_team_id, client_team_id, max_capacity, escalation_enabled, escalation_steps, after_hours_action, unassigned_queue, blackout_start, blackout_end } = req.body
@@ -1535,7 +1589,7 @@ app.get('/security', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-app.patch('/security', auth, async (req, res) => {
+app.patch('/security', auth, requirePermission('manage_workspace_settings'), async (req, res) => {
   try {
     const wsId = await getWorkspaceId(req.user.id)
     const { session_timeout_minutes, max_failed_logins, force_password_change, two_factor_required, password_min_length, password_require_special } = req.body
@@ -1559,7 +1613,7 @@ app.get('/calendar', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-app.post('/calendar', auth, async (req, res) => {
+app.post('/calendar', auth, requirePermission('manage_scheduled_messages'), async (req, res) => {
   try {
     const wsId = await getWorkspaceId(req.user.id)
     const { conversation_id, contact_id, job_order_id, title, event_date, event_time, location, notes, type } = req.body
@@ -1590,7 +1644,7 @@ app.get('/projects', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-app.post('/projects', auth, async (req, res) => {
+app.post('/projects', auth, requirePermission('manage_projects'), async (req, res) => {
   try {
     const wsId = await getWorkspaceId(req.user.id)
     const { client_name, start_month, start_year, colour } = req.body
@@ -1604,7 +1658,7 @@ app.post('/projects', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-app.patch('/projects/:id', auth, async (req, res) => {
+app.patch('/projects/:id', auth, requirePermission('manage_projects'), async (req, res) => {
   try {
     const wsId = await getWorkspaceId(req.user.id)
     const { client_name, start_month, start_year, colour, status } = req.body
@@ -1626,7 +1680,7 @@ app.patch('/projects/:id', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-app.delete('/projects/:id', auth, async (req, res) => {
+app.delete('/projects/:id', auth, requirePermission('manage_projects'), async (req, res) => {
   try {
     const wsId = await getWorkspaceId(req.user.id)
     await pool.query('UPDATE conversations SET project_id=NULL WHERE project_id=$1 AND workspace_id=$2', [req.params.id, wsId])
@@ -1666,7 +1720,7 @@ app.get('/projects/:id/conversations', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-app.patch('/projects/:id/assign-conversations', auth, async (req, res) => {
+app.patch('/projects/:id/assign-conversations', auth, requirePermission('manage_projects'), async (req, res) => {
   try {
     const wsId = await getWorkspaceId(req.user.id)
     const { conversation_ids } = req.body
@@ -1679,7 +1733,7 @@ app.patch('/projects/:id/assign-conversations', auth, async (req, res) => {
 
 // ─── PROJECT MEMBERS (Session D1 Chunk 4A) ─────────────────────────────────────
 
-// GET /projects/:id/members — list all members of a project
+// GET /projects/:id/members �?list all members of a project
 app.get('/projects/:id/members', auth, async (req, res) => {
   try {
     const wsId = await getWorkspaceId(req.user.id)
@@ -1702,9 +1756,9 @@ app.get('/projects/:id/members', auth, async (req, res) => {
   }
 })
 
-// POST /projects/:id/members — add a user to a project
+// POST /projects/:id/members �?add a user to a project
 // Body: { user_id, role_in_project? }  role default = 'member'
-app.post('/projects/:id/members', auth, async (req, res) => {
+app.post('/projects/:id/members', auth, requirePermission('manage_project_members'), async (req, res) => {
   try {
     const wsId = await getWorkspaceId(req.user.id)
     const { user_id, role_in_project } = req.body
@@ -1733,9 +1787,9 @@ app.post('/projects/:id/members', auth, async (req, res) => {
   }
 })
 
-// PATCH /projects/:id/members/:userId — change a member's role
+// PATCH /projects/:id/members/:userId �?change a member's role
 // Body: { role_in_project: 'member' | 'lead' }
-app.patch('/projects/:id/members/:userId', auth, async (req, res) => {
+app.patch('/projects/:id/members/:userId', auth, requirePermission('manage_project_members'), async (req, res) => {
   try {
     const wsId = await getWorkspaceId(req.user.id)
     const { role_in_project } = req.body
@@ -1760,8 +1814,8 @@ app.patch('/projects/:id/members/:userId', auth, async (req, res) => {
   }
 })
 
-// DELETE /projects/:id/members/:userId — remove from project
-app.delete('/projects/:id/members/:userId', auth, async (req, res) => {
+// DELETE /projects/:id/members/:userId �?remove from project
+app.delete('/projects/:id/members/:userId', auth, requirePermission('manage_project_members'), async (req, res) => {
   try {
     const wsId = await getWorkspaceId(req.user.id)
     const proj = await pool.query('SELECT id FROM projects WHERE id=$1 AND workspace_id=$2', [req.params.id, wsId])
@@ -1780,7 +1834,7 @@ app.delete('/projects/:id/members/:userId', auth, async (req, res) => {
   }
 })
 
-// GET /my-projects — returns the current user's project memberships + project details
+// GET /my-projects �?returns the current user's project memberships + project details
 // Used later in Chunk 4B to scope consultant views
 app.get('/my-projects', auth, async (req, res) => {
   try {
@@ -1799,7 +1853,7 @@ app.get('/my-projects', auth, async (req, res) => {
   }
 })
 
-app.patch('/conversations/:id/project', auth, requireWrite, async (req, res) => {
+app.patch('/conversations/:id/project', auth, requirePermission('manage_conversations'), async (req, res) => {
   try {
     const access = await getAccessibleProjects(req)
     const { project_id } = req.body
@@ -1827,7 +1881,7 @@ app.patch('/conversations/:id/project', auth, requireWrite, async (req, res) => 
 })
 
 // ─── PIN MESSAGES ──────────────────────────────────────────────────────────────
-app.patch('/messages/:id/pin', auth, async (req, res) => {
+app.patch('/messages/:id/pin', auth, requirePermission('manage_conversations'), async (req, res) => {
   try {
     const wsId = await getWorkspaceId(req.user.id)
     const msgId = req.params.id
@@ -1891,10 +1945,10 @@ app.get('/webhook', (req, res) => {
   const challenge = req.query['hub.challenge']
   const verifyToken = process.env.META_VERIFY_TOKEN
   if (mode === 'subscribe' && token === verifyToken) {
-    console.log('✅ Webhook verified by Meta')
+    console.log('�?Webhook verified by Meta')
     return res.status(200).send(challenge)
   }
-  console.warn('❌ Webhook verification failed. Mode:', mode, 'Token match:', token === verifyToken)
+  console.warn('�?Webhook verification failed. Mode:', mode, 'Token match:', token === verifyToken)
   return res.sendStatus(403)
 })
 

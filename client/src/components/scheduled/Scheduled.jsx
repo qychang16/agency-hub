@@ -54,7 +54,7 @@ const FILTER_TABS = [
 ]
 
 export default function Scheduled() {
-  const { token, user } = useAuth()
+  const { token, user, hasPermission } = useAuth()
   const [messages, setMessages] = useState([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('pending')
@@ -126,14 +126,18 @@ export default function Scheduled() {
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <Btn variant="ghost" onClick={() => setShowBulk(true)}
-              style={{ border: '0.5px solid rgba(255,255,255,0.3)', color: '#fff' }}>
-              📊 Bulk CSV
-            </Btn>
-            <Btn onClick={() => setShowComposer(true)}
-              style={{ background: '#fff', color: NAVY }}>
-              + Schedule Message
-            </Btn>
+            {hasPermission('manage_scheduled_messages') && (
+              <Btn variant="ghost" onClick={() => setShowBulk(true)}
+                style={{ border: '0.5px solid rgba(255,255,255,0.3)', color: '#fff' }}>
+                📊 Bulk CSV
+              </Btn>
+            )}
+            {hasPermission('manage_scheduled_messages') && (
+              <Btn onClick={() => setShowComposer(true)}
+                style={{ background: '#fff', color: NAVY }}>
+                + Schedule Message
+              </Btn>
+            )}
           </div>
         </div>
 
@@ -292,6 +296,7 @@ export default function Scheduled() {
                     </div>
 
                     {/* Actions */}
+                    {hasPermission('manage_scheduled_messages') && (
                     <div style={{ display: 'flex', gap: 6, flexShrink: 0, alignItems: 'center' }}>
                       {msg.status === 'pending' && (
                         <Btn variant="danger" size="sm" disabled={cancelling === msg.id} onClick={e => { e.stopPropagation(); cancel(msg.id) }}>
@@ -305,6 +310,7 @@ export default function Scheduled() {
                       )}
                       <span style={{ fontSize: 12, color: '#9ca3af' }}>{isExpanded ? '▲' : '▼'}</span>
                     </div>
+                    )}
                   </div>
 
                   {/* Expanded detail */}

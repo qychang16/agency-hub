@@ -298,7 +298,7 @@ const FILTER_TABS = [
 ]
 
 export default function Templates() {
-  const { token, user } = useAuth()
+  const { token, user, hasPermission } = useAuth()
   const [templates, setTemplates] = useState([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('all')
@@ -355,8 +355,8 @@ export default function Templates() {
     rejected: templates.filter(t => t.status === 'rejected').length,
   }
 
-  const canApprove = user?.role === 'director' || user?.role === 'manager'
-  const canCreate = !['viewer', 'admin'].includes(user?.role)
+  const canApprove = user?.role === 'director'
+  const canCreate = hasPermission('manage_templates')
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#f1f4f9' }}>

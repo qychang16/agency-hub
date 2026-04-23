@@ -24,7 +24,7 @@ function dateGroupLabel(iso) {
   return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Singapore' })
 }
 
-// Reusable ghost button — quiet, neutral, consistent
+// Reusable ghost button - quiet, neutral, consistent
 function GhostButton({ children, onClick, active, primary, title, danger }) {
   const color = danger ? semantic.danger : primary ? accent.DEFAULT : ink[700]
   const borderCol = danger ? semantic.danger : primary ? accent.DEFAULT : ink[300]
@@ -46,7 +46,9 @@ function GhostButton({ children, onClick, active, primary, title, danger }) {
 }
 
 export default function ChatWindow({ activeConvoId, active, setActive, projects, showDrawer, setShowDrawer, isMobile, mobileView, setMobileView, jumpToMessageId, clearJumpToMessage }) {
-  const { token, user } = useAuth()
+  const { token, user, hasPermission } = useAuth()
+  const canSend = hasPermission('send_messages')
+  const canManageConvos = hasPermission('manage_conversations')
   const [input, setInput] = useState('')
   const [compMode, setCompMode] = useState('text')
   const [showEmoji, setShowEmoji] = useState(false)
@@ -298,6 +300,7 @@ export default function ChatWindow({ activeConvoId, active, setActive, projects,
               </div>
             </div>
             <div style={{ display: 'flex', gap: space[1], flexShrink: 0, position: 'relative' }}>
+              {canManageConvos && (
               <div ref={projectMenuRef} style={{ position: 'relative' }}>
                 <GhostButton onClick={() => setShowProjectMenu(!showProjectMenu)} active={showProjectMenu} primary={!!currentProject} title="Assign to project">
                   {currentProject ? currentProject.client_name : '+ Project'}
@@ -326,7 +329,7 @@ export default function ChatWindow({ activeConvoId, active, setActive, projects,
                         fontSize: textSize.xs, color: ink[600],
                         cursor: 'pointer', fontStyle: 'italic',
                         fontFamily: fonts.body,
-                      }}>— No project —</button>
+                      }}>-- No project --</button>
                     {activeProjects.length === 0 ? (
                       <div style={{ padding: space[3], fontSize: textSize.xs, color: ink[500], textAlign: 'center' }}>
                         No active projects.<br/>Create one in Projects.
@@ -351,12 +354,17 @@ export default function ChatWindow({ activeConvoId, active, setActive, projects,
                   </div>
                 )}
               </div>
-              <GhostButton onClick={() => resolveConvo(active.status === 'open' ? 'resolved' : 'open')}
-                danger={active.status !== 'open'}
-                primary={active.status === 'open'}>
-                {active.status === 'open' ? 'Resolve' : 'Reopen'}
-              </GhostButton>
-              <GhostButton onClick={() => setShowReassign(!showReassign)}>Reassign</GhostButton>
+              )}
+              {canManageConvos && (
+                <GhostButton onClick={() => resolveConvo(active.status === 'open' ? 'resolved' : 'open')}
+                  danger={active.status !== 'open'}
+                  primary={active.status === 'open'}>
+                  {active.status === 'open' ? 'Resolve' : 'Reopen'}
+                </GhostButton>
+              )}
+              {canManageConvos && (
+                <GhostButton onClick={() => setShowReassign(!showReassign)}>Reassign</GhostButton>
+              )}
               <GhostButton onClick={() => setShowDrawer(!showDrawer)} active={showDrawer}>Contact</GhostButton>
             </div>
           </>
@@ -400,11 +408,12 @@ export default function ChatWindow({ activeConvoId, active, setActive, projects,
                   fontFamily: fonts.body,
                 }}>
                 <span style={{ fontSize: 10, color: ink[500], fontWeight: textWeight.medium, flexShrink: 0, fontFamily: fonts.mono }}>
-                  {pm.direction === 'out' ? '→' : '←'}
+                  {pm.direction === 'out' ? '>' : '<'}
                 </span>
                 <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: isExpanded ? 'normal' : 'nowrap', lineHeight: 1.4 }}>
-                  {isExpanded ? pm.text : preview}{!isExpanded && truncated ? '…' : ''}
+                  {isExpanded ? pm.text : preview}{!isExpanded && truncated ? '...' : ''}
                 </span>
+                {canManageConvos && (
                 <button onClick={e => { e.stopPropagation(); togglePin(pm.id) }}
                   title="Unpin"
                   style={{ padding: 2, background: 'transparent', border: 'none', cursor: 'pointer', color: ink[500], display: 'flex', alignItems: 'center', flexShrink: 0 }}>
@@ -413,6 +422,7 @@ export default function ChatWindow({ activeConvoId, active, setActive, projects,
                     <path d="M13 3l-10 10" strokeLinecap="round"/>
                   </svg>
                 </button>
+                )}
               </div>
             )
           })}
@@ -514,7 +524,7 @@ export default function ChatWindow({ activeConvoId, active, setActive, projects,
                     )}
                     {m.text}
                   </div>
-                  {m.id && (isHovered || isPinned) && (
+                  {m.id && (isHovered || isPinned) && canManageConvos && (
                     <button onClick={() => togglePin(m.id)}
                       title={isPinned ? 'Unpin' : 'Pin message'}
                       style={{
@@ -577,6 +587,7 @@ export default function ChatWindow({ activeConvoId, active, setActive, projects,
       )}
 
       {/* Composer */}
+      {canSend && (
       <div style={{
         borderTop: border.subtle,
         padding: `${space[2] + 2}px ${space[4]}px`,
@@ -641,7 +652,7 @@ export default function ChatWindow({ activeConvoId, active, setActive, projects,
               outline: 'none',
               fontFamily: fonts.body,
             }}>
-            <option value="">Select a template…</option>
+            <option value="">Select a template...</option>
             {DEFAULT_TEMPLATES.filter(t => t.status === 'approved').map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
           </select>
         )}
@@ -659,7 +670,7 @@ export default function ChatWindow({ activeConvoId, active, setActive, projects,
         <div style={{ display: 'flex', gap: space[2], alignItems: 'flex-end' }}>
           <textarea ref={textareaRef} value={input} onChange={e => setInput(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() } }}
-            placeholder={compMode === 'template' ? 'Edit template before sending…' : 'Type a message'}
+            placeholder={compMode === 'template' ? 'Edit template before sending...' : 'Type a message'}
             rows={2}
             style={{
               flex: 1, padding: `${space[2]}px ${space[3]}px`,
@@ -684,7 +695,7 @@ export default function ChatWindow({ activeConvoId, active, setActive, projects,
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: space[1] + 1 }}>
           <span style={{ fontSize: 10, color: ink[600] }}>
-            Enter to send · Shift+Enter for new line · <strong style={{ color: ink[800], fontWeight: textWeight.semibold }}>Ctrl+K</strong> to search
+            Enter to send - Shift+Enter for new line - <strong style={{ color: ink[800], fontWeight: textWeight.semibold }}>Ctrl+K</strong> to search
           </span>
           {active && (
             <span style={{
@@ -700,6 +711,7 @@ export default function ChatWindow({ activeConvoId, active, setActive, projects,
           )}
         </div>
       </div>
+      )}
     </div>
   )
 }

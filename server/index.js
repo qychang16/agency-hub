@@ -218,7 +218,7 @@ async function resetRolePermissionsToDefaults(workspaceId) {
 
 // ─── CHUNK 5: Default permission matrix ─────────────────────────────────────
 // Seeded into role_permissions table when a workspace is created.
-// Director role is NOT in this matrix �?directors always have everything.
+// Director role is NOT in this matrix �?directors always have everything.
 const ALL_PERMISSIONS_TRUE = {
   send_messages: true, write_notes: true, manage_conversations: true,
   manage_contacts: true, manage_projects: true, manage_project_members: true,
@@ -362,21 +362,21 @@ async function setupDatabase() {
     await client.query(`CREATE TABLE IF NOT EXISTS security_settings (id SERIAL PRIMARY KEY, workspace_id INTEGER REFERENCES workspaces(id) ON DELETE CASCADE UNIQUE, session_timeout_minutes INTEGER DEFAULT 480, max_failed_logins INTEGER DEFAULT 5, force_password_change BOOLEAN DEFAULT false, two_factor_required BOOLEAN DEFAULT false, password_min_length INTEGER DEFAULT 8, password_require_special BOOLEAN DEFAULT false, created_at TIMESTAMP DEFAULT NOW(), updated_at TIMESTAMP DEFAULT NOW())`)
     await client.query(`CREATE TABLE IF NOT EXISTS calendar_events (id SERIAL PRIMARY KEY, workspace_id INTEGER REFERENCES workspaces(id) ON DELETE CASCADE, conversation_id INTEGER, contact_id INTEGER, job_order_id INTEGER, created_by INTEGER, title VARCHAR(255), event_date DATE, event_time TIME, location TEXT, notes TEXT, type VARCHAR(50) DEFAULT 'interview', status VARCHAR(20) DEFAULT 'scheduled', created_at TIMESTAMP DEFAULT NOW())`)
     await client.query('COMMIT')
-    console.log('�?Database schema ready')
+    console.log('�?Database schema ready')
     await seedDatabase()
     await runPlatformCleanupMigration()
     await runChunk5Migration()
     await runChunk5bMigration()
   } catch (err) {
     await client.query('ROLLBACK')
-    console.error('�?DB setup error:', err.message)
+    console.error('�?DB setup error:', err.message)
   } finally { client.release() }
 }
 
 async function seedDatabase() {
   try {
     const existing = await pool.query('SELECT id FROM workspaces WHERE slug=$1', ['telcloud-main'])
-    if (existing.rows.length > 0) { console.log('�?Seed data exists'); return }
+    if (existing.rows.length > 0) { console.log('�?Seed data exists'); return }
     const ws = await pool.query(`INSERT INTO workspaces (name, slug, workspace_type, billing_exempt, plan, email, timezone) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`, ['Tel-Cloud Sandbox', 'telcloud-main', 'internal', true, 'enterprise', 'admin@tel-cloud.com', 'Asia/Singapore'])
     const wsId = ws.rows[0].id
     const rt = await pool.query(`INSERT INTO teams (workspace_id, name, key, type, color) VALUES ($1,$2,$3,$4,$5) RETURNING id`, [wsId, 'Recruitment Team', 'recruitment', 'recruitment', '#2563eb'])
@@ -398,8 +398,8 @@ async function seedDatabase() {
     for (const t of defaultTemplates) {
       await pool.query(`INSERT INTO templates (workspace_id, name, category, status, body, buttons) VALUES ($1,$2,$3,$4,$5,$6)`, [wsId, t.name, t.category, 'approved', t.body, JSON.stringify(t.buttons)])
     }
-    console.log('�?Seed data created (Tel-Cloud Sandbox, no users)')
-  } catch (err) { console.error('�?Seed error:', err.message) }
+    console.log('�?Seed data created (Tel-Cloud Sandbox, no users)')
+  } catch (err) { console.error('�?Seed error:', err.message) }
 }
 
 // ─── PLATFORM CLEANUP MIGRATION (one-time) ──────────────────────────────────────
@@ -410,7 +410,7 @@ async function runPlatformCleanupMigration() {
   try {
     const applied = await pool.query('SELECT id FROM _migrations WHERE id=$1', [MIGRATION_ID])
     if (applied.rows.length > 0) {
-      console.log(`�?Migration ${MIGRATION_ID} already applied, skipping`)
+      console.log(`�?Migration ${MIGRATION_ID} already applied, skipping`)
       return
     }
     console.log(`🔧 Running migration ${MIGRATION_ID}...`)
@@ -420,7 +420,7 @@ async function runPlatformCleanupMigration() {
       await client.query('BEGIN')
 
       const ws = await client.query(`SELECT id FROM workspaces WHERE slug='telcloud-main' LIMIT 1`)
-      if (!ws.rows.length) throw new Error('telcloud-main workspace missing �?seedDatabase must run first')
+      if (!ws.rows.length) throw new Error('telcloud-main workspace missing �?seedDatabase must run first')
       const wsId = ws.rows[0].id
 
       // Rename workspace to "Tel-Cloud Sandbox" if it was the old "Tel-Cloud Demo" name
@@ -499,7 +499,7 @@ async function runPlatformCleanupMigration() {
 
       await client.query(`INSERT INTO _migrations (id) VALUES ($1)`, [MIGRATION_ID])
       await client.query('COMMIT')
-      console.log(`�?Migration ${MIGRATION_ID} complete`)
+      console.log(`�?Migration ${MIGRATION_ID} complete`)
     } catch (err) {
       await client.query('ROLLBACK')
       throw err
@@ -507,7 +507,7 @@ async function runPlatformCleanupMigration() {
       client.release()
     }
   } catch (err) {
-    console.error(`�?Migration ${MIGRATION_ID} FAILED:`, err.message)
+    console.error(`�?Migration ${MIGRATION_ID} FAILED:`, err.message)
     throw err
   }
 }
@@ -518,7 +518,7 @@ async function runChunk5Migration() {
   try {
     const applied = await pool.query('SELECT id FROM _migrations WHERE id=$1', [MIGRATION_ID])
     if (applied.rows.length > 0) {
-      console.log(`�?Migration ${MIGRATION_ID} already applied, skipping`)
+      console.log(`�?Migration ${MIGRATION_ID} already applied, skipping`)
       return
     }
     console.log(`🔧 Running migration ${MIGRATION_ID}...`)
@@ -563,7 +563,7 @@ async function runChunk5Migration() {
 
       await client.query(`INSERT INTO _migrations (id) VALUES ($1)`, [MIGRATION_ID])
       await client.query('COMMIT')
-      console.log(`�?Migration ${MIGRATION_ID} complete`)
+      console.log(`�?Migration ${MIGRATION_ID} complete`)
     } catch (err) {
       await client.query('ROLLBACK')
       throw err
@@ -571,7 +571,7 @@ async function runChunk5Migration() {
       client.release()
     }
   } catch (err) {
-    console.error(`�?Migration ${MIGRATION_ID} FAILED:`, err.message)
+    console.error(`�?Migration ${MIGRATION_ID} FAILED:`, err.message)
     throw err
   }
 }
@@ -582,7 +582,7 @@ async function runChunk5bMigration() {
   try {
     const applied = await pool.query('SELECT id FROM _migrations WHERE id=$1', [MIGRATION_ID])
     if (applied.rows.length > 0) {
-      console.log(`�?Migration ${MIGRATION_ID} already applied, skipping`)
+      console.log(`�?Migration ${MIGRATION_ID} already applied, skipping`)
       return
     }
     console.log(`🔧 Running migration ${MIGRATION_ID}...`)
@@ -612,7 +612,7 @@ async function runChunk5bMigration() {
 
       await client.query(`INSERT INTO _migrations (id) VALUES ($1)`, [MIGRATION_ID])
       await client.query('COMMIT')
-      console.log(`�?Migration ${MIGRATION_ID} complete`)
+      console.log(`�?Migration ${MIGRATION_ID} complete`)
     } catch (err) {
       await client.query('ROLLBACK')
       throw err
@@ -620,7 +620,7 @@ async function runChunk5bMigration() {
       client.release()
     }
   } catch (err) {
-    console.error(`�?Migration ${MIGRATION_ID} FAILED:`, err.message)
+    console.error(`�?Migration ${MIGRATION_ID} FAILED:`, err.message)
     throw err
   }
 }
@@ -641,8 +641,27 @@ app.post('/login', async (req, res) => {
     await pool.query(`UPDATE users SET last_login_at=NOW(), failed_login_attempts=0, locked_until=NULL WHERE id=$1`, [user.id])
     const token = jwt.sign({ id: user.id, email: user.email, name: user.name, role: user.role, workspace_id: user.workspace_id, is_super_admin: user.is_super_admin }, JWT_SECRET, { expiresIn: '24h' })
     await logAudit(user.workspace_id, user.id, 'login', 'user', user.id, null, { email })
-    res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role, workspace_id: user.workspace_id, workspace_name: user.workspace_name, is_super_admin: user.is_super_admin, billing_exempt: user.billing_exempt, plan: user.plan, permissions: user.permissions, send_behaviour: user.send_behaviour || 'enter', force_password_change: user.force_password_change } })
+    // Resolve permissions for this user's role (Chunk 5)
+    const permsConfig = await getRolePermissions(user.workspace_id, user.role)
+    res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role, workspace_id: user.workspace_id, workspace_name: user.workspace_name, is_super_admin: user.is_super_admin, billing_exempt: user.billing_exempt, plan: user.plan, permissions: user.permissions, send_behaviour: user.send_behaviour || 'enter', force_password_change: user.force_password_change, permissions_resolved: permsConfig.permissions, scope: permsConfig.scope } })
   } catch (err) { console.error('Login error:', err); res.status(500).json({ error: 'Server error' }) }
+})
+
+// ─── CHUNK 5: Current user's resolved permissions ──────────────────────────
+// Used by the frontend to hydrate permission state on app mount / login.
+app.get('/me/permissions', auth, async (req, res) => {
+  try {
+    const wsId = await getWorkspaceId(req.user.id)
+    const config = await getRolePermissions(wsId, req.user.role)
+    res.json({
+      role: req.user.role,
+      scope: config.scope,
+      permissions: config.permissions
+    })
+  } catch (err) {
+    console.error('GET /me/permissions error:', err)
+    res.status(500).json({ error: err.message })
+  }
 })
 
 // ─── SUPER ADMIN MIDDLEWARE ────────────────────────────────────────────────────
@@ -680,7 +699,7 @@ function generateRandomPassword() {
 
 // ─── ADMIN: WORKSPACES ─────────────────────────────────────────────────────────
 
-// GET /admin/workspaces �?list all workspaces with summary counts
+// GET /admin/workspaces �?list all workspaces with summary counts
 app.get('/admin/workspaces', auth, superAdmin, async (req, res) => {
   try {
     const r = await pool.query(`
@@ -700,7 +719,7 @@ app.get('/admin/workspaces', auth, superAdmin, async (req, res) => {
   }
 })
 
-// GET /admin/workspaces/:id �?single workspace detail
+// GET /admin/workspaces/:id �?single workspace detail
 app.get('/admin/workspaces/:id', auth, superAdmin, async (req, res) => {
   try {
     const r = await pool.query(`
@@ -762,7 +781,7 @@ app.post('/admin/workspaces/:id/role-permissions/reset', auth, superAdmin, async
   }
 })
 
-// POST /admin/workspaces �?create workspace + first director atomically
+// POST /admin/workspaces �?create workspace + first director atomically
 // Body: { name, slug, registration_number, email, phone, address, plan, billing_exempt,
 //         director_name, director_email }
 app.post('/admin/workspaces', auth, superAdmin, async (req, res) => {
@@ -888,7 +907,7 @@ app.post('/admin/workspaces', auth, superAdmin, async (req, res) => {
   }
 })
 
-// PATCH /admin/workspaces/:id �?update workspace metadata
+// PATCH /admin/workspaces/:id �?update workspace metadata
 // Body: any of { name, registration_number, email, phone, address, plan, billing_exempt, status, workspace_type }
 app.patch('/admin/workspaces/:id', auth, superAdmin, async (req, res) => {
   try {
@@ -1335,7 +1354,7 @@ app.get('/contacts', auth, async (req, res) => {
     let query = 'SELECT * FROM contacts WHERE workspace_id=$1'
     const params = [access.workspaceId]; let idx = 2
 
-    // Scope to accessible projects �?strict: contact must have a conversation in user's project
+    // Scope to accessible projects �?strict: contact must have a conversation in user's project
     if (!access.workspaceWide) {
       query += ` AND EXISTS (SELECT 1 FROM conversations conv WHERE conv.contact_id = contacts.id AND conv.project_id = ANY($${idx}::int[]))`
       params.push(access.projectIds)
@@ -1733,7 +1752,7 @@ app.patch('/projects/:id/assign-conversations', auth, requirePermission('manage_
 
 // ─── PROJECT MEMBERS (Session D1 Chunk 4A) ─────────────────────────────────────
 
-// GET /projects/:id/members �?list all members of a project
+// GET /projects/:id/members �?list all members of a project
 app.get('/projects/:id/members', auth, async (req, res) => {
   try {
     const wsId = await getWorkspaceId(req.user.id)
@@ -1756,7 +1775,7 @@ app.get('/projects/:id/members', auth, async (req, res) => {
   }
 })
 
-// POST /projects/:id/members �?add a user to a project
+// POST /projects/:id/members �?add a user to a project
 // Body: { user_id, role_in_project? }  role default = 'member'
 app.post('/projects/:id/members', auth, requirePermission('manage_project_members'), async (req, res) => {
   try {
@@ -1787,7 +1806,7 @@ app.post('/projects/:id/members', auth, requirePermission('manage_project_member
   }
 })
 
-// PATCH /projects/:id/members/:userId �?change a member's role
+// PATCH /projects/:id/members/:userId �?change a member's role
 // Body: { role_in_project: 'member' | 'lead' }
 app.patch('/projects/:id/members/:userId', auth, requirePermission('manage_project_members'), async (req, res) => {
   try {
@@ -1814,7 +1833,7 @@ app.patch('/projects/:id/members/:userId', auth, requirePermission('manage_proje
   }
 })
 
-// DELETE /projects/:id/members/:userId �?remove from project
+// DELETE /projects/:id/members/:userId �?remove from project
 app.delete('/projects/:id/members/:userId', auth, requirePermission('manage_project_members'), async (req, res) => {
   try {
     const wsId = await getWorkspaceId(req.user.id)
@@ -1834,7 +1853,7 @@ app.delete('/projects/:id/members/:userId', auth, requirePermission('manage_proj
   }
 })
 
-// GET /my-projects �?returns the current user's project memberships + project details
+// GET /my-projects �?returns the current user's project memberships + project details
 // Used later in Chunk 4B to scope consultant views
 app.get('/my-projects', auth, async (req, res) => {
   try {
@@ -1945,10 +1964,10 @@ app.get('/webhook', (req, res) => {
   const challenge = req.query['hub.challenge']
   const verifyToken = process.env.META_VERIFY_TOKEN
   if (mode === 'subscribe' && token === verifyToken) {
-    console.log('�?Webhook verified by Meta')
+    console.log('�?Webhook verified by Meta')
     return res.status(200).send(challenge)
   }
-  console.warn('�?Webhook verification failed. Mode:', mode, 'Token match:', token === verifyToken)
+  console.warn('�?Webhook verification failed. Mode:', mode, 'Token match:', token === verifyToken)
   return res.sendStatus(403)
 })
 

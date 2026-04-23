@@ -32,7 +32,7 @@ const TABS = [
 ]
 
 export default function Settings() {
-  const { user, isDirector } = useAuth()
+  const { user, isDirector, hasPermission } = useAuth()
   const [activeTab, setActiveTab] = useState('profile')
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768)
 
@@ -43,6 +43,10 @@ export default function Settings() {
   }, [])
 
   const visibleTabs = TABS.filter(tab => {
+    // Roles & Permissions tab — gated by explicit permission (Chunk 5)
+    if (tab.key === 'roles') return hasPermission('manage_role_permissions')
+
+    // Legacy role-based gates for other tabs
     if (user?.role === 'director' || user?.role === 'manager') return true
     if (tab.key === 'notifications' || tab.key === 'security') return true
     if (tab.key === 'agents' || tab.key === 'teams') return user?.role === 'senior_consultant'

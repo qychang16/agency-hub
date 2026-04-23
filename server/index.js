@@ -39,6 +39,48 @@ async function getWorkspaceId(userId) {
   return r.rows[0]?.workspace_id
 }
 
+// ─── CHUNK 4B: Access control helpers ──────────────────────────────────────────
+// Role semantics:
+//   - director, manager: workspace-wide access
+//   - supervisor, senior_consultant, consultant: scoped to project memberships
+//   - admin: scoped to project memberships AND read-only
+//   - super_admin: platform layer, doesn't touch these helpers
+
+const WORKSPACE_WIDE_ROLES = new Set(['director', 'manager'])
+const READ_ONLY_ROLES = new Set(['admin'])
+
+// Returns what projects this user can access.
+// For workspace-wide roles: { workspaceWide: true, workspaceId }
+// For scoped roles: { workspaceWide: false, workspaceId, projectIds: [array] }
+async function getAccessibleProjects(req) {
+  const role = req.user.role
+  const wsId = await getWorkspaceId(req.user.id)
+
+  if (WORKSPACE_WIDE_ROLES.has(role)) {
+    return { workspaceWide: true, workspaceId: wsId }
+  }
+
+  const r = await pool.query(
+    `SELECT project_id FROM project_members WHERE user_id = $1`,
+    [req.user.id]
+  )
+  const projectIds = r.rows.map(row => row.project_id)
+  return { workspaceWide: false, workspaceId: wsId, projectIds }
+}
+
+// Returns true if this user is allowed to write (admin role = false).
+function canWrite(req) {
+  return !READ_ONLY_ROLES.has(req.user.role)
+}
+
+// Express middleware that blocks writes for read-only roles (admin).
+function requireWrite(req, res, next) {
+  if (!canWrite(req)) {
+    return res.status(403).json({ error: 'Your account has view-only access.' })
+  }
+  next()
+}
+
 async function setupDatabase() {
   const client = await pool.connect()
   try {
@@ -82,13 +124,6 @@ async function setupDatabase() {
         END IF;
       END $$;
     `)
-
-    // ─── Legacy contacts/conversations/messages wipe ─────────────────────────
-    // These tables from the old agency-hub era are missing too many columns to patch.
-    // Dev data only (6/6/18 rows). Safe to drop — CREATE TABLE IF NOT EXISTS recreates fresh below.
-    await client.query(`DROP TABLE IF EXISTS messages CASCADE`)
-    await client.query(`DROP TABLE IF EXISTS conversations CASCADE`)
-    await client.query(`DROP TABLE IF EXISTS contacts CASCADE`)
 
     await client.query(`CREATE TABLE IF NOT EXISTS team_members (id SERIAL PRIMARY KEY, team_id INTEGER REFERENCES teams(id) ON DELETE CASCADE, user_id INTEGER REFERENCES users(id) ON DELETE CASCADE, UNIQUE(team_id, user_id))`)
     await client.query(`CREATE TABLE IF NOT EXISTS routing_rules (id SERIAL PRIMARY KEY, workspace_id INTEGER REFERENCES workspaces(id) ON DELETE CASCADE, mode VARCHAR(20) DEFAULT 'smart', sticky_assignment BOOLEAN DEFAULT true, round_robin BOOLEAN DEFAULT true, candidate_team_id INTEGER, client_team_id INTEGER, max_capacity INTEGER DEFAULT 20, escalation_enabled BOOLEAN DEFAULT true, escalation_steps JSONB DEFAULT '[]', after_hours_action VARCHAR(20) DEFAULT 'auto_reply', unassigned_queue BOOLEAN DEFAULT true, blackout_start VARCHAR(5) DEFAULT '22:00', blackout_end VARCHAR(5) DEFAULT '08:00', created_at TIMESTAMP DEFAULT NOW(), updated_at TIMESTAMP DEFAULT NOW())`)
@@ -690,15 +725,25 @@ app.delete('/teams/:id', auth, async (req, res) => {
 // ─── CONVERSATIONS ─────────────────────────────────────────────────────────────
 app.get('/conversations', auth, async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const access = await getAccessibleProjects(req)
     const { phone_number_id, status, contact_id } = req.query
+
     let query = `SELECT c.*, ct.name, ct.phone, ct.email, ct.type, ct.pipeline_stage, ct.pdpa_consented, ct.dnc, u.name as assigned_name, pn.number as phone_number, pn.display_name as phone_line, c.last_message_preview as preview FROM conversations c JOIN contacts ct ON ct.id=c.contact_id LEFT JOIN users u ON u.id=c.assigned_to LEFT JOIN phone_numbers pn ON pn.id=c.phone_number_id WHERE c.workspace_id=$1`
-    const params = [wsId]
+    const params = [access.workspaceId]
     let idx = 2
+
+    // Scope to accessible projects (unless workspace-wide role)
+    if (!access.workspaceWide) {
+      query += ` AND (c.project_id = ANY($${idx}::int[]))`
+      params.push(access.projectIds)
+      idx++
+    }
+
     if (phone_number_id) { query += ` AND c.phone_number_id=$${idx++}`; params.push(phone_number_id) }
     if (status) { query += ` AND c.status=$${idx++}`; params.push(status) }
     if (contact_id) { query += ` AND c.contact_id=$${idx++}`; params.push(contact_id) }
     query += ' ORDER BY c.last_message_at DESC NULLS LAST'
+
     const r = await pool.query(query, params)
     res.json(r.rows.map(c => ({ ...c, assigned_to: c.assigned_name })))
   } catch (err) { res.status(500).json({ error: err.message }) }
@@ -706,8 +751,16 @@ app.get('/conversations', auth, async (req, res) => {
 
 app.get('/conversations/:id', auth, async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
-    const convo = await pool.query(`SELECT c.*, ct.name, ct.phone, ct.email, ct.type, ct.pipeline_stage, ct.pdpa_consented, ct.dnc, ct.notes as contact_notes, u.name as assigned_name, pn.number as phone_number, pn.display_name as phone_line FROM conversations c JOIN contacts ct ON ct.id=c.contact_id LEFT JOIN users u ON u.id=c.assigned_to LEFT JOIN phone_numbers pn ON pn.id=c.phone_number_id WHERE c.id=$1 AND c.workspace_id=$2`, [req.params.id, wsId])
+    const access = await getAccessibleProjects(req)
+
+    let sql = `SELECT c.*, ct.name, ct.phone, ct.email, ct.type, ct.pipeline_stage, ct.pdpa_consented, ct.dnc, ct.notes as contact_notes, u.name as assigned_name, pn.number as phone_number, pn.display_name as phone_line FROM conversations c JOIN contacts ct ON ct.id=c.contact_id LEFT JOIN users u ON u.id=c.assigned_to LEFT JOIN phone_numbers pn ON pn.id=c.phone_number_id WHERE c.id=$1 AND c.workspace_id=$2`
+    const params = [req.params.id, access.workspaceId]
+    if (!access.workspaceWide) {
+      sql += ` AND c.project_id = ANY($3::int[])`
+      params.push(access.projectIds)
+    }
+
+    const convo = await pool.query(sql, params)
     if (!convo.rows.length) return res.status(404).json({ error: 'Not found' })
     const messages = await pool.query(`SELECT m.*, u.name as sender_name, pu.name as pinned_by_name FROM messages m LEFT JOIN users u ON u.id=m.user_id LEFT JOIN users pu ON pu.id=m.pinned_by WHERE m.conversation_id=$1 ORDER BY m.created_at ASC`, [req.params.id])
     const result = convo.rows[0]
@@ -718,21 +771,41 @@ app.get('/conversations/:id', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-app.patch('/conversations/:id/status', auth, async (req, res) => {
+app.patch('/conversations/:id/status', auth, requireWrite, async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const access = await getAccessibleProjects(req)
     const { status } = req.body
-    const r = await pool.query(`UPDATE conversations SET status=$1, closed_at=$2, updated_at=NOW() WHERE id=$3 AND workspace_id=$4 RETURNING *`, [status, status === 'resolved' ? new Date() : null, req.params.id, wsId])
+
+    let sql = `UPDATE conversations SET status=$1, closed_at=$2, updated_at=NOW() WHERE id=$3 AND workspace_id=$4`
+    const params = [status, status === 'resolved' ? new Date() : null, req.params.id, access.workspaceId]
+    if (!access.workspaceWide) {
+      sql += ` AND project_id = ANY($5::int[])`
+      params.push(access.projectIds)
+    }
+    sql += ` RETURNING *`
+
+    const r = await pool.query(sql, params)
+    if (!r.rows.length) return res.status(404).json({ error: 'Conversation not found or not accessible' })
     res.json(r.rows[0])
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-app.patch('/conversations/:id/assign', auth, async (req, res) => {
+app.patch('/conversations/:id/assign', auth, requireWrite, async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const access = await getAccessibleProjects(req)
     const { assigned_to, team_id, handover_note } = req.body
-    const agentId = assigned_to ? (await pool.query('SELECT id FROM users WHERE name=$1 AND workspace_id=$2', [assigned_to, wsId])).rows[0]?.id : null
-    const r = await pool.query(`UPDATE conversations SET assigned_to=$1, team_id=$2, handover_note=$3, handover_note_by=$4, handover_note_at=$5, updated_at=NOW() WHERE id=$6 AND workspace_id=$7 RETURNING *`, [agentId, team_id, handover_note, handover_note ? req.user.id : null, handover_note ? new Date() : null, req.params.id, wsId])
+    const agentId = assigned_to ? (await pool.query('SELECT id FROM users WHERE name=$1 AND workspace_id=$2', [assigned_to, access.workspaceId])).rows[0]?.id : null
+
+    let sql = `UPDATE conversations SET assigned_to=$1, team_id=$2, handover_note=$3, handover_note_by=$4, handover_note_at=$5, updated_at=NOW() WHERE id=$6 AND workspace_id=$7`
+    const params = [agentId, team_id, handover_note, handover_note ? req.user.id : null, handover_note ? new Date() : null, req.params.id, access.workspaceId]
+    if (!access.workspaceWide) {
+      sql += ` AND project_id = ANY($8::int[])`
+      params.push(access.projectIds)
+    }
+    sql += ` RETURNING *`
+
+    const r = await pool.query(sql, params)
+    if (!r.rows.length) return res.status(404).json({ error: 'Conversation not found or not accessible' })
     res.json(r.rows[0])
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
@@ -792,14 +865,28 @@ async function sendWhatsAppMessage(toPhone, text) {
 }
 
 // ─── MESSAGES ──────────────────────────────────────────────────────────────────
-app.post('/messages', auth, async (req, res) => {
+app.post('/messages', auth, requireWrite, async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const access = await getAccessibleProjects(req)
     const { conversation_id, direction, text, type, is_note, template_id } = req.body
+
+    // Scope check: confirm the conversation is within the user's workspace AND accessible project
+    const scopeCheck = await pool.query(
+      `SELECT project_id FROM conversations WHERE id=$1 AND workspace_id=$2`,
+      [conversation_id, access.workspaceId]
+    )
+    if (!scopeCheck.rows.length) return res.status(404).json({ error: 'Conversation not found' })
+    if (!access.workspaceWide) {
+      const projectId = scopeCheck.rows[0].project_id
+      if (projectId === null || !access.projectIds.includes(projectId)) {
+        return res.status(404).json({ error: 'Conversation not found' })
+      }
+    }
+
     const r = await pool.query(
       `INSERT INTO messages (conversation_id, workspace_id, user_id, direction, text, type, is_note, template_id, status, sent_at)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'pending',NOW()) RETURNING *`,
-      [conversation_id, wsId, req.user.id, direction, text, type || 'text', is_note || false, template_id]
+      [conversation_id, access.workspaceId, req.user.id, direction, text, type || 'text', is_note || false, template_id]
     )
     const msg = r.rows[0]
     await pool.query(
@@ -810,7 +897,7 @@ app.post('/messages', auth, async (req, res) => {
       try {
         const phoneRow = await pool.query(
           `SELECT ct.phone FROM conversations c JOIN contacts ct ON ct.id = c.contact_id WHERE c.id = $1 AND c.workspace_id = $2`,
-          [conversation_id, wsId]
+          [conversation_id, access.workspaceId]
         )
         const toPhone = phoneRow.rows[0]?.phone
         if (!toPhone) throw new Error('No recipient phone number on contact')
@@ -839,10 +926,18 @@ app.post('/messages', auth, async (req, res) => {
 // ─── CONTACTS ──────────────────────────────────────────────────────────────────
 app.get('/contacts', auth, async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const access = await getAccessibleProjects(req)
     const { type, stage, search } = req.query
     let query = 'SELECT * FROM contacts WHERE workspace_id=$1'
-    const params = [wsId]; let idx = 2
+    const params = [access.workspaceId]; let idx = 2
+
+    // Scope to accessible projects — strict: contact must have a conversation in user's project
+    if (!access.workspaceWide) {
+      query += ` AND EXISTS (SELECT 1 FROM conversations conv WHERE conv.contact_id = contacts.id AND conv.project_id = ANY($${idx}::int[]))`
+      params.push(access.projectIds)
+      idx++
+    }
+
     if (type) { query += ` AND type=$${idx++}`; params.push(type) }
     if (stage) { query += ` AND pipeline_stage=$${idx++}`; params.push(stage) }
     if (search) { query += ` AND (name ILIKE $${idx} OR phone ILIKE $${idx} OR email ILIKE $${idx})`; params.push(`%${search}%`); idx++ }
@@ -1354,11 +1449,29 @@ app.get('/my-projects', auth, async (req, res) => {
   }
 })
 
-app.patch('/conversations/:id/project', auth, async (req, res) => {
+app.patch('/conversations/:id/project', auth, requireWrite, async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const access = await getAccessibleProjects(req)
     const { project_id } = req.body
-    const r = await pool.query(`UPDATE conversations SET project_id=$1, updated_at=NOW() WHERE id=$2 AND workspace_id=$3 RETURNING *`, [project_id, req.params.id, wsId])
+
+    // Scoped users can only move conversations within their accessible projects
+    // (and the target project must also be accessible to them)
+    if (!access.workspaceWide) {
+      if (project_id !== null && project_id !== undefined && !access.projectIds.includes(project_id)) {
+        return res.status(403).json({ error: 'You do not have access to the target project' })
+      }
+    }
+
+    let sql = `UPDATE conversations SET project_id=$1, updated_at=NOW() WHERE id=$2 AND workspace_id=$3`
+    const params = [project_id, req.params.id, access.workspaceId]
+    if (!access.workspaceWide) {
+      sql += ` AND project_id = ANY($4::int[])`
+      params.push(access.projectIds)
+    }
+    sql += ` RETURNING *`
+
+    const r = await pool.query(sql, params)
+    if (!r.rows.length) return res.status(404).json({ error: 'Conversation not found or not accessible' })
     res.json(r.rows[0])
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
@@ -1390,23 +1503,30 @@ app.patch('/messages/:id/pin', auth, async (req, res) => {
 // ─── GLOBAL MESSAGE SEARCH ─────────────────────────────────────────────────────
 app.get('/search', auth, async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const access = await getAccessibleProjects(req)
     const q = (req.query.q || '').trim()
     if (!q || q.length < 2) return res.json({ results: [] })
     const searchLike = `%${q}%`
-    const r = await pool.query(
-      `SELECT m.id as message_id, m.text, m.direction, m.created_at, m.conversation_id,
+
+    let sql = `SELECT m.id as message_id, m.text, m.direction, m.created_at, m.conversation_id,
               ct.name as contact_name, ct.phone as contact_phone, ct.type as contact_type,
               c.status as conversation_status
        FROM messages m
        JOIN conversations c ON c.id = m.conversation_id
        JOIN contacts ct ON ct.id = c.contact_id
        WHERE m.workspace_id = $1
-         AND (m.text ILIKE $2 OR ct.name ILIKE $2 OR ct.phone ILIKE $2)
-       ORDER BY m.created_at DESC
-       LIMIT 30`,
-      [wsId, searchLike]
-    )
+         AND (m.text ILIKE $2 OR ct.name ILIKE $2 OR ct.phone ILIKE $2)`
+    const params = [access.workspaceId, searchLike]
+
+    // Scope by project_id on the conversation
+    if (!access.workspaceWide) {
+      sql += ` AND c.project_id = ANY($3::int[])`
+      params.push(access.projectIds)
+    }
+
+    sql += ` ORDER BY m.created_at DESC LIMIT 30`
+
+    const r = await pool.query(sql, params)
     res.json({ results: r.rows, query: q })
   } catch (err) {
     console.error('Search error:', err)

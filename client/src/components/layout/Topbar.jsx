@@ -11,7 +11,6 @@ const NAV_ITEMS = [
   { key: 'templates',   label: 'Templates' },
   { key: 'analytics',   label: 'Analytics' },
   { key: 'pipeline',    label: 'Pipeline' },
-  { key: 'jobs',        label: 'Jobs' },
   { key: 'contacts',    label: 'Contacts' },
   { key: 'pdpa',        label: 'PDPA' },
   { key: 'settings',    label: 'Settings' },
@@ -302,7 +301,7 @@ function MobileNav({ activeNav, setActiveNav, open, onClose }) {
 }
 
 export default function Topbar({ activeNav, setActiveNav, onNewContact, isMobile, showMaintenanceEditor, setShowMaintenanceEditor }) {
-  const { isDirector } = useAuth()
+  const { isDirector, hasPermission } = useAuth()
   const { maintenance } = useWorkspace()
   const [mobileOpen, setMobileOpen] = useState(false)
 
@@ -378,7 +377,7 @@ export default function Topbar({ activeNav, setActiveNav, onNewContact, isMobile
               maintenance={maintenance}
               onClick={() => setShowMaintenanceEditor(true)} />
           )}
-          {!isMobile && <NewButton onClick={onNewContact} />}
+          {!isMobile && hasPermission('manage_contacts') && <NewButton onClick={onNewContact} />}
           {!isMobile && <UserMenu />}
 
           {/* Mobile: hamburger */}

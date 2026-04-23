@@ -161,3 +161,27 @@ Estimated scope: 30-40 edits across ~15 components. Worth a dedicated session.
 - Tooltip on disabled buttons explaining WHY ("Admin accounts cannot send")
 - Conditional Topbar nav (hide Templates nav item for roles without manage_templates, etc.)
 
+
+
+---
+
+## Chunk 5d STATUS UPDATE (completed)
+
+Completed across 5 tiered commits (Apr 23-24, 2026):
+- Tier 1 (Topbar): commit 1bb3a61 - Jobs removed from nav, '+ New' gated by manage_contacts
+- Tier 5 (Settings tabs): commit 7a6be89 - PhoneNumbers, Teams, Agents buttons gated
+- Tier 4 (Scheduled + Templates): commit b0f3aeb - Both pages fully gated
+- Tier 3 (ChatWindow): commit fd74437 - Composer, assign, resolve, pin actions gated
+- Tier 2 (Projects): commit b4dfd81 - Create/edit/archive/delete + members fully gated
+
+Skipped (stub files, 3 lines each):
+- Contacts.jsx - placeholder 'Coming soon' page
+- Broadcasts.jsx - placeholder 'Coming soon' page
+When these get built in future, apply the same hasPermission pattern.
+
+Permission system now end-to-end:
+- 42 backend endpoints enforce requirePermission
+- 7 production frontend pages hide unauthorized UI
+- Role matrix configurable per workspace by director
+- Super admin can manage any tenant's role matrix
+

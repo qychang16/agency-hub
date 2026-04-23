@@ -46,20 +46,87 @@ async function getWorkspaceId(userId) {
 //   - admin: scoped to project memberships AND read-only
 //   - super_admin: platform layer, doesn't touch these helpers
 
-const WORKSPACE_WIDE_ROLES = new Set(['director', 'manager'])
-const READ_ONLY_ROLES = new Set(['admin'])
+// ─── CHUNK 5: Permission helpers (DB-driven) ────────────────────────────────
+// Replaces Chunk 4B's hardcoded WORKSPACE_WIDE_ROLES / READ_ONLY_ROLES.
+// Permissions live in role_permissions table, editable per workspace.
+
+// Director always has everything. Other roles: read from DB.
+async function getRolePermissions(workspaceId, role) {
+  if (role === 'director') {
+    return { scope: 'workspace_wide', permissions: ALL_PERMISSIONS_TRUE }
+  }
+  if (role === 'super_admin') {
+    return { scope: 'workspace_wide', permissions: ALL_PERMISSIONS_TRUE }
+  }
+
+  const r = await pool.query(
+    `SELECT scope, permissions FROM role_permissions WHERE workspace_id=$1 AND role=$2`,
+    [workspaceId, role]
+  )
+
+  if (r.rows.length > 0) {
+    return { scope: r.rows[0].scope, permissions: r.rows[0].permissions }
+  }
+
+  // Auto-seed fallback: workspace exists but has no rows for this role.
+  // Seed all 5 default roles for this workspace atomically, then return the one we need.
+  console.log(`   auto-seeding role_permissions for workspace ${workspaceId}`)
+  for (const [r, config] of Object.entries(DEFAULT_ROLE_PERMISSIONS)) {
+    await pool.query(
+      `INSERT INTO role_permissions (workspace_id, role, scope, permissions)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (workspace_id, role) DO NOTHING`,
+      [workspaceId, r, config.scope, JSON.stringify(config.permissions)]
+    )
+  }
+
+  // Return the defaults for the requested role
+  const defaults = DEFAULT_ROLE_PERMISSIONS[role]
+  if (defaults) return defaults
+
+  // Unknown role: deny everything
+  return { scope: 'project_only', permissions: ALL_PERMISSIONS_FALSE }
+}
+
+// Returns true if the user has the named permission.
+async function hasPermission(req, permName) {
+  const wsId = await getWorkspaceId(req.user.id)
+  const config = await getRolePermissions(wsId, req.user.role)
+  return config.permissions[permName] === true
+}
+
+// Express middleware. Blocks the request with 403 if the user lacks the permission.
+function requirePermission(permName) {
+  return async (req, res, next) => {
+    try {
+      if (await hasPermission(req, permName)) return next()
+      return res.status(403).json({ error: `You do not have permission to ${permName.replace(/_/g, ' ')}.` })
+    } catch (err) {
+      console.error('requirePermission error:', err)
+      return res.status(500).json({ error: 'Permission check failed' })
+    }
+  }
+}
 
 // Returns what projects this user can access.
-// For workspace-wide roles: { workspaceWide: true, workspaceId }
-// For scoped roles: { workspaceWide: false, workspaceId, projectIds: [array] }
+// For workspace-wide scope: { workspaceWide: true, workspaceId }
+// For project-only scope: { workspaceWide: false, workspaceId, projectIds: [array] }
 async function getAccessibleProjects(req) {
   const role = req.user.role
   const wsId = await getWorkspaceId(req.user.id)
 
-  if (WORKSPACE_WIDE_ROLES.has(role)) {
+  // Director and super_admin always see everything
+  if (role === 'director' || role === 'super_admin') {
     return { workspaceWide: true, workspaceId: wsId }
   }
 
+  // Read scope from DB
+  const config = await getRolePermissions(wsId, role)
+  if (config.scope === 'workspace_wide') {
+    return { workspaceWide: true, workspaceId: wsId }
+  }
+
+  // Project-only: fetch memberships
   const r = await pool.query(
     `SELECT project_id FROM project_members WHERE user_id = $1`,
     [req.user.id]
@@ -68,17 +135,141 @@ async function getAccessibleProjects(req) {
   return { workspaceWide: false, workspaceId: wsId, projectIds }
 }
 
-// Returns true if this user is allowed to write (admin role = false).
-function canWrite(req) {
-  return !READ_ONLY_ROLES.has(req.user.role)
-}
-
-// Express middleware that blocks writes for read-only roles (admin).
+// Backward-compat wrapper. Chunk 4B code uses requireWrite; we map it to a generic
+// check. Eventually every endpoint should use requirePermission(specific_permission)
+// and this can be removed. For now, requireWrite treats all write permissions as one.
 function requireWrite(req, res, next) {
-  if (!canWrite(req)) {
+  // Admin has no writes in default matrix. Director always writes. Others check DB.
+  if (req.user.role === 'director' || req.user.role === 'super_admin') return next()
+  if (req.user.role === 'admin') {
     return res.status(403).json({ error: 'Your account has view-only access.' })
   }
+  // Other roles: pass through (Chunk 4B endpoints stay working, we'll tighten per-endpoint later)
   next()
+}
+
+// ─── CHUNK 5: Shared role-permissions logic (used by both director and super admin endpoints) ───
+async function listRolePermissions(workspaceId) {
+  const r = await pool.query(
+    `SELECT role, scope, permissions FROM role_permissions WHERE workspace_id=$1
+     ORDER BY CASE role
+       WHEN 'manager' THEN 1
+       WHEN 'supervisor' THEN 2
+       WHEN 'senior_consultant' THEN 3
+       WHEN 'consultant' THEN 4
+       WHEN 'admin' THEN 5
+       ELSE 99
+     END`,
+    [workspaceId]
+  )
+  return [
+    { role: 'director', scope: 'workspace_wide', permissions: ALL_PERMISSIONS_TRUE, locked: true },
+    ...r.rows.map(row => ({ role: row.role, scope: row.scope, permissions: row.permissions, locked: false }))
+  ]
+}
+
+async function updateRolePermissions(workspaceId, role, scope, permissions) {
+  if (role === 'director' || role === 'super_admin') {
+    const err = new Error(`Cannot edit ${role} role permissions`)
+    err.statusCode = 400
+    throw err
+  }
+  if (!DEFAULT_ROLE_PERMISSIONS[role]) {
+    const err = new Error(`Unknown role: ${role}`)
+    err.statusCode = 400
+    throw err
+  }
+  const validScopes = ['workspace_wide', 'project_only']
+  if (!validScopes.includes(scope)) {
+    const err = new Error(`Invalid scope: ${scope}. Must be workspace_wide or project_only.`)
+    err.statusCode = 400
+    throw err
+  }
+  // Ensure all 13 permissions are present (prevent partial updates from corrupting state)
+  const validKeys = Object.keys(ALL_PERMISSIONS_TRUE)
+  const cleanPermissions = {}
+  for (const key of validKeys) {
+    cleanPermissions[key] = permissions[key] === true
+  }
+  const r = await pool.query(
+    `UPDATE role_permissions SET scope=$1, permissions=$2, updated_at=NOW()
+     WHERE workspace_id=$3 AND role=$4 RETURNING role, scope, permissions`,
+    [scope, JSON.stringify(cleanPermissions), workspaceId, role]
+  )
+  if (!r.rows.length) {
+    const err = new Error(`No role_permissions row for workspace ${workspaceId} role ${role}`)
+    err.statusCode = 404
+    throw err
+  }
+  return r.rows[0]
+}
+
+async function resetRolePermissionsToDefaults(workspaceId) {
+  for (const [role, config] of Object.entries(DEFAULT_ROLE_PERMISSIONS)) {
+    await pool.query(
+      `INSERT INTO role_permissions (workspace_id, role, scope, permissions)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (workspace_id, role) DO UPDATE SET
+         scope=EXCLUDED.scope, permissions=EXCLUDED.permissions, updated_at=NOW()`,
+      [workspaceId, role, config.scope, JSON.stringify(config.permissions)]
+    )
+  }
+}
+
+// ─── CHUNK 5: Default permission matrix ─────────────────────────────────────
+// Seeded into role_permissions table when a workspace is created.
+// Director role is NOT in this matrix — directors always have everything.
+const ALL_PERMISSIONS_TRUE = {
+  send_messages: true, write_notes: true, manage_conversations: true,
+  manage_contacts: true, manage_projects: true, manage_project_members: true,
+  manage_templates: true, manage_scheduled_messages: true,
+  manage_phone_numbers: true, manage_teams: true,
+  manage_workspace_settings: true, manage_staff: true,
+  manage_role_permissions: true
+}
+const ALL_PERMISSIONS_FALSE = {
+  send_messages: false, write_notes: false, manage_conversations: false,
+  manage_contacts: false, manage_projects: false, manage_project_members: false,
+  manage_templates: false, manage_scheduled_messages: false,
+  manage_phone_numbers: false, manage_teams: false,
+  manage_workspace_settings: false, manage_staff: false,
+  manage_role_permissions: false
+}
+const DEFAULT_ROLE_PERMISSIONS = {
+  manager: {
+    scope: 'workspace_wide',
+    permissions: { ...ALL_PERMISSIONS_TRUE, manage_role_permissions: false }
+  },
+  supervisor: {
+    scope: 'project_only',
+    permissions: {
+      ...ALL_PERMISSIONS_FALSE,
+      send_messages: true, write_notes: true, manage_conversations: true,
+      manage_contacts: true, manage_project_members: true,
+      manage_templates: true, manage_scheduled_messages: true
+    }
+  },
+  senior_consultant: {
+    scope: 'project_only',
+    permissions: {
+      ...ALL_PERMISSIONS_FALSE,
+      send_messages: true, write_notes: true, manage_conversations: true,
+      manage_contacts: true,
+      manage_templates: true, manage_scheduled_messages: true
+    }
+  },
+  consultant: {
+    scope: 'project_only',
+    permissions: {
+      ...ALL_PERMISSIONS_FALSE,
+      send_messages: true, write_notes: true, manage_conversations: true,
+      manage_contacts: true
+    }
+  },
+  admin: {
+    scope: 'project_only',
+    permissions: { ...ALL_PERMISSIONS_FALSE }
+  }
 }
 
 async function setupDatabase() {
@@ -170,6 +361,7 @@ async function setupDatabase() {
     console.log('✅ Database schema ready')
     await seedDatabase()
     await runPlatformCleanupMigration()
+    await runChunk5Migration()
   } catch (err) {
     await client.query('ROLLBACK')
     console.error('❌ DB setup error:', err.message)
@@ -315,6 +507,70 @@ async function runPlatformCleanupMigration() {
   }
 }
 
+// ─── CHUNK 5: Role Permissions Migration ────────────────────────────────────
+async function runChunk5Migration() {
+  const MIGRATION_ID = 'chunk_5_role_permissions_v1'
+  try {
+    const applied = await pool.query('SELECT id FROM _migrations WHERE id=$1', [MIGRATION_ID])
+    if (applied.rows.length > 0) {
+      console.log(`✅ Migration ${MIGRATION_ID} already applied, skipping`)
+      return
+    }
+    console.log(`🔧 Running migration ${MIGRATION_ID}...`)
+
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+
+      // 1. Create role_permissions table
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS role_permissions (
+          id SERIAL PRIMARY KEY,
+          workspace_id INTEGER REFERENCES workspaces(id) ON DELETE CASCADE,
+          role VARCHAR(50) NOT NULL,
+          scope VARCHAR(20) NOT NULL DEFAULT 'project_only',
+          permissions JSONB NOT NULL DEFAULT '{}'::jsonb,
+          created_at TIMESTAMP DEFAULT NOW(),
+          updated_at TIMESTAMP DEFAULT NOW(),
+          UNIQUE(workspace_id, role)
+        )
+      `)
+
+      // 2. Seed defaults for every existing tenant workspace (skip platform workspace)
+      const workspaces = await client.query(
+        `SELECT id, name FROM workspaces WHERE workspace_type != 'platform' OR workspace_type IS NULL`
+      )
+
+      let seededCount = 0
+      for (const ws of workspaces.rows) {
+        for (const [role, config] of Object.entries(DEFAULT_ROLE_PERMISSIONS)) {
+          const result = await client.query(
+            `INSERT INTO role_permissions (workspace_id, role, scope, permissions)
+             VALUES ($1, $2, $3, $4)
+             ON CONFLICT (workspace_id, role) DO NOTHING`,
+            [ws.id, role, config.scope, JSON.stringify(config.permissions)]
+          )
+          if (result.rowCount > 0) seededCount++
+        }
+        console.log(`   processed workspace ${ws.id} (${ws.name})`)
+      }
+      console.log(`   seeded ${seededCount} role_permissions rows total`)
+
+      await client.query(`INSERT INTO _migrations (id) VALUES ($1)`, [MIGRATION_ID])
+      await client.query('COMMIT')
+      console.log(`✅ Migration ${MIGRATION_ID} complete`)
+    } catch (err) {
+      await client.query('ROLLBACK')
+      throw err
+    } finally {
+      client.release()
+    }
+  } catch (err) {
+    console.error(`❌ Migration ${MIGRATION_ID} FAILED:`, err.message)
+    throw err
+  }
+}
+
 // ─── AUTH ──────────────────────────────────────────────────────────────────────
 app.post('/login', async (req, res) => {
   try {
@@ -404,6 +660,50 @@ app.get('/admin/workspaces/:id', auth, superAdmin, async (req, res) => {
     res.json(r.rows[0])
   } catch (err) {
     console.error('GET /admin/workspaces/:id error:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// ─── CHUNK 5: Role Permissions (Super admin-facing) ──────────────────────────
+// Super admin can view/edit any workspace's role permissions.
+app.get('/admin/workspaces/:id/role-permissions', auth, superAdmin, async (req, res) => {
+  try {
+    const wsId = parseInt(req.params.id, 10)
+    if (isNaN(wsId)) return res.status(400).json({ error: 'Invalid workspace id' })
+    const wsCheck = await pool.query('SELECT id, name FROM workspaces WHERE id=$1', [wsId])
+    if (!wsCheck.rows.length) return res.status(404).json({ error: 'Workspace not found' })
+    const roles = await listRolePermissions(wsId)
+    res.json({ workspace_id: wsId, workspace_name: wsCheck.rows[0].name, roles })
+  } catch (err) {
+    console.error('GET /admin/workspaces/:id/role-permissions error:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+app.patch('/admin/workspaces/:id/role-permissions/:role', auth, superAdmin, async (req, res) => {
+  try {
+    const wsId = parseInt(req.params.id, 10)
+    if (isNaN(wsId)) return res.status(400).json({ error: 'Invalid workspace id' })
+    const { scope, permissions } = req.body
+    const updated = await updateRolePermissions(wsId, req.params.role, scope, permissions)
+    await logAudit(wsId, req.user.id, 'role_permissions.update_by_super_admin', 'role', req.params.role, null, { scope, permissions, actor_super_admin: true })
+    res.json(updated)
+  } catch (err) {
+    console.error('PATCH /admin/workspaces/:id/role-permissions/:role error:', err)
+    res.status(err.statusCode || 500).json({ error: err.message })
+  }
+})
+
+app.post('/admin/workspaces/:id/role-permissions/reset', auth, superAdmin, async (req, res) => {
+  try {
+    const wsId = parseInt(req.params.id, 10)
+    if (isNaN(wsId)) return res.status(400).json({ error: 'Invalid workspace id' })
+    await resetRolePermissionsToDefaults(wsId)
+    await logAudit(wsId, req.user.id, 'role_permissions.reset_by_super_admin', 'workspace', wsId, null, { actor_super_admin: true })
+    const roles = await listRolePermissions(wsId)
+    res.json({ workspace_id: wsId, roles })
+  } catch (err) {
+    console.error('POST /admin/workspaces/:id/role-permissions/reset error:', err)
     res.status(500).json({ error: err.message })
   }
 })
@@ -634,6 +934,46 @@ app.delete('/phone-numbers/:id', auth, async (req, res) => {
     await pool.query('DELETE FROM phone_numbers WHERE id=$1 AND workspace_id=$2', [req.params.id, wsId])
     res.json({ success: true })
   } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+// ─── CHUNK 5: Role Permissions (Director-facing) ─────────────────────────────
+// Director manages role permissions for their own workspace.
+// Requires the 'manage_role_permissions' permission.
+app.get('/role-permissions', auth, requirePermission('manage_role_permissions'), async (req, res) => {
+  try {
+    const wsId = await getWorkspaceId(req.user.id)
+    const roles = await listRolePermissions(wsId)
+    res.json({ workspace_id: wsId, roles })
+  } catch (err) {
+    console.error('GET /role-permissions error:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+app.patch('/role-permissions/:role', auth, requirePermission('manage_role_permissions'), async (req, res) => {
+  try {
+    const wsId = await getWorkspaceId(req.user.id)
+    const { scope, permissions } = req.body
+    const updated = await updateRolePermissions(wsId, req.params.role, scope, permissions)
+    await logAudit(wsId, req.user.id, 'role_permissions.update', 'role', req.params.role, null, { scope, permissions })
+    res.json(updated)
+  } catch (err) {
+    console.error('PATCH /role-permissions/:role error:', err)
+    res.status(err.statusCode || 500).json({ error: err.message })
+  }
+})
+
+app.post('/role-permissions/reset', auth, requirePermission('manage_role_permissions'), async (req, res) => {
+  try {
+    const wsId = await getWorkspaceId(req.user.id)
+    await resetRolePermissionsToDefaults(wsId)
+    await logAudit(wsId, req.user.id, 'role_permissions.reset', 'workspace', wsId, null, {})
+    const roles = await listRolePermissions(wsId)
+    res.json({ workspace_id: wsId, roles })
+  } catch (err) {
+    console.error('POST /role-permissions/reset error:', err)
+    res.status(500).json({ error: err.message })
+  }
 })
 
 // ─── AGENTS ────────────────────────────────────────────────────────────────────
@@ -1550,7 +1890,7 @@ app.get('/webhook', (req, res) => {
 
 app.post('/webhook', async (req, res) => {
   res.sendStatus(200)
-  try {
+  try {       
     const body = req.body
     if (body?.object !== 'whatsapp_business_account') return
     for (const entry of body.entry || []) {

@@ -369,7 +369,7 @@ function ResetPasswordModal({ agent, onClose }) {
 
 // ─── MAIN AGENTS COMPONENT ─────────────────────────────────────────────────────
 export default function Agents() {
-  const { token, user } = useAuth()
+  const { token, user, hasPermission } = useAuth()
   const [agents, setAgents] = useState([])
   const [teams, setTeams] = useState([])
   const [loading, setLoading] = useState(true)
@@ -423,7 +423,7 @@ export default function Agents() {
             {activeCount} active · {onlineCount} online now · {agents.filter(a => !a.active).length} inactive
           </div>
         </div>
-        <Btn onClick={() => setShowAdd(true)}>+ Add Agent</Btn>
+        {hasPermission('manage_staff') && <Btn onClick={() => setShowAdd(true)}>+ Add Agent</Btn>}
       </div>
 
       {/* Stats row */}
@@ -530,10 +530,9 @@ export default function Agents() {
                   </td>
                   <td style={{ padding: '12px 14px' }}>
                     <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                      <Btn variant="ghost" size="sm" onClick={() => setShowEdit(a)}>Edit</Btn>
-                      <Btn variant="ghost" size="sm" onClick={() => setShowReset(a)}>Reset PW</Btn>
-                      <Btn variant="ghost" size="sm" onClick={() => setShowPermissions(a)}>Permissions</Btn>
-                      {a.id !== user?.id && !a.is_super_admin && (
+                      {hasPermission('manage_staff') && <Btn variant="ghost" size="sm" onClick={() => setShowEdit(a)}>Edit</Btn>}
+                      {hasPermission('manage_staff') && <Btn variant="ghost" size="sm" onClick={() => setShowReset(a)}>Reset PW</Btn>}
+                      {hasPermission('manage_staff') && a.id !== user?.id && !a.is_super_admin && (
                         <Btn variant={a.active ? 'danger' : 'success'} size="sm" onClick={() => {
                           if (!confirm(`${a.active ? 'Deactivate' : 'Reactivate'} ${a.name}?`)) return
                           toggleActive(a)

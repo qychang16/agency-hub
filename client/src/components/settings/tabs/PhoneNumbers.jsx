@@ -77,7 +77,7 @@ function Card({ children, style }) {
 }
 
 export default function PhoneNumbers() {
-  const { token } = useAuth()
+  const { token, hasPermission } = useAuth()
   const [numbers, setNumbers] = useState([])
   const [loading, setLoading] = useState(true)
   const [showAdd, setShowAdd] = useState(false)
@@ -142,7 +142,7 @@ export default function PhoneNumbers() {
           <div style={{ fontSize: 15, fontWeight: 600, color: '#111827' }}>Phone Numbers</div>
           <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 3 }}>Manage WhatsApp numbers connected to your workspace. No limit on numbers.</div>
         </div>
-        <Btn onClick={() => { setForm({ number: '', display_name: '', whatsapp_phone_id: '', is_primary: false, owner_user_id: '', project_id: '' }); setShowAdd(true) }}>+ Add Number</Btn>
+        {hasPermission('manage_phone_numbers') && <Btn onClick={() => { setForm({ number: '', display_name: '', whatsapp_phone_id: '', is_primary: false, owner_user_id: '', project_id: '' }); setShowAdd(true) }}>+ Add Number</Btn>}
       </div>
 
       {/* Info banner */}
@@ -178,7 +178,7 @@ export default function PhoneNumbers() {
             <div style={{ fontSize: 40, marginBottom: 12 }}>📱</div>
             <div style={{ fontSize: 13, fontWeight: 500, color: '#6b7280', marginBottom: 4 }}>No phone numbers added yet</div>
             <div style={{ fontSize: 12, color: '#9ca3af', marginBottom: 16 }}>Add your WhatsApp Business number to start receiving messages</div>
-            <Btn onClick={() => setShowAdd(true)}>+ Add First Number</Btn>
+            {hasPermission('manage_phone_numbers') && <Btn onClick={() => setShowAdd(true)}>+ Add First Number</Btn>}
           </div>
         </Card>
       ) : (
@@ -232,6 +232,7 @@ export default function PhoneNumbers() {
               </div>
 
               {/* Actions */}
+              {hasPermission('manage_phone_numbers') && (
               <div style={{ display: 'flex', gap: 6, flexShrink: 0, flexWrap: 'wrap' }}>
                 {!n.is_primary && (
                   <Btn variant="dark" size="sm" onClick={() => setPrimary(n.id)}>Set Primary</Btn>
@@ -244,6 +245,7 @@ export default function PhoneNumbers() {
                   <Btn variant="danger" size="sm" onClick={() => remove(n.id)}>Remove</Btn>
                 )}
               </div>
+              )}
             </div>
 
             {/* Warning for restricted */}

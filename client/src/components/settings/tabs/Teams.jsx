@@ -241,7 +241,7 @@ function TeamModal({ team, agents, onClose, onSave }) {
 }
 
 export default function Teams() {
-  const { token } = useAuth()
+  const { token, hasPermission } = useAuth()
   const [teams, setTeams] = useState([])
   const [agents, setAgents] = useState([])
   const [loading, setLoading] = useState(true)
@@ -279,7 +279,7 @@ export default function Teams() {
             {teams.length} team{teams.length !== 1 ? 's' : ''} · {totalAgentsInTeams} agent{totalAgentsInTeams !== 1 ? 's' : ''} assigned
           </div>
         </div>
-        <Btn onClick={() => setShowAdd(true)}>+ Create Team</Btn>
+        {hasPermission('manage_teams') && <Btn onClick={() => setShowAdd(true)}>+ Create Team</Btn>}
       </div>
 
       {/* Info banner */}
@@ -303,7 +303,7 @@ export default function Teams() {
           <div style={{ fontSize: 12, color: '#9ca3af', marginBottom: 20, maxWidth: 320, margin: '0 auto 20px' }}>
             Create teams to organise your agents and enable smart conversation routing
           </div>
-          <Btn onClick={() => setShowAdd(true)}>+ Create First Team</Btn>
+          {hasPermission('manage_teams') && <Btn onClick={() => setShowAdd(true)}>+ Create First Team</Btn>}
         </div>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 14 }}>
@@ -333,8 +333,8 @@ export default function Teams() {
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: 5 }}>
-                    <Btn variant="ghost" size="sm" onClick={() => setShowEdit(t)}>Edit</Btn>
-                    <Btn variant="danger" size="sm" onClick={() => deleteTeam(t)}>Delete</Btn>
+                    {hasPermission('manage_teams') && <Btn variant="ghost" size="sm" onClick={() => setShowEdit(t)}>Edit</Btn>}
+                    {hasPermission('manage_teams') && <Btn variant="danger" size="sm" onClick={() => deleteTeam(t)}>Delete</Btn>}
                   </div>
                 </div>
 

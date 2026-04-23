@@ -78,7 +78,7 @@ function ProjectModal({ project, onClose, onSaved }) {
             <div style={{ fontSize: 14, fontWeight: 600, color: '#111827' }}>{isEdit ? 'Edit Project' : 'New Project'}</div>
             <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>Projects organise your inbox by client engagement</div>
           </div>
-          <button onClick={onClose} style={{ width: 28, height: 28, borderRadius: 7, border: '0.5px solid #e5e7eb', background: '#f9fafb', cursor: 'pointer', fontSize: 14, color: '#6b7280', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+          <button onClick={onClose} style={{ width: 28, height: 28, borderRadius: 7, border: '0.5px solid #e5e7eb', background: '#f9fafb', cursor: 'pointer', fontSize: 14, color: '#6b7280', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>X</button>
         </div>
         <div style={{ padding: 24 }}>
           {/* Preview */}
@@ -124,12 +124,12 @@ function ProjectModal({ project, onClose, onSaved }) {
             <ColourPicker value={colour} onChange={setColour} />
           </div>
 
-          {error && <div style={{ padding: '10px 12px', background: '#fef2f2', border: '0.5px solid #fecaca', borderRadius: 8, fontSize: 12, color: '#dc2626', marginBottom: 16 }}>⚠ {error}</div>}
+          {error && <div style={{ padding: '10px 12px', background: '#fef2f2', border: '0.5px solid #fecaca', borderRadius: 8, fontSize: 12, color: '#dc2626', marginBottom: 16 }}>! {error}</div>}
 
           <div style={{ display: 'flex', gap: 10 }}>
             <Btn variant="ghost" onClick={onClose} style={{ flex: 1 }}>Cancel</Btn>
             <Btn onClick={save} disabled={saving} style={{ flex: 2 }}>
-              {saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Create Project'}
+              {saving ? 'Saving...' : isEdit ? 'Save Changes' : 'Create Project'}
             </Btn>
           </div>
         </div>
@@ -167,13 +167,11 @@ function InlineRename({ project, onSaved, onCancel }) {
   )
 }
 
-function ProjectCard({ project, onEdit, onArchive, onRestore, onDelete, onSelect, onRenamed }) {
-  const { token } = useAuth()
+function ProjectCard({ project, onEdit, onArchive, onRestore, onDelete, onSelect, onRenamed, canManageProjects }) {
   const [renaming, setRenaming] = useState(false)
   const [hovering, setHovering] = useState(false)
   const isArchived = project.status === 'archived'
 
-  const label = `${project.client_name} · ${project.start_month} ${project.start_year}`
   const activeConvos = parseInt(project.active_conversations) || 0
   const totalConvos = parseInt(project.total_conversations) || 0
   const unread = parseInt(project.unread_conversations) || 0
@@ -191,15 +189,15 @@ function ProjectCard({ project, onEdit, onArchive, onRestore, onDelete, onSelect
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 14 }}>
           <div style={{ width: 42, height: 42, borderRadius: 10, background: project.colour + '20', border: `1.5px solid ${project.colour}40`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <span style={{ fontSize: 18 }}>📁</span>
+            <span style={{ fontSize: 18 }}>[P]</span>
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            {renaming ? (
+            {renaming && canManageProjects ? (
               <InlineRename project={project} onSaved={() => { setRenaming(false); onRenamed() }} onCancel={() => setRenaming(false)} />
             ) : (
               <div style={{ fontSize: 14, fontWeight: 600, color: isArchived ? '#9ca3af' : '#111827', marginBottom: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-                onDoubleClick={() => !isArchived && setRenaming(true)}
-                title="Double-click to rename">
+                onDoubleClick={() => !isArchived && canManageProjects && setRenaming(true)}
+                title={canManageProjects ? 'Double-click to rename' : undefined}>
                 {project.client_name}
               </div>
             )}
@@ -239,16 +237,20 @@ function ProjectCard({ project, onEdit, onArchive, onRestore, onDelete, onSelect
           {!isArchived && (
             <>
               <Btn size="sm" onClick={() => onSelect(project)} style={{ flex: 1, justifyContent: 'center' }}>
-                Open →
+                Open
               </Btn>
-              <Btn variant="ghost" size="sm" onClick={() => setRenaming(true)} title="Rename">✏</Btn>
-              <Btn variant="ghost" size="sm" onClick={() => onEdit(project)} title="Edit">⚙</Btn>
-              <Btn variant="ghost" size="sm" onClick={() => onArchive(project)} title="Archive">📦</Btn>
+              {canManageProjects && (
+                <>
+                  <Btn variant="ghost" size="sm" onClick={() => setRenaming(true)} title="Rename">Rename</Btn>
+                  <Btn variant="ghost" size="sm" onClick={() => onEdit(project)} title="Edit">Edit</Btn>
+                  <Btn variant="ghost" size="sm" onClick={() => onArchive(project)} title="Archive">Archive</Btn>
+                </>
+              )}
             </>
           )}
-          {isArchived && (
+          {isArchived && canManageProjects && (
             <>
-              <Btn variant="ghost" size="sm" onClick={() => onRestore(project)} style={{ flex: 1, justifyContent: 'center' }}>↩ Restore</Btn>
+              <Btn variant="ghost" size="sm" onClick={() => onRestore(project)} style={{ flex: 1, justifyContent: 'center' }}>Restore</Btn>
               <Btn variant="danger" size="sm" onClick={() => onDelete(project)}>Delete</Btn>
             </>
           )}
@@ -258,8 +260,8 @@ function ProjectCard({ project, onEdit, onArchive, onRestore, onDelete, onSelect
   )
 }
 
-// ─── Members panel (inside a project) ──────────────────────────────────────
-function MembersPanel({ project, agents }) {
+// Members panel (inside a project)
+function MembersPanel({ project, agents, canManageMembers }) {
   const { token } = useAuth()
   const [members, setMembers] = useState([])
   const [loading, setLoading] = useState(true)
@@ -304,7 +306,7 @@ function MembersPanel({ project, agents }) {
   }
 
   async function removeMember(userId, memberName) {
-    if (!confirm(`Remove ${memberName} from this project? They'll lose access to its conversations.`)) return
+    if (!confirm(`Remove ${memberName} from this project? They will lose access to its conversations.`)) return
     await fetch(`${API}/projects/${project.id}/members/${userId}`, {
       method: 'DELETE',
       headers: { Authorization: 'Bearer ' + token }
@@ -325,22 +327,22 @@ function MembersPanel({ project, agents }) {
           <div>
             <div style={{ fontSize: 13, fontWeight: 600, color: '#111827' }}>Project team</div>
             <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>
-              {members.length} {members.length === 1 ? 'member' : 'members'} · {leads.length} lead{leads.length !== 1 ? 's' : ''}
+              {members.length} {members.length === 1 ? 'member' : 'members'} - {leads.length} lead{leads.length !== 1 ? 's' : ''}
             </div>
           </div>
-          {!adding && eligibleToAdd.length > 0 && (
+          {canManageMembers && !adding && eligibleToAdd.length > 0 && (
             <Btn onClick={() => setAdding(true)}>+ Add member</Btn>
           )}
         </div>
 
-        {adding && (
+        {canManageMembers && adding && (
           <div style={{ padding: '14px 18px', background: '#f9fafb', borderBottom: '0.5px solid #f1f4f9' }}>
             <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr auto auto', gap: 10, alignItems: 'center' }}>
               <select value={selectedUserId} onChange={e => setSelectedUserId(e.target.value)}
                 style={{ padding: '9px 12px', border: '0.5px solid #e5e7eb', borderRadius: 8, fontSize: 13, outline: 'none', background: '#fff', color: '#111827', cursor: 'pointer' }}>
-                <option value="">— Select a staff member —</option>
+                <option value="">-- Select a staff member --</option>
                 {eligibleToAdd.map(a => (
-                  <option key={a.id} value={a.id}>{a.name} · {a.role}</option>
+                  <option key={a.id} value={a.id}>{a.name} - {a.role}</option>
                 ))}
               </select>
               <select value={selectedRole} onChange={e => setSelectedRole(e.target.value)}
@@ -351,20 +353,22 @@ function MembersPanel({ project, agents }) {
               <Btn onClick={addMember}>Add</Btn>
               <Btn variant="ghost" onClick={() => { setAdding(false); setError(''); setSelectedUserId('') }}>Cancel</Btn>
             </div>
-            {error && <div style={{ marginTop: 8, fontSize: 11, color: '#dc2626' }}>⚠ {error}</div>}
+            {error && <div style={{ marginTop: 8, fontSize: 11, color: '#dc2626' }}>! {error}</div>}
           </div>
         )}
 
         {loading ? (
-          <div style={{ padding: 30, textAlign: 'center', color: '#9ca3af', fontSize: 13 }}>Loading members…</div>
+          <div style={{ padding: 30, textAlign: 'center', color: '#9ca3af', fontSize: 13 }}>Loading members...</div>
         ) : members.length === 0 ? (
           <div style={{ padding: '40px 20px', textAlign: 'center' }}>
-            <div style={{ fontSize: 32, marginBottom: 10 }}>👥</div>
+            <div style={{ fontSize: 32, marginBottom: 10 }}>[T]</div>
             <div style={{ fontSize: 13, fontWeight: 500, color: '#6b7280', marginBottom: 4 }}>No team members yet</div>
             <div style={{ fontSize: 12, color: '#9ca3af' }}>
-              {eligibleToAdd.length > 0
+              {canManageMembers && eligibleToAdd.length > 0
                 ? 'Add staff to give them access to this project.'
-                : 'All active staff are already members, or you have no staff yet. Add staff in Settings → Team first.'}
+                : canManageMembers
+                  ? 'All active staff are already members, or you have no staff yet. Add staff in Settings > Agents first.'
+                  : 'No members assigned to this project.'}
             </div>
           </div>
         ) : (
@@ -381,19 +385,25 @@ function MembersPanel({ project, agents }) {
                     <div style={{ fontSize: 13, fontWeight: 600, color: '#111827' }}>{m.name}</div>
                     <span style={{ fontSize: 9, padding: '2px 7px', borderRadius: 6, background: '#f1f4f9', color: '#6b7280', textTransform: 'capitalize', fontWeight: 600 }}>{m.user_role}</span>
                     {m.role_in_project === 'lead' && (
-                      <span style={{ fontSize: 9, padding: '2px 7px', borderRadius: 6, background: '#fef3c7', color: '#92400e', fontWeight: 700 }}>★ LEAD</span>
+                      <span style={{ fontSize: 9, padding: '2px 7px', borderRadius: 6, background: '#fef3c7', color: '#92400e', fontWeight: 700 }}>LEAD</span>
                     )}
                   </div>
                   <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>{m.email}</div>
                 </div>
                 {/* Role toggle */}
-                <select value={m.role_in_project} onChange={e => changeRole(m.user_id, e.target.value)}
-                  style={{ padding: '6px 10px', border: '0.5px solid #e5e7eb', borderRadius: 6, fontSize: 11, outline: 'none', background: '#fff', color: '#111827', cursor: 'pointer' }}>
-                  <option value="member">Member</option>
-                  <option value="lead">Lead</option>
-                </select>
+                {canManageMembers ? (
+                  <select value={m.role_in_project} onChange={e => changeRole(m.user_id, e.target.value)}
+                    style={{ padding: '6px 10px', border: '0.5px solid #e5e7eb', borderRadius: 6, fontSize: 11, outline: 'none', background: '#fff', color: '#111827', cursor: 'pointer' }}>
+                    <option value="member">Member</option>
+                    <option value="lead">Lead</option>
+                  </select>
+                ) : (
+                  <span style={{ fontSize: 11, color: '#6b7280', textTransform: 'capitalize', padding: '4px 10px' }}>{m.role_in_project}</span>
+                )}
                 {/* Remove */}
-                <Btn variant="danger" size="sm" onClick={() => removeMember(m.user_id, m.name)}>Remove</Btn>
+                {canManageMembers && (
+                  <Btn variant="danger" size="sm" onClick={() => removeMember(m.user_id, m.name)}>Remove</Btn>
+                )}
               </div>
             ))}
           </div>
@@ -402,7 +412,7 @@ function MembersPanel({ project, agents }) {
 
       {/* Helper note */}
       <div style={{ background: '#eff6ff', border: '0.5px solid #bfdbfe', borderRadius: 10, padding: '12px 16px', fontSize: 12, color: '#1e40af', display: 'flex', gap: 10 }}>
-        <span style={{ fontSize: 16, flexShrink: 0 }}>💡</span>
+        <span style={{ fontSize: 16, flexShrink: 0 }}>i</span>
         <div style={{ lineHeight: 1.6 }}>
           <strong>Leads</strong> are point-of-contact for the client and typically manage the project end-to-end.
           <strong>Members</strong> handle day-to-day conversations alongside leads. Both can reply on any phone line assigned to this project.
@@ -412,7 +422,7 @@ function MembersPanel({ project, agents }) {
   )
 }
 
-function ProjectView({ project, onBack, onRenamed }) {
+function ProjectView({ project, onBack, onRenamed, canManageProjects, canManageMembers }) {
   const { token } = useAuth()
   const [view, setView] = useState('conversations')
   const [conversations, setConversations] = useState([])
@@ -498,7 +508,7 @@ function ProjectView({ project, onBack, onRenamed }) {
             <div style={{ minWidth: 18, height: 18, borderRadius: 9, background: '#dc2626', color: '#fff', fontSize: 10, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px' }}>{c.unread_count}</div>
           )}
           {c.phone_line && (
-            <span style={{ fontSize: 9, color: '#9ca3af' }}>📱 {c.phone_line}</span>
+            <span style={{ fontSize: 9, color: '#9ca3af' }}>{c.phone_line}</span>
           )}
         </div>
       </div>
@@ -511,22 +521,26 @@ function ProjectView({ project, onBack, onRenamed }) {
       <div style={{ background: NAVY, padding: '16px 28px', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 14 }}>
           <button onClick={onBack} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: '#fff', borderRadius: 8, padding: '6px 12px', cursor: 'pointer', fontSize: 12, display: 'flex', alignItems: 'center', gap: 5 }}>
-            ← Back
+            Back
           </button>
           <div style={{ flex: 1 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <div style={{ width: 12, height: 12, borderRadius: '50%', background: project.colour, flexShrink: 0 }} />
-              {renaming ? (
+              {renaming && canManageProjects ? (
                 <InlineRename project={project} onSaved={() => { setRenaming(false); onRenamed() }} onCancel={() => setRenaming(false)} />
               ) : (
-                <div style={{ fontSize: 18, fontWeight: 700, color: '#fff', cursor: 'pointer' }} onDoubleClick={() => setRenaming(true)} title="Double-click to rename">
-                  {project.client_name} · {project.start_month} {project.start_year}
+                <div style={{ fontSize: 18, fontWeight: 700, color: '#fff', cursor: canManageProjects ? 'pointer' : 'default' }}
+                  onDoubleClick={() => canManageProjects && setRenaming(true)}
+                  title={canManageProjects ? 'Double-click to rename' : undefined}>
+                  {project.client_name} - {project.start_month} {project.start_year}
                 </div>
               )}
-              <button onClick={() => setRenaming(true)} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'rgba(255,255,255,0.6)', borderRadius: 6, padding: '3px 8px', cursor: 'pointer', fontSize: 11 }}>✏ Rename</button>
+              {canManageProjects && (
+                <button onClick={() => setRenaming(true)} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'rgba(255,255,255,0.6)', borderRadius: 6, padding: '3px 8px', cursor: 'pointer', fontSize: 11 }}>Rename</button>
+              )}
             </div>
             <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', marginTop: 3 }}>
-              {total} conversations · {clients.length} clients · {candidates.length} candidates loaded
+              {total} conversations - {clients.length} clients - {candidates.length} candidates loaded
             </div>
           </div>
         </div>
@@ -534,8 +548,8 @@ function ProjectView({ project, onBack, onRenamed }) {
         {/* Tabs */}
         <div style={{ display: 'flex', gap: 4, marginBottom: view === 'conversations' ? 10 : 0 }}>
           {[
-            { key: 'conversations', label: '💬 Conversations' },
-            { key: 'members', label: '👤 Team' },
+            { key: 'conversations', label: 'Conversations' },
+            { key: 'members', label: 'Team' },
           ].map(t => (
             <button key={t.key} onClick={() => setView(t.key)}
               style={{
@@ -554,7 +568,7 @@ function ProjectView({ project, onBack, onRenamed }) {
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
             <div style={{ position: 'relative', flex: 1, maxWidth: 280 }}>
               <svg style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', width: 12, height: 12, color: 'rgba(255,255,255,0.4)', pointerEvents: 'none' }} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="7" cy="7" r="4"/><path d="M10.5 10.5l3 3" strokeLinecap="round"/></svg>
-              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search contacts…"
+              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search contacts..."
                 style={{ width: '100%', padding: '7px 10px 7px 28px', border: '0.5px solid rgba(255,255,255,0.2)', borderRadius: 8, fontSize: 12, outline: 'none', background: 'rgba(255,255,255,0.1)', color: '#fff', boxSizing: 'border-box' }} />
             </div>
             <select value={agentFilter} onChange={e => { setAgentFilter(e.target.value); load(1, true) }}
@@ -568,7 +582,7 @@ function ProjectView({ project, onBack, onRenamed }) {
             </button>
             <button onClick={() => load(1, true)}
               style={{ padding: '7px 12px', border: '0.5px solid rgba(255,255,255,0.2)', borderRadius: 8, fontSize: 12, background: 'transparent', color: 'rgba(255,255,255,0.7)', cursor: 'pointer' }}>
-              ↻
+              Refresh
             </button>
           </div>
         )}
@@ -577,21 +591,21 @@ function ProjectView({ project, onBack, onRenamed }) {
       {/* Content */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px 28px' }}>
         {view === 'members' ? (
-          <MembersPanel project={project} agents={agents} />
+          <MembersPanel project={project} agents={agents} canManageMembers={canManageMembers} />
         ) : loading ? (
           <div style={{ textAlign: 'center', padding: 60, color: '#9ca3af' }}>
-            <div style={{ fontSize: 32, marginBottom: 12 }}>📁</div>
-            <div>Loading project conversations…</div>
+            <div style={{ fontSize: 32, marginBottom: 12 }}>[P]</div>
+            <div>Loading project conversations...</div>
           </div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 16 }}>
 
-            {/* CLIENT CONTACTS — fixed left panel */}
+            {/* CLIENT CONTACTS - fixed left panel */}
             <div>
               <div style={{ background: '#fff', borderRadius: 12, border: '0.5px solid #e5e7eb', overflow: 'hidden', position: 'sticky', top: 0 }}>
                 <div style={{ padding: '12px 16px', background: '#dbeafe', borderBottom: '0.5px solid #bfdbfe', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div style={{ fontSize: 11, fontWeight: 700, color: '#1e40af', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                    🏢 Client Contacts
+                    Client Contacts
                   </div>
                   <span style={{ fontSize: 11, fontWeight: 600, color: '#1e40af', background: '#bfdbfe', padding: '2px 8px', borderRadius: 10 }}>{filteredClients.length}</span>
                 </div>
@@ -605,12 +619,12 @@ function ProjectView({ project, onBack, onRenamed }) {
               </div>
             </div>
 
-            {/* CANDIDATES — right scrollable panel */}
+            {/* CANDIDATES - right scrollable panel */}
             <div>
               <div style={{ background: '#fff', borderRadius: 12, border: '0.5px solid #e5e7eb', overflow: 'hidden' }}>
                 <div style={{ padding: '12px 16px', background: '#ede9fe', borderBottom: '0.5px solid #c4b5fd', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div style={{ fontSize: 11, fontWeight: 700, color: '#5b21b6', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                    👥 Candidates
+                    Candidates
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={{ fontSize: 11, color: '#7c3aed' }}>{filteredCandidates.length} of {total} loaded</span>
@@ -628,7 +642,7 @@ function ProjectView({ project, onBack, onRenamed }) {
                       <div style={{ padding: '14px 16px', textAlign: 'center', borderTop: '0.5px solid #f1f4f9' }}>
                         <button onClick={() => load(page + 1)} disabled={loadingMore}
                           style={{ padding: '8px 20px', border: '0.5px solid #e5e7eb', borderRadius: 8, background: '#f9fafb', color: '#374151', fontSize: 12, cursor: loadingMore ? 'default' : 'pointer', fontWeight: 500 }}>
-                          {loadingMore ? 'Loading…' : `Load more (${total - conversations.length} remaining)`}
+                          {loadingMore ? 'Loading...' : `Load more (${total - conversations.length} remaining)`}
                         </button>
                       </div>
                     )}
@@ -644,7 +658,9 @@ function ProjectView({ project, onBack, onRenamed }) {
 }
 
 export default function Projects() {
-  const { token } = useAuth()
+  const { token, hasPermission } = useAuth()
+  const canManageProjects = hasPermission('manage_projects')
+  const canManageMembers = hasPermission('manage_project_members')
   const [projects, setProjects] = useState([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
@@ -664,7 +680,7 @@ export default function Projects() {
   }
 
   async function archive(project) {
-    if (!confirm(`Archive "${project.client_name} · ${project.start_month} ${project.start_year}"? You can restore it anytime.`)) return
+    if (!confirm(`Archive "${project.client_name} - ${project.start_month} ${project.start_year}"? You can restore it anytime.`)) return
     await fetch(`${API}/projects/${project.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
@@ -694,6 +710,8 @@ export default function Projects() {
         project={selectedProject}
         onBack={() => { setSelectedProject(null); load() }}
         onRenamed={() => { load(); setSelectedProject(prev => ({ ...prev })) }}
+        canManageProjects={canManageProjects}
+        canManageMembers={canManageMembers}
       />
     )
   }
@@ -709,13 +727,15 @@ export default function Projects() {
           <div>
             <div style={{ fontSize: 18, fontWeight: 700, color: '#fff', marginBottom: 4 }}>Projects</div>
             <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)' }}>
-              {active.length} active · {archived.length} archived · Double-click any project name to rename
+              {active.length} active - {archived.length} archived{canManageProjects ? ' - Double-click any project name to rename' : ''}
             </div>
           </div>
-          <Btn onClick={() => { setEditingProject(null); setShowModal(true) }}
-            style={{ background: '#fff', color: NAVY }}>
-            + New Project
-          </Btn>
+          {canManageProjects && (
+            <Btn onClick={() => { setEditingProject(null); setShowModal(true) }}
+              style={{ background: '#fff', color: NAVY }}>
+              + New Project
+            </Btn>
+          )}
         </div>
 
         {/* Stats */}
@@ -737,31 +757,35 @@ export default function Projects() {
       <div style={{ background: '#fff', borderBottom: '0.5px solid #e5e7eb', padding: '12px 28px', display: 'flex', gap: 12, alignItems: 'center', flexShrink: 0 }}>
         <div style={{ position: 'relative', flex: 1, maxWidth: 280 }}>
           <svg style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', width: 12, height: 12, color: '#9ca3af', pointerEvents: 'none' }} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="7" cy="7" r="4"/><path d="M10.5 10.5l3 3" strokeLinecap="round"/></svg>
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search projects…"
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search projects..."
             style={{ width: '100%', padding: '6px 10px 6px 26px', border: '0.5px solid #e5e7eb', borderRadius: 8, fontSize: 12, outline: 'none', background: '#f9fafb', color: '#111827', boxSizing: 'border-box' }} />
         </div>
         <button onClick={() => setShowArchived(!showArchived)}
           style={{ padding: '6px 12px', border: `0.5px solid ${showArchived ? ACCENT : '#e5e7eb'}`, borderRadius: 8, background: showArchived ? ACCENT_LIGHT : 'transparent', color: showArchived ? ACCENT : '#6b7280', fontSize: 12, cursor: 'pointer', fontWeight: showArchived ? 600 : 400 }}>
-          📦 {showArchived ? 'Hide' : 'Show'} Archived ({archived.length})
+          {showArchived ? 'Hide' : 'Show'} Archived ({archived.length})
         </button>
-        <Btn variant="ghost" size="sm" onClick={load}>↻ Refresh</Btn>
+        <Btn variant="ghost" size="sm" onClick={load}>Refresh</Btn>
       </div>
 
       {/* Project grid */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '20px 28px' }}>
         {loading ? (
           <div style={{ textAlign: 'center', padding: 60, color: '#9ca3af' }}>
-            <div style={{ fontSize: 32, marginBottom: 12 }}>📁</div>
-            <div>Loading projects…</div>
+            <div style={{ fontSize: 32, marginBottom: 12 }}>[P]</div>
+            <div>Loading projects...</div>
           </div>
         ) : active.length === 0 && !showArchived ? (
           <div style={{ textAlign: 'center', padding: '60px 20px' }}>
-            <div style={{ fontSize: 56, marginBottom: 16 }}>📁</div>
+            <div style={{ fontSize: 56, marginBottom: 16 }}>[P]</div>
             <div style={{ fontSize: 16, fontWeight: 600, color: '#374151', marginBottom: 8 }}>No projects yet</div>
             <div style={{ fontSize: 13, color: '#9ca3af', marginBottom: 24, maxWidth: 400, margin: '0 auto 24px' }}>
-              Create a project to organise your inbox by client engagement. Each project groups all conversations for that client in one place.
+              {canManageProjects
+                ? 'Create a project to organise your inbox by client engagement. Each project groups all conversations for that client in one place.'
+                : 'Projects organise your inbox by client engagement. Ask a director to create one.'}
             </div>
-            <Btn onClick={() => { setEditingProject(null); setShowModal(true) }}>+ Create First Project</Btn>
+            {canManageProjects && (
+              <Btn onClick={() => { setEditingProject(null); setShowModal(true) }}>+ Create First Project</Btn>
+            )}
           </div>
         ) : (
           <>
@@ -769,7 +793,7 @@ export default function Projects() {
             {active.length > 0 && (
               <>
                 <div style={{ fontSize: 11, fontWeight: 600, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 14 }}>
-                  Active — {active.length}
+                  Active - {active.length}
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 14, marginBottom: 28 }}>
                   {active.map(p => (
@@ -779,7 +803,8 @@ export default function Projects() {
                       onRestore={restore}
                       onDelete={deleteProject}
                       onSelect={setSelectedProject}
-                      onRenamed={load} />
+                      onRenamed={load}
+                      canManageProjects={canManageProjects} />
                   ))}
                 </div>
               </>
@@ -789,7 +814,7 @@ export default function Projects() {
             {showArchived && archived.length > 0 && (
               <>
                 <div style={{ fontSize: 11, fontWeight: 600, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 14 }}>
-                  Archived — {archived.length}
+                  Archived - {archived.length}
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 14 }}>
                   {archived.map(p => (
@@ -799,7 +824,8 @@ export default function Projects() {
                       onRestore={restore}
                       onDelete={deleteProject}
                       onSelect={setSelectedProject}
-                      onRenamed={load} />
+                      onRenamed={load}
+                      canManageProjects={canManageProjects} />
                   ))}
                 </div>
               </>
@@ -813,7 +839,7 @@ export default function Projects() {
       </div>
 
       {/* Modal */}
-      {showModal && (
+      {showModal && canManageProjects && (
         <ProjectModal
           project={editingProject}
           onClose={() => { setShowModal(false); setEditingProject(null) }}

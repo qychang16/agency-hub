@@ -2,7 +2,8 @@ import { useState, useEffect, lazy, Suspense } from 'react'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { WorkspaceProvider, useWorkspace } from './context/WorkspaceContext'
 import Topbar from './components/layout/Topbar'
-import { API, ACCENT, NAVY } from './utils/constants'
+import { API } from './utils/constants'
+import { ACCENT, NAVY } from './utils/designTokens'
 
 // Lazy loaded components — loads only when navigated to
 const InboxList = lazy(() => import('./components/inbox/InboxList'))

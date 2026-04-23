@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../../context/AuthContext'
-import { ACCENT, ACCENT_LIGHT, NAVY } from '../../utils/constants'
+import { ACCENT, ACCENT_LIGHT, NAVY } from '../../utils/designTokens'
 
 // Tab imports
 import AgencyProfile from './tabs/AgencyProfile'

@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useAuth } from '../../../context/AuthContext'
-import { API, ACCENT, NAVY } from '../../../utils/constants'
+import { API } from '../../../utils/constants'
+import { ACCENT, NAVY } from '../../../utils/designTokens'
 
 // Permission catalog - must match backend DEFAULT_ROLE_PERMISSIONS keys
 const PERMISSIONS = [

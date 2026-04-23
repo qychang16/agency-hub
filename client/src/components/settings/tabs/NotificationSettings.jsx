@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useWorkspace } from '../../../context/WorkspaceContext'
-import { ACCENT } from '../../../utils/constants'
+import { ACCENT } from '../../../utils/designTokens'
 
 const NOTIFICATION_EVENTS = [
   { key: 'new_conversation', label: 'New conversation assigned to me', category: 'Conversations' },

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../../context/AuthContext'
-import { API, ACCENT, ACCENT_LIGHT, NAVY } from '../../utils/constants'
+import { API } from '../../utils/constants'
+import { ACCENT, ACCENT_LIGHT, NAVY } from '../../utils/designTokens'
 import { fmtSGT, isFuture, minutesUntil } from '../../utils/dates'
 import ScheduledComposer from './ScheduledComposer'
 import BulkScheduler from './BulkScheduler'

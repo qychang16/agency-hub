@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { API, NAVY } from '../../utils/constants'
+import { API } from '../../utils/constants'
+import { NAVY } from '../../utils/designTokens'
 import { useAuth } from '../../context/AuthContext'
 import RolesPermissions from '../settings/tabs/RolesPermissions'
 

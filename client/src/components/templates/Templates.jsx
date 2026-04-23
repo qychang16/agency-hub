@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../../context/AuthContext'
-import { API, ACCENT, ACCENT_LIGHT, NAVY } from '../../utils/constants'
+import { API } from '../../utils/constants'
+import { ACCENT, ACCENT_LIGHT, NAVY } from '../../utils/designTokens'
 
 function IPhonePreview({ body, buttons = [] }) {
   const now = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false })

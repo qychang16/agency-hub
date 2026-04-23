@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../../../context/AuthContext'
-import { API, ACCENT } from '../../../utils/constants'
+import { API } from '../../../utils/constants'
+import { ACCENT } from '../../../utils/designTokens'
 import { fmtSGT } from '../../../utils/dates'
 
 function Btn({ onClick, children, variant = 'primary', size = 'md', disabled }) {

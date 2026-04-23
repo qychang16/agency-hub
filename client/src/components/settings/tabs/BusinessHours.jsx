@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../../../context/AuthContext'
-import { API, ACCENT, ACCENT_LIGHT } from '../../../utils/constants'
+import { API } from '../../../utils/constants'
+import { ACCENT, ACCENT_LIGHT } from '../../../utils/designTokens'
 
 const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 

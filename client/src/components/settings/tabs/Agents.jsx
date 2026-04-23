@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../../../context/AuthContext'
-import { API, ACCENT, ACCENT_LIGHT, ACCENT_MID, NAVY } from '../../../utils/constants'
+import { API } from '../../../utils/constants'
+import { ACCENT, ACCENT_LIGHT, ACCENT_MID, NAVY } from '../../../utils/designTokens'
 import { getRoleColor, getRoleLabel } from '../../../utils/permissions'
 
 const ROLE_OPTIONS = [

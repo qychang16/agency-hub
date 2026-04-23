@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../../context/AuthContext'
-import { API, ACCENT, ACCENT_LIGHT, NAVY } from '../../utils/constants'
+import { API } from '../../utils/constants'
+import { ACCENT, ACCENT_LIGHT, NAVY } from '../../utils/designTokens'
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 const COLOURS = [
@@ -478,13 +479,13 @@ function ProjectView({ project, onBack, onRenamed, canManageProjects, canManageM
         onMouseEnter={e => e.currentTarget.style.background = '#f9fafb'}
         onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
         {/* Avatar */}
-        <div style={{ width: 38, height: 38, borderRadius: 10, background: c.type === 'client' ? '#dbeafe' : '#ede9fe', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: c.type === 'client' ? '#1e40af' : '#5b21b6', flexShrink: 0 }}>
+        <div style={{ width: 38, height: 38, borderRadius: 10, background: c.type === 'client' ? ACCENT : '#f5e9d6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: c.type === 'client' ? '#fff' : '#7a5a1f', flexShrink: 0 }}>
           {c.name?.[0]?.toUpperCase()}
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
             <span style={{ fontSize: 13, fontWeight: 600, color: '#111827' }}>{c.name}</span>
-            <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 4, background: c.type === 'client' ? '#dbeafe' : '#ede9fe', color: c.type === 'client' ? '#1e40af' : '#5b21b6', fontWeight: 600 }}>
+            <span style={{ fontSize: 9, padding: '2px 7px', borderRadius: 3, background: c.type === 'client' ? ACCENT : '#f5e9d6', color: c.type === 'client' ? '#fff' : '#7a5a1f', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
               {c.type === 'client' ? 'CLIENT' : 'CANDIDATE'}
             </span>
             {c.pipeline_stage && (
@@ -516,46 +517,48 @@ function ProjectView({ project, onBack, onRenamed, canManageProjects, canManageM
   }
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#f1f4f9' }}>
-      {/* Header */}
-      <div style={{ background: NAVY, padding: '16px 28px', flexShrink: 0 }}>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#faf9f7', fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif" }}>
+      {/* Header - cream, editorial, matches Inbox */}
+      <div style={{ padding: '20px 28px 16px', flexShrink: 0, borderBottom: '0.5px solid #dcd8d0' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 14 }}>
-          <button onClick={onBack} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: '#fff', borderRadius: 8, padding: '6px 12px', cursor: 'pointer', fontSize: 12, display: 'flex', alignItems: 'center', gap: 5 }}>
-            Back
+          <button onClick={onBack}
+            style={{ background: '#fff', border: '0.5px solid #dcd8d0', color: '#4a4742', borderRadius: 6, padding: '6px 12px', cursor: 'pointer', fontSize: 12, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 5 }}>
+            &larr; Back
           </button>
           <div style={{ flex: 1 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{ width: 12, height: 12, borderRadius: '50%', background: project.colour, flexShrink: 0 }} />
+              <div style={{ width: 10, height: 10, borderRadius: '50%', background: project.colour, flexShrink: 0 }} />
               {renaming && canManageProjects ? (
                 <InlineRename project={project} onSaved={() => { setRenaming(false); onRenamed() }} onCancel={() => setRenaming(false)} />
               ) : (
-                <div style={{ fontSize: 18, fontWeight: 700, color: '#fff', cursor: canManageProjects ? 'pointer' : 'default' }}
+                <div style={{ fontSize: 22, fontWeight: 700, color: '#14130f', letterSpacing: '-0.3px', cursor: canManageProjects ? 'pointer' : 'default' }}
                   onDoubleClick={() => canManageProjects && setRenaming(true)}
                   title={canManageProjects ? 'Double-click to rename' : undefined}>
-                  {project.client_name} - {project.start_month} {project.start_year}
+                  {project.client_name} &middot; {project.start_month} {project.start_year}
                 </div>
               )}
               {canManageProjects && (
-                <button onClick={() => setRenaming(true)} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'rgba(255,255,255,0.6)', borderRadius: 6, padding: '3px 8px', cursor: 'pointer', fontSize: 11 }}>Rename</button>
+                <button onClick={() => setRenaming(true)}
+                  style={{ background: 'transparent', border: '0.5px solid #dcd8d0', color: '#6e6a63', borderRadius: 6, padding: '3px 8px', cursor: 'pointer', fontSize: 11, fontWeight: 500 }}>Rename</button>
               )}
             </div>
-            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', marginTop: 3 }}>
-              {total} conversations - {clients.length} clients - {candidates.length} candidates loaded
+            <div style={{ fontSize: 12, color: '#6e6a63', marginTop: 4 }}>
+              {total} conversations &middot; {clients.length} clients &middot; {candidates.length} candidates loaded
             </div>
           </div>
         </div>
 
         {/* Tabs */}
-        <div style={{ display: 'flex', gap: 4, marginBottom: view === 'conversations' ? 10 : 0 }}>
+        <div style={{ display: 'flex', gap: 4, marginBottom: view === 'conversations' ? 12 : 0 }}>
           {[
             { key: 'conversations', label: 'Conversations' },
             { key: 'members', label: 'Team' },
           ].map(t => (
             <button key={t.key} onClick={() => setView(t.key)}
               style={{
-                padding: '7px 14px', border: 'none', borderRadius: 8,
-                background: view === t.key ? '#fff' : 'rgba(255,255,255,0.1)',
-                color: view === t.key ? NAVY : 'rgba(255,255,255,0.7)',
+                padding: '6px 14px', border: `0.5px solid ${view === t.key ? '#14130f' : '#dcd8d0'}`, borderRadius: 6,
+                background: view === t.key ? '#14130f' : '#fff',
+                color: view === t.key ? '#faf9f7' : '#4a4742',
                 fontSize: 12, fontWeight: view === t.key ? 600 : 500, cursor: 'pointer',
               }}>
               {t.label}
@@ -567,21 +570,21 @@ function ProjectView({ project, onBack, onRenamed, canManageProjects, canManageM
         {view === 'conversations' && (
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
             <div style={{ position: 'relative', flex: 1, maxWidth: 280 }}>
-              <svg style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', width: 12, height: 12, color: 'rgba(255,255,255,0.4)', pointerEvents: 'none' }} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="7" cy="7" r="4"/><path d="M10.5 10.5l3 3" strokeLinecap="round"/></svg>
+              <svg style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', width: 12, height: 12, color: '#9a958c', pointerEvents: 'none' }} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="7" cy="7" r="4"/><path d="M10.5 10.5l3 3" strokeLinecap="round"/></svg>
               <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search contacts..."
-                style={{ width: '100%', padding: '7px 10px 7px 28px', border: '0.5px solid rgba(255,255,255,0.2)', borderRadius: 8, fontSize: 12, outline: 'none', background: 'rgba(255,255,255,0.1)', color: '#fff', boxSizing: 'border-box' }} />
+                style={{ width: '100%', padding: '7px 10px 7px 28px', border: '0.5px solid #dcd8d0', borderRadius: 6, fontSize: 12, outline: 'none', background: '#fff', color: '#14130f', boxSizing: 'border-box' }} />
             </div>
             <select value={agentFilter} onChange={e => { setAgentFilter(e.target.value); load(1, true) }}
-              style={{ padding: '7px 12px', border: '0.5px solid rgba(255,255,255,0.2)', borderRadius: 8, fontSize: 12, outline: 'none', background: 'rgba(255,255,255,0.1)', color: '#fff' }}>
+              style={{ padding: '7px 12px', border: '0.5px solid #dcd8d0', borderRadius: 6, fontSize: 12, outline: 'none', background: '#fff', color: '#14130f' }}>
               <option value="all">All Agents</option>
               {agents.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
             </select>
             <button onClick={() => { setUnreadOnly(!unreadOnly); load(1, true) }}
-              style={{ padding: '7px 12px', border: `0.5px solid ${unreadOnly ? '#fff' : 'rgba(255,255,255,0.2)'}`, borderRadius: 8, fontSize: 12, background: unreadOnly ? '#fff' : 'rgba(255,255,255,0.1)', color: unreadOnly ? NAVY : '#fff', cursor: 'pointer', fontWeight: unreadOnly ? 600 : 400 }}>
+              style={{ padding: '7px 12px', border: `0.5px solid ${unreadOnly ? '#14130f' : '#dcd8d0'}`, borderRadius: 6, fontSize: 12, background: unreadOnly ? '#14130f' : '#fff', color: unreadOnly ? '#faf9f7' : '#4a4742', cursor: 'pointer', fontWeight: unreadOnly ? 600 : 500 }}>
               Unread only
             </button>
             <button onClick={() => load(1, true)}
-              style={{ padding: '7px 12px', border: '0.5px solid rgba(255,255,255,0.2)', borderRadius: 8, fontSize: 12, background: 'transparent', color: 'rgba(255,255,255,0.7)', cursor: 'pointer' }}>
+              style={{ padding: '7px 12px', border: '0.5px solid #dcd8d0', borderRadius: 6, fontSize: 12, background: '#fff', color: '#6e6a63', cursor: 'pointer', fontWeight: 500 }}>
               Refresh
             </button>
           </div>
@@ -603,11 +606,11 @@ function ProjectView({ project, onBack, onRenamed, canManageProjects, canManageM
             {/* CLIENT CONTACTS - fixed left panel */}
             <div>
               <div style={{ background: '#fff', borderRadius: 12, border: '0.5px solid #e5e7eb', overflow: 'hidden', position: 'sticky', top: 0 }}>
-                <div style={{ padding: '12px 16px', background: '#dbeafe', borderBottom: '0.5px solid #bfdbfe', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: '#1e40af', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                <div style={{ padding: '12px 16px', background: ACCENT, borderBottom: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#fff', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                     Client Contacts
                   </div>
-                  <span style={{ fontSize: 11, fontWeight: 600, color: '#1e40af', background: '#bfdbfe', padding: '2px 8px', borderRadius: 10 }}>{filteredClients.length}</span>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: ACCENT, background: '#fff', padding: '2px 8px', borderRadius: 10 }}>{filteredClients.length}</span>
                 </div>
                 {filteredClients.length === 0 ? (
                   <div style={{ padding: '24px 16px', textAlign: 'center', color: '#9ca3af', fontSize: 12 }}>
@@ -622,13 +625,13 @@ function ProjectView({ project, onBack, onRenamed, canManageProjects, canManageM
             {/* CANDIDATES - right scrollable panel */}
             <div>
               <div style={{ background: '#fff', borderRadius: 12, border: '0.5px solid #e5e7eb', overflow: 'hidden' }}>
-                <div style={{ padding: '12px 16px', background: '#ede9fe', borderBottom: '0.5px solid #c4b5fd', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: '#5b21b6', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                <div style={{ padding: '12px 16px', background: '#f5e9d6', borderBottom: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#7a5a1f', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                     Candidates
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ fontSize: 11, color: '#7c3aed' }}>{filteredCandidates.length} of {total} loaded</span>
-                    <span style={{ fontSize: 11, fontWeight: 600, color: '#5b21b6', background: '#c4b5fd', padding: '2px 8px', borderRadius: 10 }}>{total}</span>
+                    <span style={{ fontSize: 11, color: '#7a5a1f' }}>{filteredCandidates.length} of {total} loaded</span>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: '#7a5a1f', background: '#fff', padding: '2px 8px', borderRadius: 10 }}>{total}</span>
                   </div>
                 </div>
                 {filteredCandidates.length === 0 ? (
@@ -720,51 +723,50 @@ export default function Projects() {
   const archived = projects.filter(p => p.status === 'archived' && (!search || p.client_name.toLowerCase().includes(search.toLowerCase())))
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#f1f4f9' }}>
-      {/* Header */}
-      <div style={{ background: NAVY, padding: '20px 28px', flexShrink: 0 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 14 }}>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#faf9f7', fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif" }}>
+      {/* Header - cream, editorial, matches Inbox */}
+      <div style={{ padding: '24px 28px 16px', flexShrink: 0 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 14, marginBottom: 20 }}>
           <div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: '#fff', marginBottom: 4 }}>Projects</div>
-            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)' }}>
-              {active.length} active - {archived.length} archived{canManageProjects ? ' - Double-click any project name to rename' : ''}
+            <div style={{ fontSize: 22, fontWeight: 700, color: '#14130f', marginBottom: 4, letterSpacing: '-0.3px' }}>Projects</div>
+            <div style={{ fontSize: 12, color: '#6e6a63' }}>
+              {active.length} active &middot; {archived.length} archived{canManageProjects ? ' \u00b7 Double-click any project name to rename' : ''}
             </div>
           </div>
           {canManageProjects && (
-            <Btn onClick={() => { setEditingProject(null); setShowModal(true) }}
-              style={{ background: '#fff', color: NAVY }}>
+            <Btn onClick={() => { setEditingProject(null); setShowModal(true) }}>
               + New Project
             </Btn>
           )}
         </div>
 
-        {/* Stats */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginTop: 18 }}>
+        {/* Stats - light cards on cream */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 16 }}>
           {[
-            { label: 'Active Projects', value: projects.filter(p => p.status === 'active').length, color: '#34d399' },
-            { label: 'Total Conversations', value: projects.reduce((a, p) => a + (parseInt(p.total_conversations) || 0), 0), color: '#60a5fa' },
-            { label: 'Unread', value: projects.reduce((a, p) => a + (parseInt(p.unread_conversations) || 0), 0), color: '#f87171' },
+            { label: 'Active Projects', value: projects.filter(p => p.status === 'active').length, color: '#2d6a4f' },
+            { label: 'Total Conversations', value: projects.reduce((a, p) => a + (parseInt(p.total_conversations) || 0), 0), color: '#2d2a7a' },
+            { label: 'Unread', value: projects.reduce((a, p) => a + (parseInt(p.unread_conversations) || 0), 0), color: '#8e2a2a' },
           ].map(s => (
-            <div key={s.label} style={{ background: 'rgba(255,255,255,0.07)', borderRadius: 10, padding: '12px 14px', border: '0.5px solid rgba(255,255,255,0.1)' }}>
-              <div style={{ fontSize: 22, fontWeight: 700, color: s.color }}>{s.value}</div>
-              <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', marginTop: 3 }}>{s.label}</div>
+            <div key={s.label} style={{ background: '#fff', borderRadius: 8, padding: '14px 16px', border: '0.5px solid #dcd8d0' }}>
+              <div style={{ fontSize: 24, fontWeight: 700, color: s.color, letterSpacing: '-0.3px' }}>{s.value}</div>
+              <div style={{ fontSize: 10, color: '#6e6a63', marginTop: 3, textTransform: 'uppercase', letterSpacing: '0.6px', fontWeight: 500 }}>{s.label}</div>
             </div>
           ))}
         </div>
-      </div>
 
-      {/* Toolbar */}
-      <div style={{ background: '#fff', borderBottom: '0.5px solid #e5e7eb', padding: '12px 28px', display: 'flex', gap: 12, alignItems: 'center', flexShrink: 0 }}>
-        <div style={{ position: 'relative', flex: 1, maxWidth: 280 }}>
-          <svg style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', width: 12, height: 12, color: '#9ca3af', pointerEvents: 'none' }} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="7" cy="7" r="4"/><path d="M10.5 10.5l3 3" strokeLinecap="round"/></svg>
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search projects..."
-            style={{ width: '100%', padding: '6px 10px 6px 26px', border: '0.5px solid #e5e7eb', borderRadius: 8, fontSize: 12, outline: 'none', background: '#f9fafb', color: '#111827', boxSizing: 'border-box' }} />
+        {/* Toolbar inline */}
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <div style={{ position: 'relative', flex: 1, maxWidth: 300 }}>
+            <svg style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', width: 12, height: 12, color: '#9a958c', pointerEvents: 'none' }} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="7" cy="7" r="4"/><path d="M10.5 10.5l3 3" strokeLinecap="round"/></svg>
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search projects..."
+              style={{ width: '100%', padding: '7px 10px 7px 28px', border: '0.5px solid #dcd8d0', borderRadius: 6, fontSize: 12, outline: 'none', background: '#fff', color: '#14130f', boxSizing: 'border-box' }} />
+          </div>
+          <button onClick={() => setShowArchived(!showArchived)}
+            style={{ padding: '7px 12px', border: `0.5px solid ${showArchived ? ACCENT : '#dcd8d0'}`, borderRadius: 6, background: showArchived ? ACCENT_LIGHT : '#fff', color: showArchived ? ACCENT : '#4a4742', fontSize: 12, cursor: 'pointer', fontWeight: showArchived ? 600 : 500 }}>
+            {showArchived ? 'Hide' : 'Show'} Archived ({archived.length})
+          </button>
+          <Btn variant="ghost" size="sm" onClick={load}>Refresh</Btn>
         </div>
-        <button onClick={() => setShowArchived(!showArchived)}
-          style={{ padding: '6px 12px', border: `0.5px solid ${showArchived ? ACCENT : '#e5e7eb'}`, borderRadius: 8, background: showArchived ? ACCENT_LIGHT : 'transparent', color: showArchived ? ACCENT : '#6b7280', fontSize: 12, cursor: 'pointer', fontWeight: showArchived ? 600 : 400 }}>
-          {showArchived ? 'Hide' : 'Show'} Archived ({archived.length})
-        </button>
-        <Btn variant="ghost" size="sm" onClick={load}>Refresh</Btn>
       </div>
 
       {/* Project grid */}

@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../../../context/AuthContext'
 import { useWorkspace } from '../../../context/WorkspaceContext'
-import { API, ACCENT, ACCENT_LIGHT, NAVY } from '../../../utils/constants'
+import { API } from '../../../utils/constants'
+import { ACCENT, ACCENT_LIGHT, NAVY } from '../../../utils/designTokens'
 
 function Field({ label, hint, children }) {
   return (

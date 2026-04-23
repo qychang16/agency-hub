@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../../context/AuthContext'
-import { API, ACCENT, ACCENT_LIGHT } from '../../utils/constants'
+import { API } from '../../utils/constants'
+import { ACCENT, ACCENT_LIGHT } from '../../utils/designTokens'
 import { fmtSGT } from '../../utils/dates'
 
 // Global search overlay — opens on Ctrl+K. Searches messages across all conversations.

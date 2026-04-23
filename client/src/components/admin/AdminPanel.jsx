@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { API, NAVY } from '../../utils/constants'
 import { useAuth } from '../../context/AuthContext'
+import RolesPermissions from '../settings/tabs/RolesPermissions'
 
 // ─── MAIN PANEL ────────────────────────────────────────────────────────────────
 export default function AdminPanel() {
@@ -13,6 +14,7 @@ export default function AdminPanel() {
   const [showCreate, setShowCreate] = useState(false)
   const [editWs, setEditWs] = useState(null)
   const [newCreds, setNewCreds] = useState(null) // { workspace, director, initial_password }
+  const [rolesWs, setRolesWs] = useState(null)
 
   async function fetchWorkspaces() {
     setLoading(true)
@@ -146,11 +148,18 @@ export default function AdminPanel() {
                   </td>
                   <td style={{ ...tdStyle, fontSize: 12, color: '#6b7280' }}>{new Date(w.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
                   <td style={{ ...tdStyle, textAlign: 'right' }}>
-                    <button
-                      onClick={() => setEditWs(w)}
-                      style={{ padding: '6px 12px', background: '#fff', color: '#374151', border: '1px solid #e5e7eb', borderRadius: 6, fontSize: 12, fontWeight: 500, cursor: 'pointer' }}>
-                      Edit
-                    </button>
+                    <div style={{ display: 'inline-flex', gap: 6 }}>
+                      <button
+                        onClick={() => setRolesWs(w)}
+                        style={{ padding: '6px 12px', background: '#fff', color: '#374151', border: '1px solid #e5e7eb', borderRadius: 6, fontSize: 12, fontWeight: 500, cursor: 'pointer' }}>
+                        Roles
+                      </button>
+                      <button
+                        onClick={() => setEditWs(w)}
+                        style={{ padding: '6px 12px', background: '#fff', color: '#374151', border: '1px solid #e5e7eb', borderRadius: 6, fontSize: 12, fontWeight: 500, cursor: 'pointer' }}>
+                        Edit
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -162,6 +171,7 @@ export default function AdminPanel() {
       {/* Modals */}
       {showCreate && <CreateWorkspaceModal onClose={() => setShowCreate(false)} onCreated={(data) => { setShowCreate(false); setNewCreds(data); fetchWorkspaces() }} />}
       {editWs && <EditWorkspaceModal workspace={editWs} onClose={() => setEditWs(null)} onSaved={() => { setEditWs(null); fetchWorkspaces() }} />}
+      {rolesWs && <RolesModal workspace={rolesWs} onClose={() => setRolesWs(null)} />}
       {newCreds && <PasswordRevealModal data={newCreds} onClose={() => setNewCreds(null)} />}
     </div>
   )
@@ -481,3 +491,26 @@ function FormSelect({ label, value, onChange, options }) {
 
 const btnPrimary = { padding: '10px 18px', background: 'linear-gradient(135deg, #2563eb, #1e40af)', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', letterSpacing: 0.3 }
 const btnGhost = { padding: '10px 18px', background: '#fff', color: '#374151', border: '1px solid #e5e7eb', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer' }
+
+function RolesModal({ workspace, onClose }) {
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16 }}
+      onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div style={{ background: '#fff', borderRadius: 14, width: '100%', maxWidth: 960, maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ padding: '18px 24px', borderBottom: '0.5px solid #f1f4f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: '#111827' }}>Roles and Permissions</div>
+            <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>Editing workspace: <strong>{workspace.name}</strong></div>
+          </div>
+          <button onClick={onClose}
+            style={{ background: 'transparent', border: 'none', fontSize: 20, color: '#9ca3af', cursor: 'pointer', padding: 4, lineHeight: 1 }}>
+            &times;
+          </button>
+        </div>
+        <div style={{ flex: 1, overflowY: 'auto' }}>
+          <RolesPermissions workspaceId={workspace.id} workspaceName={workspace.name} />
+        </div>
+      </div>
+    </div>
+  )
+}

@@ -116,3 +116,48 @@ Next session priorities:
 - Roles in DB use snake_case (senior_consultant not seniorConsultant)
 - Permission names use snake_case (manage_contacts not manageContacts)
 
+
+
+---
+
+## Chunk 5d: UI Permission Gating (Deferred)
+
+**Status:** Not yet built. Backend protection is in place; UI still shows buttons admin cannot action.
+
+When building this, walk the app as each role and hide/disable:
+
+### Admin (Mikaela) should NOT see:
+- "+ New" button in top-right (no create permissions)
+- Reply/send message composer (use hasPermission('send_messages'))
+- Write internal note composer (hasPermission('write_notes'))
+- Manage conversations actions (assign, resolve, pin) - hasPermission('manage_conversations')
+- Create/edit/delete buttons on Contacts page
+- Add/edit/delete on Projects, Teams, Phone Numbers, Templates
+- Project team management: add member, change role, remove member
+- Settings tabs for workspace info, hours, routing, security (already gated as manager-only)
+- Staff management (Agents tab)
+
+### Consultant (J J, Ms Jane, Ms M.) should NOT see:
+- Manage templates (they can only use them)
+- Manage scheduled messages / broadcasts
+- Manage phone numbers, teams, workspace settings, staff
+
+### Supervisor and Senior Consultant should NOT see:
+- Workspace settings, staff management, phone numbers, teams
+
+### Everyone except director should NOT see:
+- Roles and Permissions tab (already done in Chunk 5c via hasPermission check)
+
+### Implementation pattern
+Use hasPermission(permName) from AuthContext in every component that renders
+action buttons. Example:
+  const { hasPermission } = useAuth()
+  {hasPermission('manage_contacts') && <button>+ New contact</button>}
+
+Estimated scope: 30-40 edits across ~15 components. Worth a dedicated session.
+
+### Also consider as part of 5d
+- READ-ONLY badge on admin avatar in Topbar
+- Tooltip on disabled buttons explaining WHY ("Admin accounts cannot send")
+- Conditional Topbar nav (hide Templates nav item for roles without manage_templates, etc.)
+

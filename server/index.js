@@ -799,7 +799,17 @@ app.post('/admin/workspaces', auth, superAdmin, async (req, res) => {
       )
     }
 
-    // 6. Audit log (attributed to super admin, targeting the new workspace)
+    // 6. Seed default role_permissions for this tenant
+    for (const [role, config] of Object.entries(DEFAULT_ROLE_PERMISSIONS)) {
+      await client.query(
+        `INSERT INTO role_permissions (workspace_id, role, scope, permissions)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (workspace_id, role) DO NOTHING`,
+        [workspace.id, role, config.scope, JSON.stringify(config.permissions)]
+      )
+    }
+
+    // 7. Audit log (attributed to super admin, targeting the new workspace)
     await client.query(
       `INSERT INTO audit_log (workspace_id, user_id, action, entity_type, entity_id, new_values)
        VALUES ($1, $2, 'create_workspace', 'workspace', $3, $4)`,

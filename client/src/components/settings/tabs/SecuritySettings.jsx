@@ -6,8 +6,8 @@ import { ACCENT } from '../../../utils/designTokens'
 function Field({ label, hint, children }) {
   return (
     <div style={{ marginBottom: 16 }}>
-      <label style={{ fontSize: 11, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.4px' }}>{label}</label>
-      {hint && <div style={{ fontSize: 11, color: '#9ca3af', marginBottom: 6 }}>{hint}</div>}
+      <label style={{ fontSize: 11, fontWeight: 600, color: '#4a4742', display: 'block', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.4px' }}>{label}</label>
+      {hint && <div style={{ fontSize: 11, color: '#9a958c', marginBottom: 6 }}>{hint}</div>}
       {children}
     </div>
   )
@@ -16,7 +16,7 @@ function Field({ label, hint, children }) {
 function Select({ value, onChange, options }) {
   return (
     <select value={value || ''} onChange={onChange}
-      style={{ width: '100%', padding: '9px 12px', border: '0.5px solid #e5e7eb', borderRadius: 8, fontSize: 13, outline: 'none', background: '#fff', color: '#111827' }}>
+      style={{ width: '100%', padding: '9px 12px', border: '0.5px solid #dcd8d0', borderRadius: 8, fontSize: 13, outline: 'none', background: '#fff', color: '#14130f' }}>
       {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
     </select>
   )
@@ -24,17 +24,17 @@ function Select({ value, onChange, options }) {
 
 function Toggle({ value, onChange, label, hint, locked, lockedReason }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', borderBottom: '0.5px solid #f9fafb' }}>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', borderBottom: '0.5px solid #faf9f7' }}>
       <div style={{ flex: 1, marginRight: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{ fontSize: 13, color: '#111827', fontWeight: 500 }}>{label}</div>
-          {locked && <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 4, background: '#f1f4f9', color: '#9ca3af', fontWeight: 600 }}>DIRECTOR ONLY</span>}
+          <div style={{ fontSize: 13, color: '#14130f', fontWeight: 500 }}>{label}</div>
+          {locked && <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 4, background: '#f5f3ef', color: '#9a958c', fontWeight: 600 }}>DIRECTOR ONLY</span>}
         </div>
-        {hint && <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>{hint}</div>}
+        {hint && <div style={{ fontSize: 11, color: '#9a958c', marginTop: 2 }}>{hint}</div>}
         {locked && lockedReason && <div style={{ fontSize: 11, color: '#d97706', marginTop: 2 }}>⚠ {lockedReason}</div>}
       </div>
       <button onClick={() => !locked && onChange(!value)} disabled={locked}
-        style={{ width: 44, height: 24, borderRadius: 12, border: 'none', background: value ? ACCENT : '#d1d5db', cursor: locked ? 'not-allowed' : 'pointer', position: 'relative', transition: 'background .2s', flexShrink: 0, opacity: locked ? 0.7 : 1 }}>
+        style={{ width: 44, height: 24, borderRadius: 12, border: 'none', background: value ? ACCENT : '#c2bdb3', cursor: locked ? 'not-allowed' : 'pointer', position: 'relative', transition: 'background .2s', flexShrink: 0, opacity: locked ? 0.7 : 1 }}>
         <div style={{ width: 18, height: 18, borderRadius: '50%', background: '#fff', position: 'absolute', top: 3, left: value ? 23 : 3, transition: 'left .2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
       </button>
     </div>
@@ -43,7 +43,7 @@ function Toggle({ value, onChange, label, hint, locked, lockedReason }) {
 
 function Card({ children, style }) {
   return (
-    <div style={{ background: '#fff', borderRadius: 12, border: '0.5px solid #e5e7eb', padding: 20, marginBottom: 16, ...style }}>
+    <div style={{ background: '#fff', borderRadius: 12, border: '0.5px solid #dcd8d0', padding: 20, marginBottom: 16, ...style }}>
       {children}
     </div>
   )
@@ -51,9 +51,9 @@ function Card({ children, style }) {
 
 function CardHeader({ title, subtitle }) {
   return (
-    <div style={{ marginBottom: 14, paddingBottom: 10, borderBottom: '0.5px solid #f1f4f9' }}>
-      <div style={{ fontSize: 12, fontWeight: 600, color: '#374151' }}>{title}</div>
-      {subtitle && <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>{subtitle}</div>}
+    <div style={{ marginBottom: 14, paddingBottom: 10, borderBottom: '0.5px solid #f5f3ef' }}>
+      <div style={{ fontSize: 12, fontWeight: 600, color: '#4a4742' }}>{title}</div>
+      {subtitle && <div style={{ fontSize: 11, color: '#9a958c', marginTop: 2 }}>{subtitle}</div>}
     </div>
   )
 }
@@ -61,7 +61,7 @@ function CardHeader({ title, subtitle }) {
 function Btn({ onClick, children, variant = 'primary', disabled }) {
   const variants = {
     primary: { background: ACCENT, color: '#fff', border: 'none' },
-    ghost: { background: 'transparent', color: '#6b7280', border: '0.5px solid #e5e7eb' },
+    ghost: { background: 'transparent', color: '#6e6a63', border: '0.5px solid #dcd8d0' },
     danger: { background: '#fee2e2', color: '#dc2626', border: '0.5px solid #fca5a5' },
   }
   return (
@@ -126,7 +126,7 @@ export default function SecuritySettings() {
   }
 
   function getPasswordStrength(pw) {
-    if (!pw) return { score: 0, label: '', color: '#e5e7eb' }
+    if (!pw) return { score: 0, label: '', color: '#dcd8d0' }
     let score = 0
     if (pw.length >= 8) score++
     if (pw.length >= 12) score++
@@ -141,14 +141,14 @@ export default function SecuritySettings() {
 
   const pwStrength = getPasswordStrength(newPassword)
 
-  if (loading) return <div style={{ textAlign: 'center', padding: 40, color: '#9ca3af' }}>Loading…</div>
+  if (loading) return <div style={{ textAlign: 'center', padding: 40, color: '#9a958c' }}>Loading…</div>
 
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
         <div>
-          <div style={{ fontSize: 15, fontWeight: 600, color: '#111827' }}>Security Settings</div>
-          <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 3 }}>Manage password policies, session timeouts and access security for your workspace</div>
+          <div style={{ fontSize: 15, fontWeight: 600, color: '#14130f' }}>Security Settings</div>
+          <div style={{ fontSize: 12, color: '#9a958c', marginTop: 3 }}>Manage password policies, session timeouts and access security for your workspace</div>
         </div>
       </div>
 
@@ -160,8 +160,8 @@ export default function SecuritySettings() {
             {!showChangePassword ? (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div>
-                  <div style={{ fontSize: 13, color: '#111827' }}>••••••••••••</div>
-                  <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>Last changed: unknown</div>
+                  <div style={{ fontSize: 13, color: '#14130f' }}>••••••••••••</div>
+                  <div style={{ fontSize: 11, color: '#9a958c', marginTop: 2 }}>Last changed: unknown</div>
                 </div>
                 <Btn variant="ghost" onClick={() => setShowChangePassword(true)}>Change Password</Btn>
               </div>
@@ -172,9 +172,9 @@ export default function SecuritySettings() {
                   <div style={{ position: 'relative' }}>
                     <input type={showOld ? 'text' : 'password'} value={oldPassword} onChange={e => setOldPassword(e.target.value)}
                       placeholder="Enter current password"
-                      style={{ width: '100%', padding: '9px 40px 9px 12px', border: '0.5px solid #e5e7eb', borderRadius: 8, fontSize: 13, outline: 'none', background: '#fff', color: '#111827', boxSizing: 'border-box' }} />
+                      style={{ width: '100%', padding: '9px 40px 9px 12px', border: '0.5px solid #dcd8d0', borderRadius: 8, fontSize: 13, outline: 'none', background: '#fff', color: '#14130f', boxSizing: 'border-box' }} />
                     <button onClick={() => setShowOld(!showOld)} type="button"
-                      style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', cursor: 'pointer', color: '#9ca3af', padding: 4 }}>
+                      style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', cursor: 'pointer', color: '#9a958c', padding: 4 }}>
                       {showOld ? '🙈' : '👁'}
                     </button>
                   </div>
@@ -185,9 +185,9 @@ export default function SecuritySettings() {
                   <div style={{ position: 'relative' }}>
                     <input type={showNew ? 'text' : 'password'} value={newPassword} onChange={e => setNewPassword(e.target.value)}
                       placeholder={`At least ${settings.password_min_length} characters`}
-                      style={{ width: '100%', padding: '9px 40px 9px 12px', border: '0.5px solid #e5e7eb', borderRadius: 8, fontSize: 13, outline: 'none', background: '#fff', color: '#111827', boxSizing: 'border-box' }} />
+                      style={{ width: '100%', padding: '9px 40px 9px 12px', border: '0.5px solid #dcd8d0', borderRadius: 8, fontSize: 13, outline: 'none', background: '#fff', color: '#14130f', boxSizing: 'border-box' }} />
                     <button onClick={() => setShowNew(!showNew)} type="button"
-                      style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', cursor: 'pointer', color: '#9ca3af', padding: 4 }}>
+                      style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', cursor: 'pointer', color: '#9a958c', padding: 4 }}>
                       {showNew ? '🙈' : '👁'}
                     </button>
                   </div>
@@ -195,7 +195,7 @@ export default function SecuritySettings() {
                     <div style={{ marginTop: 6 }}>
                       <div style={{ display: 'flex', gap: 4, marginBottom: 4 }}>
                         {[1,2,3,4,5].map(i => (
-                          <div key={i} style={{ flex: 1, height: 3, borderRadius: 2, background: i <= pwStrength.score ? pwStrength.color : '#e5e7eb', transition: 'background .2s' }} />
+                          <div key={i} style={{ flex: 1, height: 3, borderRadius: 2, background: i <= pwStrength.score ? pwStrength.color : '#dcd8d0', transition: 'background .2s' }} />
                         ))}
                       </div>
                       <div style={{ fontSize: 10, color: pwStrength.color, fontWeight: 600 }}>{pwStrength.label}</div>
@@ -207,7 +207,7 @@ export default function SecuritySettings() {
                 <Field label="Confirm New Password">
                   <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)}
                     placeholder="Re-enter new password"
-                    style={{ width: '100%', padding: '9px 12px', border: `0.5px solid ${confirmPassword && confirmPassword !== newPassword ? '#ef4444' : '#e5e7eb'}`, borderRadius: 8, fontSize: 13, outline: 'none', background: '#fff', color: '#111827', boxSizing: 'border-box' }} />
+                    style={{ width: '100%', padding: '9px 12px', border: `0.5px solid ${confirmPassword && confirmPassword !== newPassword ? '#ef4444' : '#dcd8d0'}`, borderRadius: 8, fontSize: 13, outline: 'none', background: '#fff', color: '#14130f', boxSizing: 'border-box' }} />
                   {confirmPassword && confirmPassword !== newPassword && <div style={{ fontSize: 11, color: '#ef4444', marginTop: 4 }}>Passwords do not match</div>}
                 </Field>
 
@@ -255,8 +255,8 @@ export default function SecuritySettings() {
                   onChange={e => setSettings(p => ({ ...p, password_min_length: parseInt(e.target.value) }))}
                   disabled={!isDirector}
                   style={{ flex: 1, accentColor: ACCENT }} />
-                <div style={{ fontSize: 16, fontWeight: 700, color: '#111827', minWidth: 28, textAlign: 'center' }}>{settings.password_min_length}</div>
-                <span style={{ fontSize: 11, color: '#9ca3af' }}>characters</span>
+                <div style={{ fontSize: 16, fontWeight: 700, color: '#14130f', minWidth: 28, textAlign: 'center' }}>{settings.password_min_length}</div>
+                <span style={{ fontSize: 11, color: '#9a958c' }}>characters</span>
               </div>
             </Field>
             <Toggle
@@ -289,9 +289,9 @@ export default function SecuritySettings() {
                 ⚠️ <strong>Before enabling:</strong> Inform all agents they will be prompted to set up Google Authenticator or similar app on their next login. Agents without a smartphone will need assistance.
               </div>
             )}
-            <div style={{ marginTop: 14, padding: '12px 14px', background: '#f9fafb', borderRadius: 8, border: '0.5px solid #e5e7eb' }}>
-              <div style={{ fontSize: 12, fontWeight: 500, color: '#374151', marginBottom: 4 }}>Supported authenticator apps</div>
-              <div style={{ fontSize: 11, color: '#9ca3af', lineHeight: 1.6 }}>
+            <div style={{ marginTop: 14, padding: '12px 14px', background: '#faf9f7', borderRadius: 8, border: '0.5px solid #dcd8d0' }}>
+              <div style={{ fontSize: 12, fontWeight: 500, color: '#4a4742', marginBottom: 4 }}>Supported authenticator apps</div>
+              <div style={{ fontSize: 11, color: '#9a958c', lineHeight: 1.6 }}>
                 Google Authenticator · Microsoft Authenticator · Authy · 1Password · Any TOTP-compatible app
               </div>
             </div>
@@ -300,15 +300,15 @@ export default function SecuritySettings() {
           {/* Active sessions */}
           <Card>
             <CardHeader title="Active Sessions" subtitle="Currently logged-in devices for your account" />
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', background: '#f9fafb', borderRadius: 8, marginBottom: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', background: '#faf9f7', borderRadius: 8, marginBottom: 8 }}>
               <span style={{ fontSize: 20 }}>💻</span>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 12, fontWeight: 500, color: '#111827' }}>This device — Current session</div>
-                <div style={{ fontSize: 11, color: '#9ca3af' }}>Last active: just now</div>
+                <div style={{ fontSize: 12, fontWeight: 500, color: '#14130f' }}>This device — Current session</div>
+                <div style={{ fontSize: 11, color: '#9a958c' }}>Last active: just now</div>
               </div>
               <span style={{ fontSize: 9, padding: '2px 8px', borderRadius: 10, background: '#dcfce7', color: '#16a34a', fontWeight: 600 }}>Active</span>
             </div>
-            <div style={{ fontSize: 11, color: '#9ca3af', textAlign: 'center', padding: '6px 0' }}>
+            <div style={{ fontSize: 11, color: '#9a958c', textAlign: 'center', padding: '6px 0' }}>
               Full session management coming in next update
             </div>
           </Card>

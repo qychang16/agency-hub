@@ -13,8 +13,8 @@ const ROLE_OPTIONS = [
 function Field({ label, hint, children }) {
   return (
     <div style={{ marginBottom: 16 }}>
-      <label style={{ fontSize: 11, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.4px' }}>{label}</label>
-      {hint && <div style={{ fontSize: 11, color: '#9ca3af', marginBottom: 6 }}>{hint}</div>}
+      <label style={{ fontSize: 11, fontWeight: 600, color: '#4a4742', display: 'block', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.4px' }}>{label}</label>
+      {hint && <div style={{ fontSize: 11, color: '#9a958c', marginBottom: 6 }}>{hint}</div>}
       {children}
     </div>
   )
@@ -23,14 +23,14 @@ function Field({ label, hint, children }) {
 function Input({ value, onChange, placeholder, type = 'text', disabled }) {
   return (
     <input type={type} value={value || ''} onChange={onChange} placeholder={placeholder} disabled={disabled}
-      style={{ width: '100%', padding: '9px 12px', border: '0.5px solid #e5e7eb', borderRadius: 8, fontSize: 13, outline: 'none', background: disabled ? '#f9fafb' : '#fff', color: '#111827', boxSizing: 'border-box' }} />
+      style={{ width: '100%', padding: '9px 12px', border: '0.5px solid #dcd8d0', borderRadius: 8, fontSize: 13, outline: 'none', background: disabled ? '#faf9f7' : '#fff', color: '#14130f', boxSizing: 'border-box' }} />
   )
 }
 
 function Select({ value, onChange, options, disabled }) {
   return (
     <select value={value || ''} onChange={onChange} disabled={disabled}
-      style={{ width: '100%', padding: '9px 12px', border: '0.5px solid #e5e7eb', borderRadius: 8, fontSize: 13, outline: 'none', background: disabled ? '#f9fafb' : '#fff', color: '#111827' }}>
+      style={{ width: '100%', padding: '9px 12px', border: '0.5px solid #dcd8d0', borderRadius: 8, fontSize: 13, outline: 'none', background: disabled ? '#faf9f7' : '#fff', color: '#14130f' }}>
       {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
     </select>
   )
@@ -38,13 +38,13 @@ function Select({ value, onChange, options, disabled }) {
 
 function Toggle({ value, onChange, label, hint, disabled }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '11px 0', borderBottom: '0.5px solid #f9fafb' }}>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '11px 0', borderBottom: '0.5px solid #faf9f7' }}>
       <div style={{ flex: 1, marginRight: 16 }}>
-        <div style={{ fontSize: 13, color: '#111827', fontWeight: 500 }}>{label}</div>
-        {hint && <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>{hint}</div>}
+        <div style={{ fontSize: 13, color: '#14130f', fontWeight: 500 }}>{label}</div>
+        {hint && <div style={{ fontSize: 11, color: '#9a958c', marginTop: 2 }}>{hint}</div>}
       </div>
       <button onClick={() => !disabled && onChange(!value)} disabled={disabled}
-        style={{ width: 44, height: 24, borderRadius: 12, border: 'none', background: value ? ACCENT : '#d1d5db', cursor: disabled ? 'not-allowed' : 'pointer', position: 'relative', transition: 'background .2s', flexShrink: 0, opacity: disabled ? 0.6 : 1 }}>
+        style={{ width: 44, height: 24, borderRadius: 12, border: 'none', background: value ? ACCENT : '#c2bdb3', cursor: disabled ? 'not-allowed' : 'pointer', position: 'relative', transition: 'background .2s', flexShrink: 0, opacity: disabled ? 0.6 : 1 }}>
         <div style={{ width: 18, height: 18, borderRadius: '50%', background: '#fff', position: 'absolute', top: 3, left: value ? 23 : 3, transition: 'left .2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
       </button>
     </div>
@@ -53,7 +53,7 @@ function Toggle({ value, onChange, label, hint, disabled }) {
 
 function Card({ children, style }) {
   return (
-    <div style={{ background: '#fff', borderRadius: 12, border: '0.5px solid #e5e7eb', padding: 20, marginBottom: 16, ...style }}>
+    <div style={{ background: '#fff', borderRadius: 12, border: '0.5px solid #dcd8d0', padding: 20, marginBottom: 16, ...style }}>
       {children}
     </div>
   )
@@ -61,10 +61,10 @@ function Card({ children, style }) {
 
 function CardHeader({ title, subtitle, action }) {
   return (
-    <div style={{ marginBottom: 14, paddingBottom: 10, borderBottom: '0.5px solid #f1f4f9', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+    <div style={{ marginBottom: 14, paddingBottom: 10, borderBottom: '0.5px solid #f5f3ef', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
       <div>
-        <div style={{ fontSize: 12, fontWeight: 600, color: '#374151' }}>{title}</div>
-        {subtitle && <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>{subtitle}</div>}
+        <div style={{ fontSize: 12, fontWeight: 600, color: '#4a4742' }}>{title}</div>
+        {subtitle && <div style={{ fontSize: 11, color: '#9a958c', marginTop: 2 }}>{subtitle}</div>}
       </div>
       {action}
     </div>
@@ -75,7 +75,7 @@ function Btn({ onClick, children, variant = 'primary', size = 'md', disabled, st
   const sizes = { sm: { padding: '5px 10px', fontSize: 11 }, md: { padding: '8px 14px', fontSize: 12 } }
   const variants = {
     primary: { background: ACCENT, color: '#fff', border: 'none' },
-    ghost: { background: 'transparent', color: '#6b7280', border: '0.5px solid #e5e7eb' },
+    ghost: { background: 'transparent', color: '#6e6a63', border: '0.5px solid #dcd8d0' },
     dark: { background: NAVY, color: '#fff', border: 'none' },
   }
   return (
@@ -168,7 +168,7 @@ export default function Routing() {
   const agentOptions = [{ value: '', label: 'Select agent…' }, ...agents.map(a => ({ value: a.name, label: a.name }))]
 
   if (loading) return (
-    <div style={{ textAlign: 'center', padding: 60, color: '#9ca3af' }}>
+    <div style={{ textAlign: 'center', padding: 60, color: '#9a958c' }}>
       <div style={{ fontSize: 28, marginBottom: 10 }}>⏳</div>
       <div>Loading routing rules…</div>
     </div>
@@ -179,16 +179,16 @@ export default function Routing() {
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
         <div>
-          <div style={{ fontSize: 15, fontWeight: 600, color: '#111827' }}>Routing Rules</div>
-          <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 3 }}>
+          <div style={{ fontSize: 15, fontWeight: 600, color: '#14130f' }}>Routing Rules</div>
+          <div style={{ fontSize: 12, color: '#9a958c', marginTop: 3 }}>
             Configure how incoming conversations are automatically assigned to agents and teams
           </div>
         </div>
       </div>
 
       {/* How routing works */}
-      <div style={{ background: '#f9fafb', borderRadius: 10, border: '0.5px solid #e5e7eb', padding: '14px 16px', marginBottom: 20 }}>
-        <div style={{ fontSize: 11, fontWeight: 600, color: '#374151', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.4px' }}>How Tel-Cloud Routes Conversations</div>
+      <div style={{ background: '#faf9f7', borderRadius: 10, border: '0.5px solid #dcd8d0', padding: '14px 16px', marginBottom: 20 }}>
+        <div style={{ fontSize: 11, fontWeight: 600, color: '#4a4742', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.4px' }}>How Tel-Cloud Routes Conversations</div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 0, overflowX: 'auto', paddingBottom: 4 }}>
           {[
             { step: '1', label: 'Message arrives', sub: 'New WhatsApp message received' },
@@ -201,10 +201,10 @@ export default function Routing() {
             <div key={s.step} style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
               <div style={{ textAlign: 'center', minWidth: 90 }}>
                 <div style={{ width: 28, height: 28, borderRadius: '50%', background: i === arr.length - 1 ? '#16a34a' : NAVY, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, margin: '0 auto 5px' }}>{s.step}</div>
-                <div style={{ fontSize: 11, fontWeight: 600, color: '#111827', lineHeight: 1.3 }}>{s.label}</div>
-                <div style={{ fontSize: 10, color: '#9ca3af', lineHeight: 1.3, marginTop: 2 }}>{s.sub}</div>
+                <div style={{ fontSize: 11, fontWeight: 600, color: '#14130f', lineHeight: 1.3 }}>{s.label}</div>
+                <div style={{ fontSize: 10, color: '#9a958c', lineHeight: 1.3, marginTop: 2 }}>{s.sub}</div>
               </div>
-              {i < arr.length - 1 && <div style={{ width: 24, height: 1.5, background: '#d1d5db', flexShrink: 0 }} />}
+              {i < arr.length - 1 && <div style={{ width: 24, height: 1.5, background: '#c2bdb3', flexShrink: 0 }} />}
             </div>
           ))}
         </div>
@@ -222,16 +222,16 @@ export default function Routing() {
               { value: 'manual', label: 'Manual Only', desc: 'All conversations go to unassigned queue. Agents self-assign or manager assigns.', icon: '✋' },
             ].map(m => (
               <div key={m.value} onClick={() => setRouting(p => ({ ...p, mode: m.value }))}
-                style={{ display: 'flex', gap: 12, padding: '12px 14px', borderRadius: 9, border: `1.5px solid ${routing.mode === m.value ? ACCENT : '#e5e7eb'}`, marginBottom: 8, cursor: 'pointer', background: routing.mode === m.value ? ACCENT_LIGHT : '#fff', transition: 'all .15s' }}>
+                style={{ display: 'flex', gap: 12, padding: '12px 14px', borderRadius: 9, border: `1.5px solid ${routing.mode === m.value ? ACCENT : '#dcd8d0'}`, marginBottom: 8, cursor: 'pointer', background: routing.mode === m.value ? ACCENT_LIGHT : '#fff', transition: 'all .15s' }}>
                 <span style={{ fontSize: 20, flexShrink: 0 }}>{m.icon}</span>
                 <div style={{ flex: 1 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
-                    <div style={{ width: 14, height: 14, borderRadius: '50%', border: `2px solid ${routing.mode === m.value ? ACCENT : '#d1d5db'}`, background: routing.mode === m.value ? ACCENT : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <div style={{ width: 14, height: 14, borderRadius: '50%', border: `2px solid ${routing.mode === m.value ? ACCENT : '#c2bdb3'}`, background: routing.mode === m.value ? ACCENT : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                       {routing.mode === m.value && <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#fff' }} />}
                     </div>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: routing.mode === m.value ? ACCENT : '#111827' }}>{m.label}</div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: routing.mode === m.value ? ACCENT : '#14130f' }}>{m.label}</div>
                   </div>
-                  <div style={{ fontSize: 11, color: '#9ca3af', lineHeight: 1.5, paddingLeft: 22 }}>{m.desc}</div>
+                  <div style={{ fontSize: 11, color: '#9a958c', lineHeight: 1.5, paddingLeft: 22 }}>{m.desc}</div>
                 </div>
               </div>
             ))}
@@ -251,7 +251,7 @@ export default function Routing() {
                 <input type="range" min={1} max={100} value={routing.max_capacity || 20}
                   onChange={e => setRouting(p => ({ ...p, max_capacity: parseInt(e.target.value) }))}
                   style={{ flex: 1, accentColor: ACCENT }} />
-                <div style={{ fontSize: 16, fontWeight: 700, color: '#111827', minWidth: 32, textAlign: 'center' }}>{routing.max_capacity}</div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: '#14130f', minWidth: 32, textAlign: 'center' }}>{routing.max_capacity}</div>
               </div>
             </Field>
           </Card>
@@ -293,12 +293,12 @@ export default function Routing() {
 
             {routing.escalation_enabled ? (
               <>
-                <div style={{ fontSize: 11, color: '#9ca3af', marginBottom: 14, padding: '8px 10px', background: '#f9fafb', borderRadius: 7, lineHeight: 1.5 }}>
+                <div style={{ fontSize: 11, color: '#9a958c', marginBottom: 14, padding: '8px 10px', background: '#faf9f7', borderRadius: 7, lineHeight: 1.5 }}>
                   If the assigned agent does not respond within the wait time, the conversation escalates to the next step automatically. The candidate is never notified.
                 </div>
 
                 {(routing.escalation_steps || []).length === 0 ? (
-                  <div style={{ textAlign: 'center', padding: '20px 0', color: '#9ca3af' }}>
+                  <div style={{ textAlign: 'center', padding: '20px 0', color: '#9a958c' }}>
                     <div style={{ fontSize: 24, marginBottom: 8 }}>🔀</div>
                     <div style={{ fontSize: 12 }}>No escalation steps yet</div>
                     <div style={{ fontSize: 11, marginTop: 4 }}>Add steps to define the escalation chain</div>
@@ -306,18 +306,18 @@ export default function Routing() {
                 ) : (
                   <div style={{ marginBottom: 12 }}>
                     {(routing.escalation_steps || []).map((step, i) => (
-                      <div key={i} style={{ background: '#f9fafb', borderRadius: 9, border: '0.5px solid #e5e7eb', padding: '12px 14px', marginBottom: 8 }}>
+                      <div key={i} style={{ background: '#faf9f7', borderRadius: 9, border: '0.5px solid #dcd8d0', padding: '12px 14px', marginBottom: 8 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
                           <div style={{ width: 24, height: 24, borderRadius: '50%', background: NAVY, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>
                             {i + 1}
                           </div>
-                          <div style={{ flex: 1, fontSize: 12, fontWeight: 600, color: '#374151' }}>Escalation Step {i + 1}</div>
+                          <div style={{ flex: 1, fontSize: 12, fontWeight: 600, color: '#4a4742' }}>Escalation Step {i + 1}</div>
                           <div style={{ display: 'flex', gap: 4 }}>
                             {i > 0 && (
-                              <button onClick={() => moveStep(i, -1)} style={{ width: 22, height: 22, borderRadius: 5, border: '0.5px solid #e5e7eb', background: '#fff', cursor: 'pointer', fontSize: 10, color: '#6b7280', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>↑</button>
+                              <button onClick={() => moveStep(i, -1)} style={{ width: 22, height: 22, borderRadius: 5, border: '0.5px solid #dcd8d0', background: '#fff', cursor: 'pointer', fontSize: 10, color: '#6e6a63', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>↑</button>
                             )}
                             {i < routing.escalation_steps.length - 1 && (
-                              <button onClick={() => moveStep(i, 1)} style={{ width: 22, height: 22, borderRadius: 5, border: '0.5px solid #e5e7eb', background: '#fff', cursor: 'pointer', fontSize: 10, color: '#6b7280', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>↓</button>
+                              <button onClick={() => moveStep(i, 1)} style={{ width: 22, height: 22, borderRadius: 5, border: '0.5px solid #dcd8d0', background: '#fff', cursor: 'pointer', fontSize: 10, color: '#6e6a63', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>↓</button>
                             )}
                             <button onClick={() => removeStep(i)} style={{ width: 22, height: 22, borderRadius: 5, border: '0.5px solid #fca5a5', background: '#fee2e2', cursor: 'pointer', fontSize: 12, color: '#dc2626', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
                           </div>
@@ -325,7 +325,7 @@ export default function Routing() {
 
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
                           <div>
-                            <div style={{ fontSize: 10, color: '#9ca3af', marginBottom: 4, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.3px' }}>Escalate to</div>
+                            <div style={{ fontSize: 10, color: '#9a958c', marginBottom: 4, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.3px' }}>Escalate to</div>
                             <Select value={step.type} onChange={e => updateStep(i, 'type', e.target.value)} options={[
                               { value: 'team', label: 'A Team' },
                               { value: 'role', label: 'A Role' },
@@ -333,7 +333,7 @@ export default function Routing() {
                             ]} />
                           </div>
                           <div>
-                            <div style={{ fontSize: 10, color: '#9ca3af', marginBottom: 4, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.3px' }}>Target</div>
+                            <div style={{ fontSize: 10, color: '#9a958c', marginBottom: 4, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.3px' }}>Target</div>
                             {step.type === 'team' && (
                               <Select value={step.target} onChange={e => updateStep(i, 'target', e.target.value)} options={[{ value: '', label: 'Select team…' }, ...teams.map(t => ({ value: t.key || t.id, label: t.name }))]} />
                             )}
@@ -347,17 +347,17 @@ export default function Routing() {
                         </div>
 
                         <div>
-                          <div style={{ fontSize: 10, color: '#9ca3af', marginBottom: 4, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.3px' }}>Wait time before escalating</div>
+                          <div style={{ fontSize: 10, color: '#9a958c', marginBottom: 4, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.3px' }}>Wait time before escalating</div>
                           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                             {[15, 30, 60, 120, 240].map(mins => (
                               <button key={mins} onClick={() => updateStep(i, 'wait_minutes', mins)}
-                                style={{ padding: '4px 10px', borderRadius: 6, border: `1px solid ${step.wait_minutes === mins ? ACCENT : '#e5e7eb'}`, background: step.wait_minutes === mins ? ACCENT_LIGHT : '#fff', color: step.wait_minutes === mins ? ACCENT : '#6b7280', fontSize: 11, cursor: 'pointer', fontWeight: step.wait_minutes === mins ? 600 : 400 }}>
+                                style={{ padding: '4px 10px', borderRadius: 6, border: `1px solid ${step.wait_minutes === mins ? ACCENT : '#dcd8d0'}`, background: step.wait_minutes === mins ? ACCENT_LIGHT : '#fff', color: step.wait_minutes === mins ? ACCENT : '#6e6a63', fontSize: 11, cursor: 'pointer', fontWeight: step.wait_minutes === mins ? 600 : 400 }}>
                                 {mins < 60 ? `${mins}m` : `${mins / 60}h`}
                               </button>
                             ))}
                             <input type="number" value={step.wait_minutes} onChange={e => updateStep(i, 'wait_minutes', parseInt(e.target.value) || 30)} min={1}
-                              style={{ width: 60, padding: '4px 8px', border: '0.5px solid #e5e7eb', borderRadius: 6, fontSize: 11, outline: 'none', background: '#fff', color: '#111827', textAlign: 'center' }} />
-                            <span style={{ fontSize: 11, color: '#9ca3af' }}>min</span>
+                              style={{ width: 60, padding: '4px 8px', border: '0.5px solid #dcd8d0', borderRadius: 6, fontSize: 11, outline: 'none', background: '#fff', color: '#14130f', textAlign: 'center' }} />
+                            <span style={{ fontSize: 11, color: '#9a958c' }}>min</span>
                           </div>
                         </div>
                       </div>
@@ -366,20 +366,20 @@ export default function Routing() {
                 )}
 
                 <button onClick={addStep}
-                  style={{ width: '100%', padding: '10px', borderRadius: 8, border: '1.5px dashed #d1d5db', background: 'transparent', color: '#6b7280', cursor: 'pointer', fontSize: 12, fontWeight: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, transition: 'all .15s' }}
+                  style={{ width: '100%', padding: '10px', borderRadius: 8, border: '1.5px dashed #c2bdb3', background: 'transparent', color: '#6e6a63', cursor: 'pointer', fontSize: 12, fontWeight: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, transition: 'all .15s' }}
                   onMouseEnter={e => { e.currentTarget.style.borderColor = ACCENT; e.currentTarget.style.color = ACCENT; e.currentTarget.style.background = ACCENT_LIGHT }}
-                  onMouseLeave={e => { e.currentTarget.style.borderColor = '#d1d5db'; e.currentTarget.style.color = '#6b7280'; e.currentTarget.style.background = 'transparent' }}>
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = '#c2bdb3'; e.currentTarget.style.color = '#6e6a63'; e.currentTarget.style.background = 'transparent' }}>
                   + Add Escalation Step
                 </button>
 
                 {(routing.escalation_steps || []).length > 0 && (
-                  <div style={{ marginTop: 12, padding: '10px 12px', background: '#eff6ff', border: '0.5px solid #bfdbfe', borderRadius: 8, fontSize: 11, color: '#1e40af', lineHeight: 1.5 }}>
+                  <div style={{ marginTop: 12, padding: '10px 12px', background: '#eeedf5', border: '0.5px solid #dcd8d0', borderRadius: 8, fontSize: 11, color: '#2d2a7a', lineHeight: 1.5 }}>
                     After all {routing.escalation_steps.length} step{routing.escalation_steps.length !== 1 ? 's' : ''}, unresolved conversations move to the unassigned queue and Director is notified.
                   </div>
                 )}
               </>
             ) : (
-              <div style={{ textAlign: 'center', padding: '20px 0', color: '#9ca3af' }}>
+              <div style={{ textAlign: 'center', padding: '20px 0', color: '#9a958c' }}>
                 <div style={{ fontSize: 24, marginBottom: 8 }}>🔀</div>
                 <div style={{ fontSize: 12 }}>Escalation is disabled</div>
                 <div style={{ fontSize: 11, marginTop: 4 }}>Enable to configure automatic escalation rules</div>
@@ -401,11 +401,11 @@ export default function Routing() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <Field label="Blackout start" hint="No scheduled messages sent before this time">
                 <input type="time" value={routing.blackout_start || '22:00'} onChange={e => setRouting(p => ({ ...p, blackout_start: e.target.value }))}
-                  style={{ width: '100%', padding: '9px 12px', border: '0.5px solid #e5e7eb', borderRadius: 8, fontSize: 13, outline: 'none', background: '#fff', color: '#111827' }} />
+                  style={{ width: '100%', padding: '9px 12px', border: '0.5px solid #dcd8d0', borderRadius: 8, fontSize: 13, outline: 'none', background: '#fff', color: '#14130f' }} />
               </Field>
               <Field label="Blackout end" hint="Scheduled messages resume after this time">
                 <input type="time" value={routing.blackout_end || '08:00'} onChange={e => setRouting(p => ({ ...p, blackout_end: e.target.value }))}
-                  style={{ width: '100%', padding: '9px 12px', border: '0.5px solid #e5e7eb', borderRadius: 8, fontSize: 13, outline: 'none', background: '#fff', color: '#111827' }} />
+                  style={{ width: '100%', padding: '9px 12px', border: '0.5px solid #dcd8d0', borderRadius: 8, fontSize: 13, outline: 'none', background: '#fff', color: '#14130f' }} />
               </Field>
             </div>
             <div style={{ padding: '10px 12px', background: '#fef3c7', border: '0.5px solid #fde68a', borderRadius: 8, fontSize: 11, color: '#92400e', lineHeight: 1.5 }}>

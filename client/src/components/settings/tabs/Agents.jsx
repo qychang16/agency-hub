@@ -64,8 +64,8 @@ const ROLE_DEFAULTS = {
 function Field({ label, hint, children }) {
   return (
     <div style={{ marginBottom: 16 }}>
-      <label style={{ fontSize: 11, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.4px' }}>{label}</label>
-      {hint && <div style={{ fontSize: 11, color: '#9ca3af', marginBottom: 6 }}>{hint}</div>}
+      <label style={{ fontSize: 11, fontWeight: 600, color: '#4a4742', display: 'block', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.4px' }}>{label}</label>
+      {hint && <div style={{ fontSize: 11, color: '#9a958c', marginBottom: 6 }}>{hint}</div>}
       {children}
     </div>
   )
@@ -74,14 +74,14 @@ function Field({ label, hint, children }) {
 function Input({ value, onChange, placeholder, type = 'text', disabled }) {
   return (
     <input type={type} value={value || ''} onChange={onChange} placeholder={placeholder} disabled={disabled}
-      style={{ width: '100%', padding: '9px 12px', border: '0.5px solid #e5e7eb', borderRadius: 8, fontSize: 13, outline: 'none', background: disabled ? '#f9fafb' : '#fff', color: '#111827', boxSizing: 'border-box' }} />
+      style={{ width: '100%', padding: '9px 12px', border: '0.5px solid #dcd8d0', borderRadius: 8, fontSize: 13, outline: 'none', background: disabled ? '#faf9f7' : '#fff', color: '#14130f', boxSizing: 'border-box' }} />
   )
 }
 
 function Select({ value, onChange, options, disabled }) {
   return (
     <select value={value || ''} onChange={onChange} disabled={disabled}
-      style={{ width: '100%', padding: '9px 12px', border: '0.5px solid #e5e7eb', borderRadius: 8, fontSize: 13, outline: 'none', background: disabled ? '#f9fafb' : '#fff', color: '#111827' }}>
+      style={{ width: '100%', padding: '9px 12px', border: '0.5px solid #dcd8d0', borderRadius: 8, fontSize: 13, outline: 'none', background: disabled ? '#faf9f7' : '#fff', color: '#14130f' }}>
       {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
     </select>
   )
@@ -91,7 +91,7 @@ function Btn({ onClick, children, variant = 'primary', size = 'md', disabled, st
   const sizes = { sm: { padding: '5px 10px', fontSize: 11 }, md: { padding: '8px 14px', fontSize: 12 } }
   const variants = {
     primary: { background: ACCENT, color: '#fff', border: 'none' },
-    ghost: { background: 'transparent', color: '#6b7280', border: '0.5px solid #e5e7eb' },
+    ghost: { background: 'transparent', color: '#6e6a63', border: '0.5px solid #dcd8d0' },
     danger: { background: '#fee2e2', color: '#dc2626', border: '0.5px solid #fca5a5' },
     success: { background: '#dcfce7', color: '#16a34a', border: '0.5px solid #86efac' },
     dark: { background: NAVY, color: '#fff', border: 'none' },
@@ -114,8 +114,8 @@ function RoleBadge({ role }) {
 }
 
 function StatusDot({ status }) {
-  const colors = { online: '#22c55e', away: '#f59e0b', offline: '#9ca3af', busy: '#ef4444' }
-  return <div style={{ width: 8, height: 8, borderRadius: '50%', background: colors[status] || '#9ca3af', flexShrink: 0 }} />
+  const colors = { online: '#22c55e', away: '#f59e0b', offline: '#9a958c', busy: '#ef4444' }
+  return <div style={{ width: 8, height: 8, borderRadius: '50%', background: colors[status] || '#9a958c', flexShrink: 0 }} />
 }
 
 function Modal({ title, subtitle, onClose, children, width = 480 }) {
@@ -123,12 +123,12 @@ function Modal({ title, subtitle, onClose, children, width = 480 }) {
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16 }}
       onClick={e => { if (e.target === e.currentTarget) onClose() }}>
       <div style={{ background: '#fff', borderRadius: 14, width: '100%', maxWidth: width, maxHeight: '90vh', overflowY: 'auto' }}>
-        <div style={{ padding: '18px 20px', borderBottom: '0.5px solid #f1f4f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, background: '#fff', zIndex: 1 }}>
+        <div style={{ padding: '18px 20px', borderBottom: '0.5px solid #f5f3ef', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, background: '#fff', zIndex: 1 }}>
           <div>
-            <div style={{ fontSize: 14, fontWeight: 600, color: '#111827' }}>{title}</div>
-            {subtitle && <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>{subtitle}</div>}
+            <div style={{ fontSize: 14, fontWeight: 600, color: '#14130f' }}>{title}</div>
+            {subtitle && <div style={{ fontSize: 11, color: '#9a958c', marginTop: 2 }}>{subtitle}</div>}
           </div>
-          <button onClick={onClose} style={{ width: 28, height: 28, borderRadius: 7, border: '0.5px solid #e5e7eb', background: '#f9fafb', cursor: 'pointer', fontSize: 14, color: '#6b7280', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+          <button onClick={onClose} style={{ width: 28, height: 28, borderRadius: 7, border: '0.5px solid #dcd8d0', background: '#faf9f7', cursor: 'pointer', fontSize: 14, color: '#6e6a63', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
         </div>
         <div style={{ padding: 20 }}>{children}</div>
       </div>
@@ -170,8 +170,8 @@ function PermissionsModal({ agent, onClose, onSave }) {
 
   return (
     <Modal title={`Permissions — ${agent.name}`} subtitle={`Base role: ${getRoleLabel(agent.role)}${isCustomised ? ' · ⚠ Customised' : ' · Using role defaults'}`} onClose={onClose} width={580}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, padding: '10px 12px', background: isCustomised ? '#fffbeb' : '#f9fafb', borderRadius: 8, border: `0.5px solid ${isCustomised ? '#fde68a' : '#e5e7eb'}` }}>
-        <div style={{ fontSize: 12, color: isCustomised ? '#92400e' : '#6b7280' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, padding: '10px 12px', background: isCustomised ? '#fffbeb' : '#faf9f7', borderRadius: 8, border: `0.5px solid ${isCustomised ? '#fde68a' : '#dcd8d0'}` }}>
+        <div style={{ fontSize: 12, color: isCustomised ? '#92400e' : '#6e6a63' }}>
           {perms.length} of {PERMISSIONS_LIST.length} permissions enabled
           {isCustomised && ' · Custom permissions active'}
         </div>
@@ -180,7 +180,7 @@ function PermissionsModal({ agent, onClose, onSave }) {
 
       {categories.map(cat => (
         <div key={cat} style={{ marginBottom: 18 }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: 8, paddingBottom: 6, borderBottom: '0.5px solid #f1f4f9', display: 'flex', justifyContent: 'space-between' }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: '#9a958c', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: 8, paddingBottom: 6, borderBottom: '0.5px solid #f5f3ef', display: 'flex', justifyContent: 'space-between' }}>
             <span>{cat}</span>
             <div style={{ display: 'flex', gap: 8 }}>
               <button onClick={() => {
@@ -190,20 +190,20 @@ function PermissionsModal({ agent, onClose, onSave }) {
               <button onClick={() => {
                 const catKeys = PERMISSIONS_LIST.filter(p => p.category === cat).map(p => p.key)
                 setPerms(prev => prev.filter(k => !catKeys.includes(k)))
-              }} style={{ fontSize: 9, color: '#9ca3af', background: 'transparent', border: 'none', cursor: 'pointer', fontWeight: 600 }}>All off</button>
+              }} style={{ fontSize: 9, color: '#9a958c', background: 'transparent', border: 'none', cursor: 'pointer', fontWeight: 600 }}>All off</button>
             </div>
           </div>
           {PERMISSIONS_LIST.filter(p => p.category === cat).map(p => (
             <div key={p.key} onClick={() => toggle(p.key)}
               style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 6px', borderRadius: 6, cursor: 'pointer', transition: 'background .1s' }}
-              onMouseEnter={e => e.currentTarget.style.background = '#f9fafb'}
+              onMouseEnter={e => e.currentTarget.style.background = '#faf9f7'}
               onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-              <div style={{ width: 16, height: 16, borderRadius: 4, border: `1.5px solid ${perms.includes(p.key) ? ACCENT : '#d1d5db'}`, background: perms.includes(p.key) ? ACCENT : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all .15s' }}>
+              <div style={{ width: 16, height: 16, borderRadius: 4, border: `1.5px solid ${perms.includes(p.key) ? ACCENT : '#c2bdb3'}`, background: perms.includes(p.key) ? ACCENT : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all .15s' }}>
                 {perms.includes(p.key) && (
                   <svg width="9" height="9" viewBox="0 0 10 10"><path d="M1.5 5l2.5 2.5 5-5" stroke="white" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/></svg>
                 )}
               </div>
-              <span style={{ fontSize: 12, color: perms.includes(p.key) ? '#111827' : '#6b7280' }}>{p.label}</span>
+              <span style={{ fontSize: 12, color: perms.includes(p.key) ? '#14130f' : '#6e6a63' }}>{p.label}</span>
               {!basePerms.includes(p.key) && perms.includes(p.key) && (
                 <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 4, background: '#fef3c7', color: '#92400e', fontWeight: 600, marginLeft: 'auto' }}>Added</span>
               )}
@@ -215,7 +215,7 @@ function PermissionsModal({ agent, onClose, onSave }) {
         </div>
       ))}
 
-      <div style={{ display: 'flex', gap: 10, paddingTop: 12, borderTop: '0.5px solid #f1f4f9', position: 'sticky', bottom: 0, background: '#fff' }}>
+      <div style={{ display: 'flex', gap: 10, paddingTop: 12, borderTop: '0.5px solid #f5f3ef', position: 'sticky', bottom: 0, background: '#fff' }}>
         <Btn variant="ghost" onClick={onClose} style={{ flex: 1 }}>Cancel</Btn>
         <Btn onClick={save} disabled={saving} style={{ flex: 2 }}>{saving ? 'Saving…' : 'Save Permissions'}</Btn>
       </div>
@@ -287,7 +287,7 @@ function AgentModal({ agent, teams, onClose, onSave }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <input type="range" min={1} max={100} value={form.capacity} onChange={e => setForm(p => ({ ...p, capacity: parseInt(e.target.value) }))}
             style={{ flex: 1, accentColor: ACCENT }} />
-          <div style={{ fontSize: 15, fontWeight: 700, color: '#111827', minWidth: 32, textAlign: 'center' }}>{form.capacity}</div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: '#14130f', minWidth: 32, textAlign: 'center' }}>{form.capacity}</div>
         </div>
       </Field>
       {!isEdit && (
@@ -295,7 +295,7 @@ function AgentModal({ agent, teams, onClose, onSave }) {
           <div style={{ position: 'relative' }}>
             <Input type={showPassword ? 'text' : 'password'} value={form.password} onChange={e => setForm(p => ({ ...p, password: e.target.value }))} placeholder="Temporary password" />
             <button onClick={() => setShowPassword(!showPassword)} type="button"
-              style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', cursor: 'pointer', color: '#9ca3af', fontSize: 14 }}>
+              style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', cursor: 'pointer', color: '#9a958c', fontSize: 14 }}>
               {showPassword ? '🙈' : '👁'}
             </button>
           </div>
@@ -342,7 +342,7 @@ function ResetPasswordModal({ agent, onClose }) {
         <div style={{ textAlign: 'center', padding: '20px 0' }}>
           <div style={{ fontSize: 36, marginBottom: 12 }}>✅</div>
           <div style={{ fontSize: 14, fontWeight: 500, color: '#16a34a' }}>Password reset successfully</div>
-          <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 6 }}>Agent will be prompted to change on next login</div>
+          <div style={{ fontSize: 12, color: '#9a958c', marginTop: 6 }}>Agent will be prompted to change on next login</div>
         </div>
       ) : (
         <>
@@ -350,7 +350,7 @@ function ResetPasswordModal({ agent, onClose }) {
             <div style={{ position: 'relative' }}>
               <Input type={showPassword ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} placeholder="Enter temporary password" />
               <button onClick={() => setShowPassword(!showPassword)} type="button"
-                style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', cursor: 'pointer', color: '#9ca3af', fontSize: 14 }}>
+                style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', cursor: 'pointer', color: '#9a958c', fontSize: 14 }}>
                 {showPassword ? '🙈' : '👁'}
               </button>
             </div>
@@ -419,8 +419,8 @@ export default function Agents() {
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
         <div>
-          <div style={{ fontSize: 15, fontWeight: 600, color: '#111827' }}>Agents</div>
-          <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 3 }}>
+          <div style={{ fontSize: 15, fontWeight: 600, color: '#14130f' }}>Agents</div>
+          <div style={{ fontSize: 12, color: '#9a958c', marginTop: 3 }}>
             {activeCount} active · {onlineCount} online now · {agents.filter(a => !a.active).length} inactive
           </div>
         </div>
@@ -430,14 +430,14 @@ export default function Agents() {
       {/* Stats row */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 16 }}>
         {[
-          { label: 'Total Agents', value: agents.length, color: NAVY, bg: '#f1f4f9' },
+          { label: 'Total Agents', value: agents.length, color: NAVY, bg: '#f5f3ef' },
           { label: 'Active', value: activeCount, color: '#16a34a', bg: '#dcfce7' },
           { label: 'Online Now', value: onlineCount, color: ACCENT, bg: ACCENT_LIGHT },
-          { label: 'Inactive', value: agents.filter(a => !a.active).length, color: '#9ca3af', bg: '#f9fafb' },
+          { label: 'Inactive', value: agents.filter(a => !a.active).length, color: '#9a958c', bg: '#faf9f7' },
         ].map(s => (
-          <div key={s.label} style={{ background: '#fff', borderRadius: 10, border: '0.5px solid #e5e7eb', padding: '14px 16px' }}>
+          <div key={s.label} style={{ background: '#fff', borderRadius: 10, border: '0.5px solid #dcd8d0', padding: '14px 16px' }}>
             <div style={{ fontSize: 22, fontWeight: 700, color: s.color }}>{s.value}</div>
-            <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 3 }}>{s.label}</div>
+            <div style={{ fontSize: 11, color: '#9a958c', marginTop: 3 }}>{s.label}</div>
           </div>
         ))}
       </div>
@@ -445,17 +445,17 @@ export default function Agents() {
       {/* Filters */}
       <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
         <div style={{ position: 'relative', flex: 1, minWidth: 200 }}>
-          <svg style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', width: 12, height: 12, color: '#9ca3af', pointerEvents: 'none' }} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="7" cy="7" r="4"/><path d="M10.5 10.5l3 3" strokeLinecap="round"/></svg>
+          <svg style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', width: 12, height: 12, color: '#9a958c', pointerEvents: 'none' }} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="7" cy="7" r="4"/><path d="M10.5 10.5l3 3" strokeLinecap="round"/></svg>
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by name or email…"
-            style={{ width: '100%', padding: '8px 10px 8px 28px', border: '0.5px solid #e5e7eb', borderRadius: 8, fontSize: 12, outline: 'none', background: '#fff', color: '#111827', boxSizing: 'border-box' }} />
+            style={{ width: '100%', padding: '8px 10px 8px 28px', border: '0.5px solid #dcd8d0', borderRadius: 8, fontSize: 12, outline: 'none', background: '#fff', color: '#14130f', boxSizing: 'border-box' }} />
         </div>
         <select value={filterRole} onChange={e => setFilterRole(e.target.value)}
-          style={{ padding: '8px 12px', border: '0.5px solid #e5e7eb', borderRadius: 8, fontSize: 12, background: '#fff', color: '#374151', outline: 'none' }}>
+          style={{ padding: '8px 12px', border: '0.5px solid #dcd8d0', borderRadius: 8, fontSize: 12, background: '#fff', color: '#4a4742', outline: 'none' }}>
           <option value="all">All Roles</option>
           {ROLE_OPTIONS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
         </select>
         <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
-          style={{ padding: '8px 12px', border: '0.5px solid #e5e7eb', borderRadius: 8, fontSize: 12, background: '#fff', color: '#374151', outline: 'none' }}>
+          style={{ padding: '8px 12px', border: '0.5px solid #dcd8d0', borderRadius: 8, fontSize: 12, background: '#fff', color: '#4a4742', outline: 'none' }}>
           <option value="all">All Status</option>
           <option value="active">Active only</option>
           <option value="inactive">Inactive only</option>
@@ -464,30 +464,30 @@ export default function Agents() {
 
       {/* Agent table */}
       {loading ? (
-        <div style={{ textAlign: 'center', padding: 60, color: '#9ca3af' }}>
+        <div style={{ textAlign: 'center', padding: 60, color: '#9a958c' }}>
           <div style={{ fontSize: 28, marginBottom: 10 }}>⏳</div>
           <div>Loading agents…</div>
         </div>
       ) : filtered.length === 0 ? (
-        <div style={{ background: '#fff', borderRadius: 12, border: '0.5px solid #e5e7eb', padding: '60px 20px', textAlign: 'center' }}>
+        <div style={{ background: '#fff', borderRadius: 12, border: '0.5px solid #dcd8d0', padding: '60px 20px', textAlign: 'center' }}>
           <div style={{ fontSize: 36, marginBottom: 12 }}>👥</div>
-          <div style={{ fontSize: 13, fontWeight: 500, color: '#6b7280', marginBottom: 4 }}>No agents found</div>
-          <div style={{ fontSize: 12, color: '#9ca3af' }}>Try adjusting your search or filters</div>
+          <div style={{ fontSize: 13, fontWeight: 500, color: '#6e6a63', marginBottom: 4 }}>No agents found</div>
+          <div style={{ fontSize: 12, color: '#9a958c' }}>Try adjusting your search or filters</div>
         </div>
       ) : (
-        <div style={{ background: '#fff', borderRadius: 12, border: '0.5px solid #e5e7eb', overflow: 'hidden' }}>
+        <div style={{ background: '#fff', borderRadius: 12, border: '0.5px solid #dcd8d0', overflow: 'hidden' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
-              <tr style={{ background: '#f9fafb' }}>
+              <tr style={{ background: '#faf9f7' }}>
                 {['Agent', 'Role', 'Team', 'Status', 'Capacity', 'Actions'].map(h => (
-                  <th key={h} style={{ padding: '10px 14px', fontSize: 10, fontWeight: 600, color: '#9ca3af', textAlign: 'left', textTransform: 'uppercase', letterSpacing: '0.5px', borderBottom: '0.5px solid #f1f4f9', whiteSpace: 'nowrap' }}>{h}</th>
+                  <th key={h} style={{ padding: '10px 14px', fontSize: 10, fontWeight: 600, color: '#9a958c', textAlign: 'left', textTransform: 'uppercase', letterSpacing: '0.5px', borderBottom: '0.5px solid #f5f3ef', whiteSpace: 'nowrap' }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {filtered.map(a => (
-                <tr key={a.id} style={{ borderBottom: '0.5px solid #f9fafb', opacity: a.active ? 1 : 0.55 }}
-                  onMouseEnter={e => e.currentTarget.style.background = '#f9fafb'}
+                <tr key={a.id} style={{ borderBottom: '0.5px solid #faf9f7', opacity: a.active ? 1 : 0.55 }}
+                  onMouseEnter={e => e.currentTarget.style.background = '#faf9f7'}
                   onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                   <td style={{ padding: '12px 14px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -495,12 +495,12 @@ export default function Agents() {
                         {a.name?.[0]?.toUpperCase()}
                       </div>
                       <div>
-                        <div style={{ fontSize: 13, fontWeight: 500, color: '#111827', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <div style={{ fontSize: 13, fontWeight: 500, color: '#14130f', display: 'flex', alignItems: 'center', gap: 6 }}>
                           {a.name}
                           {a.id === user?.id && <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 4, background: ACCENT_LIGHT, color: ACCENT, fontWeight: 600 }}>You</span>}
                           {a.is_super_admin && <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 4, background: '#fef3c7', color: '#92400e', fontWeight: 600 }}>Super Admin</span>}
                         </div>
-                        <div style={{ fontSize: 11, color: '#9ca3af' }}>{a.email}</div>
+                        <div style={{ fontSize: 11, color: '#9a958c' }}>{a.email}</div>
                       </div>
                     </div>
                   </td>
@@ -508,25 +508,25 @@ export default function Agents() {
                   <td style={{ padding: '12px 14px' }}>
                     {a.team_name ? (
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <div style={{ width: 8, height: 8, borderRadius: '50%', background: a.team_color || '#9ca3af' }} />
-                        <span style={{ fontSize: 12, color: '#374151' }}>{a.team_name}</span>
+                        <div style={{ width: 8, height: 8, borderRadius: '50%', background: a.team_color || '#9a958c' }} />
+                        <span style={{ fontSize: 12, color: '#4a4742' }}>{a.team_name}</span>
                       </div>
-                    ) : <span style={{ fontSize: 12, color: '#d1d5db' }}>—</span>}
+                    ) : <span style={{ fontSize: 12, color: '#c2bdb3' }}>—</span>}
                   </td>
                   <td style={{ padding: '12px 14px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                       <StatusDot status={a.active ? (a.status || 'offline') : 'offline'} />
-                      <span style={{ fontSize: 11, color: '#6b7280', textTransform: 'capitalize' }}>
+                      <span style={{ fontSize: 11, color: '#6e6a63', textTransform: 'capitalize' }}>
                         {!a.active ? 'Inactive' : (a.status || 'offline')}
                       </span>
                     </div>
                   </td>
                   <td style={{ padding: '12px 14px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <div style={{ flex: 1, height: 4, background: '#f1f4f9', borderRadius: 2, minWidth: 40, overflow: 'hidden' }}>
+                      <div style={{ flex: 1, height: 4, background: '#f5f3ef', borderRadius: 2, minWidth: 40, overflow: 'hidden' }}>
                         <div style={{ height: '100%', width: `${Math.min(100, (a.capacity / 50) * 100)}%`, background: ACCENT, borderRadius: 2 }} />
                       </div>
-                      <span style={{ fontSize: 11, color: '#6b7280', minWidth: 20 }}>{a.capacity}</span>
+                      <span style={{ fontSize: 11, color: '#6e6a63', minWidth: 20 }}>{a.capacity}</span>
                     </div>
                   </td>
                   <td style={{ padding: '12px 14px' }}>

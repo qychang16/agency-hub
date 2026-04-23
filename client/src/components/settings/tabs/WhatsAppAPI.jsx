@@ -7,8 +7,8 @@ import { ACCENT, ACCENT_LIGHT, NAVY } from '../../../utils/designTokens'
 function Field({ label, hint, children }) {
   return (
     <div style={{ marginBottom: 16 }}>
-      <label style={{ fontSize: 11, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.4px' }}>{label}</label>
-      {hint && <div style={{ fontSize: 11, color: '#9ca3af', marginBottom: 6 }}>{hint}</div>}
+      <label style={{ fontSize: 11, fontWeight: 600, color: '#4a4742', display: 'block', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.4px' }}>{label}</label>
+      {hint && <div style={{ fontSize: 11, color: '#9a958c', marginBottom: 6 }}>{hint}</div>}
       {children}
     </div>
   )
@@ -17,13 +17,13 @@ function Field({ label, hint, children }) {
 function Input({ value, onChange, placeholder, type = 'text', disabled, readOnly }) {
   return (
     <input type={type} value={value || ''} onChange={onChange} placeholder={placeholder} disabled={disabled} readOnly={readOnly}
-      style={{ width: '100%', padding: '9px 12px', border: '0.5px solid #e5e7eb', borderRadius: 8, fontSize: 13, outline: 'none', background: disabled || readOnly ? '#f9fafb' : '#fff', color: disabled || readOnly ? '#9ca3af' : '#111827', boxSizing: 'border-box', fontFamily: type === 'password' ? 'monospace' : 'inherit' }} />
+      style={{ width: '100%', padding: '9px 12px', border: '0.5px solid #dcd8d0', borderRadius: 8, fontSize: 13, outline: 'none', background: disabled || readOnly ? '#faf9f7' : '#fff', color: disabled || readOnly ? '#9a958c' : '#14130f', boxSizing: 'border-box', fontFamily: type === 'password' ? 'monospace' : 'inherit' }} />
   )
 }
 
 function Card({ children, style }) {
   return (
-    <div style={{ background: '#fff', borderRadius: 12, border: '0.5px solid #e5e7eb', padding: 20, marginBottom: 16, ...style }}>
+    <div style={{ background: '#fff', borderRadius: 12, border: '0.5px solid #dcd8d0', padding: 20, marginBottom: 16, ...style }}>
       {children}
     </div>
   )
@@ -31,9 +31,9 @@ function Card({ children, style }) {
 
 function CardHeader({ title, subtitle }) {
   return (
-    <div style={{ marginBottom: 14, paddingBottom: 10, borderBottom: '0.5px solid #f1f4f9' }}>
-      <div style={{ fontSize: 12, fontWeight: 600, color: '#374151' }}>{title}</div>
-      {subtitle && <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>{subtitle}</div>}
+    <div style={{ marginBottom: 14, paddingBottom: 10, borderBottom: '0.5px solid #f5f3ef' }}>
+      <div style={{ fontSize: 12, fontWeight: 600, color: '#4a4742' }}>{title}</div>
+      {subtitle && <div style={{ fontSize: 11, color: '#9a958c', marginTop: 2 }}>{subtitle}</div>}
     </div>
   )
 }
@@ -42,7 +42,7 @@ function Btn({ onClick, children, variant = 'primary', size = 'md', disabled, st
   const sizes = { sm: { padding: '5px 10px', fontSize: 11 }, md: { padding: '8px 14px', fontSize: 12 } }
   const variants = {
     primary: { background: ACCENT, color: '#fff', border: 'none' },
-    ghost: { background: 'transparent', color: '#6b7280', border: '0.5px solid #e5e7eb' },
+    ghost: { background: 'transparent', color: '#6e6a63', border: '0.5px solid #dcd8d0' },
     dark: { background: NAVY, color: '#fff', border: 'none' },
     success: { background: '#dcfce7', color: '#16a34a', border: '0.5px solid #86efac' },
     danger: { background: '#fee2e2', color: '#dc2626', border: '0.5px solid #fca5a5' },
@@ -179,15 +179,15 @@ export default function WhatsAppAPI() {
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
         <div>
-          <div style={{ fontSize: 15, fontWeight: 600, color: '#111827' }}>WhatsApp API</div>
-          <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 3 }}>
+          <div style={{ fontSize: 15, fontWeight: 600, color: '#14130f' }}>WhatsApp API</div>
+          <div style={{ fontSize: 12, color: '#9a958c', marginTop: 3 }}>
             Connect your Meta WhatsApp Business API to enable live messaging with candidates and clients
           </div>
         </div>
         {/* Connection status */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', borderRadius: 8, background: isConnected ? '#f0fdf4' : '#f9fafb', border: `0.5px solid ${isConnected ? '#86efac' : '#e5e7eb'}` }}>
-          <div style={{ width: 8, height: 8, borderRadius: '50%', background: isConnected ? '#22c55e' : '#9ca3af' }} />
-          <span style={{ fontSize: 12, fontWeight: 500, color: isConnected ? '#16a34a' : '#9ca3af' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', borderRadius: 8, background: isConnected ? '#f0fdf4' : '#faf9f7', border: `0.5px solid ${isConnected ? '#86efac' : '#dcd8d0'}` }}>
+          <div style={{ width: 8, height: 8, borderRadius: '50%', background: isConnected ? '#22c55e' : '#9a958c' }} />
+          <span style={{ fontSize: 12, fontWeight: 500, color: isConnected ? '#16a34a' : '#9a958c' }}>
             {isConnected ? 'API Connected' : 'Not Connected'}
           </span>
         </div>
@@ -200,12 +200,12 @@ export default function WhatsAppAPI() {
           { label: 'API Status', value: isConnected ? 'Live' : 'Offline', sub: isConnected ? 'Receiving messages' : 'No API connection', icon: isConnected ? '✅' : '⚠️', color: isConnected ? '#16a34a' : '#d97706', bg: isConnected ? '#dcfce7' : '#fef3c7' },
           { label: 'Messaging Tier', value: 'Tier 1', sub: 'Up to 1,000 conv/day', icon: '📊', color: '#7c3aed', bg: '#ede9fe' },
         ].map(s => (
-          <div key={s.label} style={{ background: '#fff', borderRadius: 10, border: '0.5px solid #e5e7eb', padding: '14px 16px', display: 'flex', gap: 12, alignItems: 'center' }}>
+          <div key={s.label} style={{ background: '#fff', borderRadius: 10, border: '0.5px solid #dcd8d0', padding: '14px 16px', display: 'flex', gap: 12, alignItems: 'center' }}>
             <div style={{ width: 40, height: 40, borderRadius: 10, background: s.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>{s.icon}</div>
             <div>
               <div style={{ fontSize: 18, fontWeight: 700, color: s.color }}>{s.value}</div>
-              <div style={{ fontSize: 10, color: '#9ca3af', marginTop: 1 }}>{s.label}</div>
-              <div style={{ fontSize: 10, color: '#6b7280', marginTop: 1 }}>{s.sub}</div>
+              <div style={{ fontSize: 10, color: '#9a958c', marginTop: 1 }}>{s.label}</div>
+              <div style={{ fontSize: 10, color: '#6e6a63', marginTop: 1 }}>{s.sub}</div>
             </div>
           </div>
         ))}
@@ -233,7 +233,7 @@ export default function WhatsAppAPI() {
                   onChange={e => setForm(p => ({ ...p, whatsapp_token: e.target.value }))}
                   placeholder="EAAxxxxxxxxxxxxxxxx…" />
                 <button onClick={() => setShowToken(!showToken)} type="button"
-                  style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', cursor: 'pointer', color: '#9ca3af', fontSize: 14 }}>
+                  style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', cursor: 'pointer', color: '#9a958c', fontSize: 14 }}>
                   {showToken ? '🙈' : '👁'}
                 </button>
               </div>
@@ -273,7 +273,7 @@ export default function WhatsAppAPI() {
             <Field label="Webhook URL" hint="Copy this exact URL into Meta's Callback URL field">
               <div style={{ display: 'flex', gap: 8 }}>
                 <input value={webhookUrl} readOnly
-                  style={{ flex: 1, padding: '9px 12px', border: '0.5px solid #e5e7eb', borderRadius: 8, fontSize: 11, background: '#f9fafb', color: '#6b7280', outline: 'none', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis' }} />
+                  style={{ flex: 1, padding: '9px 12px', border: '0.5px solid #dcd8d0', borderRadius: 8, fontSize: 11, background: '#faf9f7', color: '#6e6a63', outline: 'none', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis' }} />
                 <Btn variant="ghost" size="sm" onClick={() => copyToClipboard(webhookUrl, 'Webhook URL')}>Copy</Btn>
               </div>
             </Field>
@@ -281,7 +281,7 @@ export default function WhatsAppAPI() {
             <Field label="Verify Token" hint="Enter this exact value in Meta's Verify Token field">
               <div style={{ display: 'flex', gap: 8 }}>
                 <input value={verifyToken} readOnly
-                  style={{ flex: 1, padding: '9px 12px', border: '0.5px solid #e5e7eb', borderRadius: 8, fontSize: 11, background: '#f9fafb', color: '#6b7280', outline: 'none', fontFamily: 'monospace' }} />
+                  style={{ flex: 1, padding: '9px 12px', border: '0.5px solid #dcd8d0', borderRadius: 8, fontSize: 11, background: '#faf9f7', color: '#6e6a63', outline: 'none', fontFamily: 'monospace' }} />
                 <Btn variant="ghost" size="sm" onClick={() => copyToClipboard(verifyToken, 'Verify Token')}>Copy</Btn>
               </div>
             </Field>
@@ -295,22 +295,22 @@ export default function WhatsAppAPI() {
           <Card>
             <CardHeader title="Connected Phone Numbers" subtitle="Numbers registered under this WhatsApp Business Account" />
             {phoneNumbers.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '20px 0', color: '#9ca3af' }}>
+              <div style={{ textAlign: 'center', padding: '20px 0', color: '#9a958c' }}>
                 <div style={{ fontSize: 24, marginBottom: 8 }}>📱</div>
                 <div style={{ fontSize: 12 }}>No phone numbers added yet</div>
                 <div style={{ fontSize: 11, marginTop: 4 }}>Go to <strong>Phone Numbers</strong> tab to add numbers</div>
               </div>
             ) : (
               phoneNumbers.map(n => (
-                <div key={n.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', background: '#f9fafb', borderRadius: 8, marginBottom: 8, border: '0.5px solid #e5e7eb' }}>
+                <div key={n.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', background: '#faf9f7', borderRadius: 8, marginBottom: 8, border: '0.5px solid #dcd8d0' }}>
                   <span style={{ fontSize: 20 }}>📱</span>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 13, fontWeight: 500, color: '#111827' }}>{n.display_name || n.number}</div>
-                    <div style={{ fontSize: 11, color: '#9ca3af', fontFamily: 'monospace' }}>{n.number}</div>
+                    <div style={{ fontSize: 13, fontWeight: 500, color: '#14130f' }}>{n.display_name || n.number}</div>
+                    <div style={{ fontSize: 11, color: '#9a958c', fontFamily: 'monospace' }}>{n.number}</div>
                   </div>
                   <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                    {n.is_primary && <span style={{ fontSize: 9, padding: '2px 7px', borderRadius: 10, background: '#dbeafe', color: '#1e40af', fontWeight: 700 }}>PRIMARY</span>}
-                    <span style={{ fontSize: 9, padding: '2px 7px', borderRadius: 10, fontWeight: 600, background: n.connected ? '#dcfce7' : '#f1f4f9', color: n.connected ? '#16a34a' : '#9ca3af' }}>
+                    {n.is_primary && <span style={{ fontSize: 9, padding: '2px 7px', borderRadius: 10, background: '#eeedf5', color: '#2d2a7a', fontWeight: 700 }}>PRIMARY</span>}
+                    <span style={{ fontSize: 9, padding: '2px 7px', borderRadius: 10, fontWeight: 600, background: n.connected ? '#dcfce7' : '#f5f3ef', color: n.connected ? '#16a34a' : '#9a958c' }}>
                       {n.connected ? '● Connected' : '○ Not connected'}
                     </span>
                     {n.status === 'restricted' && (
@@ -334,14 +334,14 @@ export default function WhatsAppAPI() {
                   <div key={s.step}>
                     <div onClick={() => setActiveStep(isActive ? null : s.step)}
                       style={{ display: 'flex', gap: 12, padding: '10px 12px', borderRadius: 8, cursor: 'pointer', background: isActive ? ACCENT_LIGHT : 'transparent', border: `0.5px solid ${isActive ? ACCENT + '40' : 'transparent'}`, transition: 'all .15s' }}
-                      onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = '#f9fafb' }}
+                      onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = '#faf9f7' }}
                       onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent' }}>
                       <div style={{ width: 26, height: 26, borderRadius: '50%', background: isActive ? ACCENT : NAVY, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>{s.step}</div>
                       <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 12, fontWeight: 600, color: isActive ? ACCENT : '#111827' }}>{s.title}</div>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: isActive ? ACCENT : '#14130f' }}>{s.title}</div>
                         {isActive && (
                           <div style={{ marginTop: 6 }}>
-                            <div style={{ fontSize: 11, color: '#6b7280', lineHeight: 1.6 }}>{s.desc}</div>
+                            <div style={{ fontSize: 11, color: '#6e6a63', lineHeight: 1.6 }}>{s.desc}</div>
                             {s.link && (
                               <a href={s.link} target="_blank" rel="noopener noreferrer"
                                 style={{ fontSize: 11, color: ACCENT, fontWeight: 600, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 6 }}>
@@ -351,7 +351,7 @@ export default function WhatsAppAPI() {
                           </div>
                         )}
                       </div>
-                      <div style={{ fontSize: 12, color: '#9ca3af' }}>{isActive ? '▲' : '▼'}</div>
+                      <div style={{ fontSize: 12, color: '#9a958c' }}>{isActive ? '▲' : '▼'}</div>
                     </div>
                   </div>
                 )
@@ -364,26 +364,26 @@ export default function WhatsAppAPI() {
             <CardHeader title="WhatsApp Messaging Tiers" subtitle="Meta automatically upgrades your tier based on volume and quality" />
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {[
-                { tier: 'New Number', limit: '250 conversations/day', status: 'Starting point for all new numbers', color: '#9ca3af', active: false },
+                { tier: 'New Number', limit: '250 conversations/day', status: 'Starting point for all new numbers', color: '#9a958c', active: false },
                 { tier: 'Tier 1', limit: '1,000 conversations/day', status: 'After sending 250+ conversations', color: '#2563eb', active: true },
                 { tier: 'Tier 2', limit: '10,000 conversations/day', status: 'After consistent high volume', color: '#7c3aed', active: false },
                 { tier: 'Tier 3', limit: '100,000 conversations/day', status: 'High-volume verified accounts', color: '#16a34a', active: false },
                 { tier: 'Unlimited', limit: 'No daily limit', status: 'Applied by Meta for enterprise accounts', color: '#d97706', active: false },
               ].map(t => (
-                <div key={t.tier} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 8, background: t.active ? ACCENT_LIGHT : '#f9fafb', border: `0.5px solid ${t.active ? ACCENT + '40' : '#e5e7eb'}` }}>
+                <div key={t.tier} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 8, background: t.active ? ACCENT_LIGHT : '#faf9f7', border: `0.5px solid ${t.active ? ACCENT + '40' : '#dcd8d0'}` }}>
                   <div style={{ width: 10, height: 10, borderRadius: '50%', background: t.color, flexShrink: 0 }} />
                   <div style={{ flex: 1 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{ fontSize: 12, fontWeight: 600, color: '#111827' }}>{t.tier}</span>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: '#14130f' }}>{t.tier}</span>
                       {t.active && <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 10, background: ACCENT, color: '#fff', fontWeight: 700 }}>CURRENT</span>}
                     </div>
-                    <div style={{ fontSize: 11, color: '#6b7280' }}>{t.limit}</div>
+                    <div style={{ fontSize: 11, color: '#6e6a63' }}>{t.limit}</div>
                   </div>
-                  <div style={{ fontSize: 10, color: '#9ca3af', maxWidth: 120, textAlign: 'right' }}>{t.status}</div>
+                  <div style={{ fontSize: 10, color: '#9a958c', maxWidth: 120, textAlign: 'right' }}>{t.status}</div>
                 </div>
               ))}
             </div>
-            <div style={{ marginTop: 12, padding: '10px 12px', background: '#f9fafb', borderRadius: 8, fontSize: 11, color: '#6b7280', lineHeight: 1.6 }}>
+            <div style={{ marginTop: 12, padding: '10px 12px', background: '#faf9f7', borderRadius: 8, fontSize: 11, color: '#6e6a63', lineHeight: 1.6 }}>
               💡 Tiers upgrade automatically when you maintain high message volume with a good quality rating. Avoid sending to unengaged contacts to keep your rating high.
             </div>
           </Card>

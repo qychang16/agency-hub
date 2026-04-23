@@ -43,33 +43,33 @@ export default function NotificationSettings() {
   return (
     <div style={{ padding: 28, maxWidth: 720 }}>
       <div style={{ marginBottom: 24 }}>
-        <div style={{ fontSize: 16, fontWeight: 600, color: '#111827', marginBottom: 4 }}>Notifications</div>
-        <div style={{ fontSize: 12, color: '#9ca3af' }}>Choose how and when you are notified. In-app notifications appear in real time.</div>
+        <div style={{ fontSize: 16, fontWeight: 600, color: '#14130f', marginBottom: 4 }}>Notifications</div>
+        <div style={{ fontSize: 12, color: '#9a958c' }}>Choose how and when you are notified. In-app notifications appear in real time.</div>
       </div>
 
-      <div style={{ background: '#fff', borderRadius: 12, border: '0.5px solid #e5e7eb', overflow: 'hidden', marginBottom: 20 }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 80px', padding: '10px 18px', background: '#f9fafb', borderBottom: '0.5px solid #f1f4f9' }}>
-          <div style={{ fontSize: 10, fontWeight: 600, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Event</div>
-          <div style={{ fontSize: 10, fontWeight: 600, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.5px', textAlign: 'center' }}>In-App</div>
-          <div style={{ fontSize: 10, fontWeight: 600, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.5px', textAlign: 'center' }}>Email</div>
+      <div style={{ background: '#fff', borderRadius: 12, border: '0.5px solid #dcd8d0', overflow: 'hidden', marginBottom: 20 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 80px', padding: '10px 18px', background: '#faf9f7', borderBottom: '0.5px solid #f5f3ef' }}>
+          <div style={{ fontSize: 10, fontWeight: 600, color: '#9a958c', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Event</div>
+          <div style={{ fontSize: 10, fontWeight: 600, color: '#9a958c', textTransform: 'uppercase', letterSpacing: '0.5px', textAlign: 'center' }}>In-App</div>
+          <div style={{ fontSize: 10, fontWeight: 600, color: '#9a958c', textTransform: 'uppercase', letterSpacing: '0.5px', textAlign: 'center' }}>Email</div>
         </div>
         {categories.map(cat => (
           <div key={cat}>
-            <div style={{ padding: '8px 18px', background: '#fafafa', borderBottom: '0.5px solid #f1f4f9' }}>
-              <span style={{ fontSize: 10, fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.6px' }}>{cat}</span>
+            <div style={{ padding: '8px 18px', background: '#faf9f7', borderBottom: '0.5px solid #f5f3ef' }}>
+              <span style={{ fontSize: 10, fontWeight: 700, color: '#4a4742', textTransform: 'uppercase', letterSpacing: '0.6px' }}>{cat}</span>
             </div>
             {NOTIFICATION_EVENTS.filter(e => e.category === cat).map(event => (
-              <div key={event.key} style={{ display: 'grid', gridTemplateColumns: '1fr 80px 80px', padding: '10px 18px', borderBottom: '0.5px solid #f9fafb', alignItems: 'center' }}>
-                <div style={{ fontSize: 12, color: '#374151' }}>{event.label}</div>
+              <div key={event.key} style={{ display: 'grid', gridTemplateColumns: '1fr 80px 80px', padding: '10px 18px', borderBottom: '0.5px solid #faf9f7', alignItems: 'center' }}>
+                <div style={{ fontSize: 12, color: '#4a4742' }}>{event.label}</div>
                 <div style={{ textAlign: 'center' }}>
                   <button onClick={() => toggle(event.key, 'in_app')}
-                    style={{ width: 36, height: 20, borderRadius: 10, border: 'none', background: prefs[event.key]?.in_app !== false ? ACCENT : '#d1d5db', cursor: 'pointer', position: 'relative', transition: 'background .2s' }}>
+                    style={{ width: 36, height: 20, borderRadius: 10, border: 'none', background: prefs[event.key]?.in_app !== false ? ACCENT : '#c2bdb3', cursor: 'pointer', position: 'relative', transition: 'background .2s' }}>
                     <div style={{ width: 14, height: 14, borderRadius: '50%', background: '#fff', position: 'absolute', top: 3, left: prefs[event.key]?.in_app !== false ? 19 : 3, transition: 'left .2s' }} />
                   </button>
                 </div>
                 <div style={{ textAlign: 'center' }}>
                   <button onClick={() => toggle(event.key, 'email')}
-                    style={{ width: 36, height: 20, borderRadius: 10, border: 'none', background: prefs[event.key]?.email ? ACCENT : '#d1d5db', cursor: 'pointer', position: 'relative', transition: 'background .2s' }}>
+                    style={{ width: 36, height: 20, borderRadius: 10, border: 'none', background: prefs[event.key]?.email ? ACCENT : '#c2bdb3', cursor: 'pointer', position: 'relative', transition: 'background .2s' }}>
                     <div style={{ width: 14, height: 14, borderRadius: '50%', background: '#fff', position: 'absolute', top: 3, left: prefs[event.key]?.email ? 19 : 3, transition: 'left .2s' }} />
                   </button>
                 </div>

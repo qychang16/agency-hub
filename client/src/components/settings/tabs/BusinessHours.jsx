@@ -18,7 +18,7 @@ function Btn({ onClick, children, variant = 'primary', size = 'md', disabled, st
   const sizes = { sm: { padding: '5px 10px', fontSize: 11 }, md: { padding: '8px 14px', fontSize: 12 } }
   const variants = {
     primary: { background: ACCENT, color: '#fff', border: 'none' },
-    ghost: { background: 'transparent', color: '#6b7280', border: '0.5px solid #e5e7eb' },
+    ghost: { background: 'transparent', color: '#6e6a63', border: '0.5px solid #dcd8d0' },
     light: { background: ACCENT_LIGHT, color: ACCENT, border: `0.5px solid ${ACCENT}30` },
   }
   return (
@@ -32,7 +32,7 @@ function Btn({ onClick, children, variant = 'primary', size = 'md', disabled, st
 function Toggle({ value, onChange }) {
   return (
     <button onClick={() => onChange(!value)}
-      style={{ width: 44, height: 24, borderRadius: 12, border: 'none', background: value ? ACCENT : '#d1d5db', cursor: 'pointer', position: 'relative', transition: 'background .2s', flexShrink: 0 }}>
+      style={{ width: 44, height: 24, borderRadius: 12, border: 'none', background: value ? ACCENT : '#c2bdb3', cursor: 'pointer', position: 'relative', transition: 'background .2s', flexShrink: 0 }}>
       <div style={{ width: 18, height: 18, borderRadius: '50%', background: '#fff', position: 'absolute', top: 3, left: value ? 23 : 3, transition: 'left .2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
     </button>
   )
@@ -41,7 +41,7 @@ function Toggle({ value, onChange }) {
 function TimeInput({ value, onChange, disabled }) {
   return (
     <input type="time" value={value || ''} onChange={onChange} disabled={disabled}
-      style={{ padding: '7px 10px', border: `0.5px solid ${disabled ? '#f1f4f9' : '#e5e7eb'}`, borderRadius: 8, fontSize: 12, outline: 'none', background: disabled ? '#f9fafb' : '#fff', color: disabled ? '#d1d5db' : '#111827', cursor: disabled ? 'not-allowed' : 'auto', width: 100 }} />
+      style={{ padding: '7px 10px', border: `0.5px solid ${disabled ? '#f5f3ef' : '#dcd8d0'}`, borderRadius: 8, fontSize: 12, outline: 'none', background: disabled ? '#faf9f7' : '#fff', color: disabled ? '#c2bdb3' : '#14130f', cursor: disabled ? 'not-allowed' : 'auto', width: 100 }} />
   )
 }
 
@@ -138,7 +138,7 @@ export default function BusinessHours() {
   const summary = getWeekSummary()
 
   if (loading) return (
-    <div style={{ textAlign: 'center', padding: 60, color: '#9ca3af' }}>
+    <div style={{ textAlign: 'center', padding: 60, color: '#9a958c' }}>
       <div style={{ fontSize: 28, marginBottom: 10 }}>⏳</div>
       <div>Loading business hours…</div>
     </div>
@@ -149,41 +149,41 @@ export default function BusinessHours() {
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
         <div>
-          <div style={{ fontSize: 15, fontWeight: 600, color: '#111827' }}>Business Hours</div>
-          <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 3 }}>
+          <div style={{ fontSize: 15, fontWeight: 600, color: '#14130f' }}>Business Hours</div>
+          <div style={{ fontSize: 12, color: '#9a958c', marginTop: 3 }}>
             Set when your team is available. After-hours routing rules apply outside these times.
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <div style={{ padding: '6px 12px', background: '#f9fafb', borderRadius: 8, border: '0.5px solid #e5e7eb', fontSize: 11, color: '#374151' }}>
-            <span style={{ color: '#9ca3af' }}>Open: </span><strong>{summary.openDays} days</strong>
-            <span style={{ color: '#9ca3af', marginLeft: 8 }}>Total: </span><strong>{summary.totalHrs}h/week</strong>
+          <div style={{ padding: '6px 12px', background: '#faf9f7', borderRadius: 8, border: '0.5px solid #dcd8d0', fontSize: 11, color: '#4a4742' }}>
+            <span style={{ color: '#9a958c' }}>Open: </span><strong>{summary.openDays} days</strong>
+            <span style={{ color: '#9a958c', marginLeft: 8 }}>Total: </span><strong>{summary.totalHrs}h/week</strong>
           </div>
         </div>
       </div>
 
       {/* Quick presets */}
-      <div style={{ background: '#fff', borderRadius: 12, border: '0.5px solid #e5e7eb', padding: '16px 20px', marginBottom: 16 }}>
-        <div style={{ fontSize: 11, fontWeight: 600, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 12 }}>Quick Set</div>
+      <div style={{ background: '#fff', borderRadius: 12, border: '0.5px solid #dcd8d0', padding: '16px 20px', marginBottom: 16 }}>
+        <div style={{ fontSize: 11, fontWeight: 600, color: '#4a4742', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 12 }}>Quick Set</div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
           {QUICK_PRESETS.map(p => (
             <button key={p.label}
               onClick={() => applyToWeekdays(p.open, p.close)}
-              style={{ padding: '6px 12px', borderRadius: 7, border: '0.5px solid #e5e7eb', fontSize: 11, background: '#f9fafb', color: '#374151', cursor: 'pointer', fontWeight: 500, transition: 'all .1s' }}
+              style={{ padding: '6px 12px', borderRadius: 7, border: '0.5px solid #dcd8d0', fontSize: 11, background: '#faf9f7', color: '#4a4742', cursor: 'pointer', fontWeight: 500, transition: 'all .1s' }}
               onMouseEnter={e => { e.currentTarget.style.background = ACCENT_LIGHT; e.currentTarget.style.color = ACCENT; e.currentTarget.style.borderColor = ACCENT }}
-              onMouseLeave={e => { e.currentTarget.style.background = '#f9fafb'; e.currentTarget.style.color = '#374151'; e.currentTarget.style.borderColor = '#e5e7eb' }}>
+              onMouseLeave={e => { e.currentTarget.style.background = '#faf9f7'; e.currentTarget.style.color = '#4a4742'; e.currentTarget.style.borderColor = '#dcd8d0' }}>
               {p.label}
             </button>
           ))}
         </div>
         <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 11, color: '#9ca3af' }}>Apply to:</span>
+          <span style={{ fontSize: 11, color: '#9a958c' }}>Apply to:</span>
           <button onClick={() => applyToWeekdays(hours.find(h => h.is_open)?.open_time || '09:00', hours.find(h => h.is_open)?.close_time || '18:00')}
-            style={{ padding: '4px 10px', borderRadius: 6, border: '0.5px solid #e5e7eb', fontSize: 11, background: 'transparent', color: '#6b7280', cursor: 'pointer' }}>
+            style={{ padding: '4px 10px', borderRadius: 6, border: '0.5px solid #dcd8d0', fontSize: 11, background: 'transparent', color: '#6e6a63', cursor: 'pointer' }}>
             Weekdays only (Mon–Fri)
           </button>
           <button onClick={() => applyToAll(hours.find(h => h.is_open)?.open_time || '09:00', hours.find(h => h.is_open)?.close_time || '18:00')}
-            style={{ padding: '4px 10px', borderRadius: 6, border: '0.5px solid #e5e7eb', fontSize: 11, background: 'transparent', color: '#6b7280', cursor: 'pointer' }}>
+            style={{ padding: '4px 10px', borderRadius: 6, border: '0.5px solid #dcd8d0', fontSize: 11, background: 'transparent', color: '#6e6a63', cursor: 'pointer' }}>
             All 7 days
           </button>
           <button onClick={() => setHours(prev => prev.map((h, i) => i >= 5 ? { ...h, is_open: false } : h))}
@@ -194,11 +194,11 @@ export default function BusinessHours() {
       </div>
 
       {/* Hours table */}
-      <div style={{ background: '#fff', borderRadius: 12, border: '0.5px solid #e5e7eb', overflow: 'hidden', marginBottom: 16 }}>
+      <div style={{ background: '#fff', borderRadius: 12, border: '0.5px solid #dcd8d0', overflow: 'hidden', marginBottom: 16 }}>
         {/* Table header */}
-        <div style={{ display: 'grid', gridTemplateColumns: '140px 80px 1fr 1fr 80px 100px', gap: 0, padding: '10px 20px', background: '#f9fafb', borderBottom: '0.5px solid #f1f4f9' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '140px 80px 1fr 1fr 80px 100px', gap: 0, padding: '10px 20px', background: '#faf9f7', borderBottom: '0.5px solid #f5f3ef' }}>
           {['Day', 'Status', 'Opens', 'Closes', 'Hours', ''].map(h => (
-            <div key={h} style={{ fontSize: 10, fontWeight: 600, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{h}</div>
+            <div key={h} style={{ fontSize: 10, fontWeight: 600, color: '#9a958c', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{h}</div>
           ))}
         </div>
 
@@ -213,12 +213,12 @@ export default function BusinessHours() {
             <div key={day}
               onMouseEnter={() => setHoveredDay(day)}
               onMouseLeave={() => setHoveredDay(null)}
-              style={{ display: 'grid', gridTemplateColumns: '140px 80px 1fr 1fr 80px 100px', gap: 0, padding: '14px 20px', borderBottom: idx < WEEKDAYS.length - 1 ? '0.5px solid #f9fafb' : 'none', background: isHovered ? '#fafafa' : h.is_open ? '#fff' : '#fafafa', transition: 'background .1s', alignItems: 'center' }}>
+              style={{ display: 'grid', gridTemplateColumns: '140px 80px 1fr 1fr 80px 100px', gap: 0, padding: '14px 20px', borderBottom: idx < WEEKDAYS.length - 1 ? '0.5px solid #faf9f7' : 'none', background: isHovered ? '#faf9f7' : h.is_open ? '#fff' : '#faf9f7', transition: 'background .1s', alignItems: 'center' }}>
 
               {/* Day name */}
               <div>
-                <div style={{ fontSize: 13, fontWeight: h.is_open ? 600 : 400, color: h.is_open ? '#111827' : '#9ca3af' }}>{day}</div>
-                {isWeekend && <div style={{ fontSize: 10, color: '#d1d5db' }}>Weekend</div>}
+                <div style={{ fontSize: 13, fontWeight: h.is_open ? 600 : 400, color: h.is_open ? '#14130f' : '#9a958c' }}>{day}</div>
+                {isWeekend && <div style={{ fontSize: 10, color: '#c2bdb3' }}>Weekend</div>}
               </div>
 
               {/* Toggle */}
@@ -245,11 +245,11 @@ export default function BusinessHours() {
               {/* Hours */}
               <div>
                 {h.is_open && totalHrs ? (
-                  <span style={{ fontSize: 12, fontWeight: 500, color: '#374151', background: ACCENT_LIGHT, padding: '3px 8px', borderRadius: 6 }}>{totalHrs}</span>
+                  <span style={{ fontSize: 12, fontWeight: 500, color: '#4a4742', background: ACCENT_LIGHT, padding: '3px 8px', borderRadius: 6 }}>{totalHrs}</span>
                 ) : h.is_open ? (
                   <span style={{ fontSize: 11, color: '#ef4444' }}>Invalid</span>
                 ) : (
-                  <span style={{ fontSize: 12, color: '#d1d5db' }}>Closed</span>
+                  <span style={{ fontSize: 12, color: '#c2bdb3' }}>Closed</span>
                 )}
               </div>
 
@@ -257,7 +257,7 @@ export default function BusinessHours() {
               <div>
                 {isHovered && idx > 0 && (
                   <button onClick={() => copyFromPreviousDay(day)}
-                    style={{ fontSize: 10, padding: '3px 8px', borderRadius: 6, border: '0.5px solid #e5e7eb', background: '#fff', color: '#6b7280', cursor: 'pointer' }}>
+                    style={{ fontSize: 10, padding: '3px 8px', borderRadius: 6, border: '0.5px solid #dcd8d0', background: '#fff', color: '#6e6a63', cursor: 'pointer' }}>
                     Copy {WEEKDAYS[idx - 1].slice(0, 3)}
                   </button>
                 )}
@@ -268,8 +268,8 @@ export default function BusinessHours() {
       </div>
 
       {/* Weekly overview visual */}
-      <div style={{ background: '#fff', borderRadius: 12, border: '0.5px solid #e5e7eb', padding: '16px 20px', marginBottom: 16 }}>
-        <div style={{ fontSize: 11, fontWeight: 600, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 12 }}>Weekly Overview</div>
+      <div style={{ background: '#fff', borderRadius: 12, border: '0.5px solid #dcd8d0', padding: '16px 20px', marginBottom: 16 }}>
+        <div style={{ fontSize: 11, fontWeight: 600, color: '#4a4742', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 12 }}>Weekly Overview</div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
           {hours.map(h => {
             const mins = h.is_open ? (() => {
@@ -281,11 +281,11 @@ export default function BusinessHours() {
             const heightPct = mins / maxMins
             return (
               <div key={h.day_of_week} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-                <div style={{ fontSize: 10, color: '#9ca3af' }}>{getTotalHours(h) || '—'}</div>
-                <div style={{ width: '100%', height: 60, background: '#f1f4f9', borderRadius: 5, overflow: 'hidden', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
-                  <div style={{ width: '100%', height: `${heightPct * 100}%`, background: h.is_open ? ACCENT : '#e5e7eb', borderRadius: 5, transition: 'height .3s ease', minHeight: h.is_open ? 4 : 0 }} />
+                <div style={{ fontSize: 10, color: '#9a958c' }}>{getTotalHours(h) || '—'}</div>
+                <div style={{ width: '100%', height: 60, background: '#f5f3ef', borderRadius: 5, overflow: 'hidden', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+                  <div style={{ width: '100%', height: `${heightPct * 100}%`, background: h.is_open ? ACCENT : '#dcd8d0', borderRadius: 5, transition: 'height .3s ease', minHeight: h.is_open ? 4 : 0 }} />
                 </div>
-                <div style={{ fontSize: 10, color: h.is_open ? '#374151' : '#d1d5db', fontWeight: h.is_open ? 600 : 400 }}>
+                <div style={{ fontSize: 10, color: h.is_open ? '#4a4742' : '#c2bdb3', fontWeight: h.is_open ? 600 : 400 }}>
                   {h.day_of_week.slice(0, 3)}
                 </div>
               </div>

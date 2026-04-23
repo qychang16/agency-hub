@@ -7,8 +7,8 @@ import { ACCENT, ACCENT_LIGHT, NAVY } from '../../../utils/designTokens'
 function Field({ label, hint, children }) {
   return (
     <div style={{ marginBottom: 16 }}>
-      <label style={{ fontSize: 11, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.4px' }}>{label}</label>
-      {hint && <div style={{ fontSize: 11, color: '#9ca3af', marginBottom: 6 }}>{hint}</div>}
+      <label style={{ fontSize: 11, fontWeight: 600, color: '#4a4742', display: 'block', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.4px' }}>{label}</label>
+      {hint && <div style={{ fontSize: 11, color: '#9a958c', marginBottom: 6 }}>{hint}</div>}
       {children}
     </div>
   )
@@ -17,14 +17,14 @@ function Field({ label, hint, children }) {
 function Input({ value, onChange, placeholder, type = 'text', disabled }) {
   return (
     <input type={type} value={value || ''} onChange={onChange} placeholder={placeholder} disabled={disabled}
-      style={{ width: '100%', padding: '9px 12px', border: '0.5px solid #e5e7eb', borderRadius: 8, fontSize: 13, outline: 'none', background: disabled ? '#f9fafb' : '#fff', color: '#111827', boxSizing: 'border-box' }} />
+      style={{ width: '100%', padding: '9px 12px', border: '0.5px solid #dcd8d0', borderRadius: 8, fontSize: 13, outline: 'none', background: disabled ? '#faf9f7' : '#fff', color: '#14130f', boxSizing: 'border-box' }} />
   )
 }
 
 function Select({ value, onChange, options }) {
   return (
     <select value={value || ''} onChange={onChange}
-      style={{ width: '100%', padding: '9px 12px', border: '0.5px solid #e5e7eb', borderRadius: 8, fontSize: 13, outline: 'none', background: '#fff', color: '#111827' }}>
+      style={{ width: '100%', padding: '9px 12px', border: '0.5px solid #dcd8d0', borderRadius: 8, fontSize: 13, outline: 'none', background: '#fff', color: '#14130f' }}>
       {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
     </select>
   )
@@ -32,7 +32,7 @@ function Select({ value, onChange, options }) {
 
 function Card({ children, style }) {
   return (
-    <div style={{ background: '#fff', borderRadius: 12, border: '0.5px solid #e5e7eb', padding: 20, marginBottom: 16, ...style }}>
+    <div style={{ background: '#fff', borderRadius: 12, border: '0.5px solid #dcd8d0', padding: 20, marginBottom: 16, ...style }}>
       {children}
     </div>
   )
@@ -40,9 +40,9 @@ function Card({ children, style }) {
 
 function CardHeader({ title, subtitle }) {
   return (
-    <div style={{ marginBottom: 14, paddingBottom: 10, borderBottom: '0.5px solid #f1f4f9' }}>
-      <div style={{ fontSize: 12, fontWeight: 600, color: '#374151' }}>{title}</div>
-      {subtitle && <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>{subtitle}</div>}
+    <div style={{ marginBottom: 14, paddingBottom: 10, borderBottom: '0.5px solid #f5f3ef' }}>
+      <div style={{ fontSize: 12, fontWeight: 600, color: '#4a4742' }}>{title}</div>
+      {subtitle && <div style={{ fontSize: 11, color: '#9a958c', marginTop: 2 }}>{subtitle}</div>}
     </div>
   )
 }
@@ -50,7 +50,7 @@ function CardHeader({ title, subtitle }) {
 function Btn({ onClick, children, variant = 'primary', disabled }) {
   const variants = {
     primary: { background: ACCENT, color: '#fff', border: 'none' },
-    ghost: { background: 'transparent', color: '#6b7280', border: '0.5px solid #e5e7eb' },
+    ghost: { background: 'transparent', color: '#6e6a63', border: '0.5px solid #dcd8d0' },
   }
   return (
     <button onClick={!disabled ? onClick : undefined}
@@ -130,8 +130,8 @@ export default function AgencyProfile() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
         <div>
-          <div style={{ fontSize: 15, fontWeight: 600, color: '#111827' }}>Agency Profile</div>
-          <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 3 }}>Your agency information displayed across the platform and in client-facing communications</div>
+          <div style={{ fontSize: 15, fontWeight: 600, color: '#14130f' }}>Agency Profile</div>
+          <div style={{ fontSize: 12, color: '#9a958c', marginTop: 3 }}>Your agency information displayed across the platform and in client-facing communications</div>
         </div>
       </div>
 
@@ -155,11 +155,11 @@ export default function AgencyProfile() {
 
           <Card>
             <CardHeader title="Platform Plan" subtitle="Your current Tel-Cloud subscription" />
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', background: '#f9fafb', borderRadius: 10, border: '0.5px solid #e5e7eb' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', background: '#faf9f7', borderRadius: 10, border: '0.5px solid #dcd8d0' }}>
               <div style={{ width: 44, height: 44, borderRadius: 12, background: NAVY, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>⭐</div>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: '#111827', textTransform: 'capitalize' }}>{workspace?.plan || 'Starter'} Plan</div>
-                <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: '#14130f', textTransform: 'capitalize' }}>{workspace?.plan || 'Starter'} Plan</div>
+                <div style={{ fontSize: 11, color: '#9a958c', marginTop: 2 }}>
                   {workspace?.billing_exempt ? '✓ Internal workspace — no billing' : 'Manage billing in Billing tab'}
                 </div>
               </div>
@@ -177,12 +177,12 @@ export default function AgencyProfile() {
               <textarea value={form.address} onChange={e => setForm(p => ({ ...p, address: e.target.value }))}
                 placeholder={'e.g. Level 12, One Raffles Place\nSingapore 048616'}
                 rows={3}
-                style={{ width: '100%', padding: '9px 12px', border: '0.5px solid #e5e7eb', borderRadius: 8, fontSize: 13, outline: 'none', background: '#fff', color: '#111827', resize: 'none', fontFamily: 'inherit', boxSizing: 'border-box', lineHeight: 1.5 }} />
+                style={{ width: '100%', padding: '9px 12px', border: '0.5px solid #dcd8d0', borderRadius: 8, fontSize: 13, outline: 'none', background: '#fff', color: '#14130f', resize: 'none', fontFamily: 'inherit', boxSizing: 'border-box', lineHeight: 1.5 }} />
             </Field>
             <Field label="Primary Timezone" hint="All timestamps across Tel-Cloud will display in this timezone">
               <Select value={form.timezone} onChange={e => setForm(p => ({ ...p, timezone: e.target.value }))} options={TIMEZONES} />
             </Field>
-            <div style={{ padding: '10px 12px', background: '#f9fafb', borderRadius: 8, border: '0.5px solid #e5e7eb', fontSize: 11, color: '#6b7280' }}>
+            <div style={{ padding: '10px 12px', background: '#faf9f7', borderRadius: 8, border: '0.5px solid #dcd8d0', fontSize: 11, color: '#6e6a63' }}>
               Current time in selected timezone: <strong>{new Date().toLocaleTimeString('en-GB', { timeZone: form.timezone, hour: '2-digit', minute: '2-digit', hour12: false })}</strong>
             </div>
           </Card>
@@ -190,12 +190,12 @@ export default function AgencyProfile() {
           <Card>
             <CardHeader title="Agency Logo" subtitle="Displayed in the platform header and PDF exports" />
             <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 14 }}>
-              <div style={{ width: 72, height: 72, borderRadius: 14, background: '#f1f4f9', border: '1.5px dashed #d1d5db', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28, flexShrink: 0 }}>
+              <div style={{ width: 72, height: 72, borderRadius: 14, background: '#f5f3ef', border: '1.5px dashed #c2bdb3', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28, flexShrink: 0 }}>
                 🏢
               </div>
               <div>
-                <div style={{ fontSize: 12, fontWeight: 500, color: '#111827', marginBottom: 4 }}>Upload your agency logo</div>
-                <div style={{ fontSize: 11, color: '#9ca3af', marginBottom: 10, lineHeight: 1.5 }}>PNG or JPG recommended. Min 200×200px. Max 2MB. Square format works best.</div>
+                <div style={{ fontSize: 12, fontWeight: 500, color: '#14130f', marginBottom: 4 }}>Upload your agency logo</div>
+                <div style={{ fontSize: 11, color: '#9a958c', marginBottom: 10, lineHeight: 1.5 }}>PNG or JPG recommended. Min 200×200px. Max 2MB. Square format works best.</div>
                 <div style={{ display: 'flex', gap: 8 }}>
                   <Btn variant="ghost" onClick={() => alert('File upload will be available once storage is configured.')}>Upload Logo</Btn>
                 </div>
@@ -210,7 +210,7 @@ export default function AgencyProfile() {
             <CardHeader title="Workspace ID" subtitle="For technical reference and support" />
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <input value={workspace?.id || 'Loading…'} readOnly
-                style={{ flex: 1, padding: '8px 12px', border: '0.5px solid #e5e7eb', borderRadius: 8, fontSize: 12, background: '#f9fafb', color: '#9ca3af', outline: 'none', fontFamily: 'monospace' }} />
+                style={{ flex: 1, padding: '8px 12px', border: '0.5px solid #dcd8d0', borderRadius: 8, fontSize: 12, background: '#faf9f7', color: '#9a958c', outline: 'none', fontFamily: 'monospace' }} />
               <Btn variant="ghost" onClick={() => { navigator.clipboard.writeText(workspace?.id || ''); alert('Workspace ID copied') }}>Copy</Btn>
             </div>
           </Card>

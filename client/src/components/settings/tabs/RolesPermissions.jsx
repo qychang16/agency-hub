@@ -36,7 +36,7 @@ function Btn({ onClick, children, variant = 'primary', size = 'md', disabled }) 
   const sizes = { sm: { padding: '5px 12px', fontSize: 11 }, md: { padding: '8px 16px', fontSize: 12 }, lg: { padding: '10px 20px', fontSize: 13 } }
   const variants = {
     primary: { background: ACCENT, color: '#fff', border: 'none' },
-    ghost: { background: 'transparent', color: '#6b7280', border: '0.5px solid #e5e7eb' },
+    ghost: { background: 'transparent', color: '#6e6a63', border: '0.5px solid #dcd8d0' },
     danger: { background: '#fee2e2', color: '#dc2626', border: '0.5px solid #fca5a5' },
     dark: { background: NAVY, color: '#fff', border: 'none' },
   }
@@ -51,52 +51,52 @@ function Btn({ onClick, children, variant = 'primary', size = 'md', disabled }) 
 function Toggle({ value, onChange, disabled }) {
   return (
     <button onClick={() => !disabled && onChange(!value)} disabled={disabled}
-      style={{ width: 36, height: 20, borderRadius: 10, border: 'none', background: value ? ACCENT : '#d1d5db', cursor: disabled ? 'default' : 'pointer', position: 'relative', transition: 'background .2s', flexShrink: 0, opacity: disabled ? 0.5 : 1 }}>
+      style={{ width: 36, height: 20, borderRadius: 10, border: 'none', background: value ? ACCENT : '#c2bdb3', cursor: disabled ? 'default' : 'pointer', position: 'relative', transition: 'background .2s', flexShrink: 0, opacity: disabled ? 0.5 : 1 }}>
       <div style={{ width: 14, height: 14, borderRadius: '50%', background: '#fff', position: 'absolute', top: 3, left: value ? 19 : 3, transition: 'left .2s', boxShadow: '0 1px 2px rgba(0,0,0,0.2)' }} />
     </button>
   )
 }
 
 function RoleCard({ role, config, onChange, expanded, onToggleExpand, locked, dirty }) {
-  const meta = ROLE_META[role] || { label: role, desc: '', color: '#6b7280' }
+  const meta = ROLE_META[role] || { label: role, desc: '', color: '#6e6a63' }
   const permCount = Object.values(config.permissions).filter(Boolean).length
   const totalPerms = PERMISSIONS.length
 
   return (
-    <div style={{ border: dirty ? '1px solid ' + ACCENT : '0.5px solid #e5e7eb', borderRadius: 12, marginBottom: 10, background: '#fff', overflow: 'hidden', transition: 'border-color .15s' }}>
+    <div style={{ border: dirty ? '1px solid ' + ACCENT : '0.5px solid #dcd8d0', borderRadius: 12, marginBottom: 10, background: '#fff', overflow: 'hidden', transition: 'border-color .15s' }}>
       <div onClick={!locked ? onToggleExpand : undefined}
-        style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: locked ? 'default' : 'pointer', background: expanded ? '#f9fafb' : '#fff' }}>
+        style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: locked ? 'default' : 'pointer', background: expanded ? '#faf9f7' : '#fff' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1 }}>
           <div style={{ width: 8, height: 8, borderRadius: '50%', background: meta.color }} />
           <div>
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#111827', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#14130f', display: 'flex', alignItems: 'center', gap: 8 }}>
               {meta.label}
-              {locked && <span style={{ fontSize: 10, fontWeight: 500, color: '#9ca3af', padding: '2px 6px', background: '#f3f4f6', borderRadius: 4 }}>LOCKED</span>}
-              {dirty && <span style={{ fontSize: 10, fontWeight: 500, color: ACCENT, padding: '2px 6px', background: '#eff6ff', borderRadius: 4 }}>UNSAVED</span>}
+              {locked && <span style={{ fontSize: 10, fontWeight: 500, color: '#9a958c', padding: '2px 6px', background: '#f3f4f6', borderRadius: 4 }}>LOCKED</span>}
+              {dirty && <span style={{ fontSize: 10, fontWeight: 500, color: ACCENT, padding: '2px 6px', background: '#eeedf5', borderRadius: 4 }}>UNSAVED</span>}
             </div>
-            <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>{meta.desc}</div>
+            <div style={{ fontSize: 11, color: '#6e6a63', marginTop: 2 }}>{meta.desc}</div>
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16, fontSize: 11, color: '#6b7280' }}>
-          <div>Scope: <strong style={{ color: '#374151' }}>{config.scope === 'workspace_wide' ? 'Workspace-wide' : 'Project only'}</strong></div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, fontSize: 11, color: '#6e6a63' }}>
+          <div>Scope: <strong style={{ color: '#4a4742' }}>{config.scope === 'workspace_wide' ? 'Workspace-wide' : 'Project only'}</strong></div>
           <div>{permCount} / {totalPerms} permissions</div>
-          {!locked && <div style={{ fontSize: 14, color: '#9ca3af' }}>{expanded ? 'v' : '>'}</div>}
+          {!locked && <div style={{ fontSize: 14, color: '#9a958c' }}>{expanded ? 'v' : '>'}</div>}
         </div>
       </div>
 
       {expanded && !locked && (
-        <div style={{ padding: '0 16px 16px 16px', borderTop: '0.5px solid #f1f4f9' }}>
-          <div style={{ marginTop: 16, padding: 12, background: '#f9fafb', borderRadius: 8, display: 'flex', alignItems: 'center', gap: 20 }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: '#374151' }}>Visibility scope:</div>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#374151', cursor: 'pointer' }}>
+        <div style={{ padding: '0 16px 16px 16px', borderTop: '0.5px solid #f5f3ef' }}>
+          <div style={{ marginTop: 16, padding: 12, background: '#faf9f7', borderRadius: 8, display: 'flex', alignItems: 'center', gap: 20 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: '#4a4742' }}>Visibility scope:</div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#4a4742', cursor: 'pointer' }}>
               <input type="radio" checked={config.scope === 'project_only'} onChange={() => onChange({ ...config, scope: 'project_only' })} />
               Project only
-              <span style={{ fontSize: 10, color: '#9ca3af', marginLeft: 4 }}>(sees only assigned projects)</span>
+              <span style={{ fontSize: 10, color: '#9a958c', marginLeft: 4 }}>(sees only assigned projects)</span>
             </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#374151', cursor: 'pointer' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#4a4742', cursor: 'pointer' }}>
               <input type="radio" checked={config.scope === 'workspace_wide'} onChange={() => onChange({ ...config, scope: 'workspace_wide' })} />
               Workspace-wide
-              <span style={{ fontSize: 10, color: '#9ca3af', marginLeft: 4 }}>(sees everything)</span>
+              <span style={{ fontSize: 10, color: '#9a958c', marginLeft: 4 }}>(sees everything)</span>
             </label>
           </div>
 
@@ -105,12 +105,12 @@ function RoleCard({ role, config, onChange, expanded, onToggleExpand, locked, di
             if (!permsInCat.length) return null
             return (
               <div key={cat} style={{ marginTop: 16 }}>
-                <div style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 8 }}>{cat}</div>
+                <div style={{ fontSize: 11, fontWeight: 600, color: '#6e6a63', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 8 }}>{cat}</div>
                 {permsInCat.map(p => (
-                  <div key={p.key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderBottom: '0.5px solid #f9fafb' }}>
+                  <div key={p.key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderBottom: '0.5px solid #faf9f7' }}>
                     <div style={{ flex: 1, paddingRight: 12 }}>
-                      <div style={{ fontSize: 12, color: '#111827', fontWeight: 500 }}>{p.label}</div>
-                      <div style={{ fontSize: 10, color: '#9ca3af', marginTop: 2 }}>{p.desc}</div>
+                      <div style={{ fontSize: 12, color: '#14130f', fontWeight: 500 }}>{p.label}</div>
+                      <div style={{ fontSize: 10, color: '#9a958c', marginTop: 2 }}>{p.desc}</div>
                     </div>
                     <Toggle
                       value={config.permissions[p.key] === true}
@@ -125,7 +125,7 @@ function RoleCard({ role, config, onChange, expanded, onToggleExpand, locked, di
       )}
 
       {locked && (
-        <div style={{ padding: '0 16px 14px 16px', fontSize: 11, color: '#6b7280' }}>
+        <div style={{ padding: '0 16px 14px 16px', fontSize: 11, color: '#6e6a63' }}>
           Director always has workspace-wide access and all permissions. This cannot be changed.
         </div>
       )}
@@ -261,7 +261,7 @@ export default function RolesPermissions({ workspaceId, workspaceName }) {
   }
 
   if (loading) {
-    return <div style={{ padding: 20, color: '#6b7280', fontSize: 13 }}>Loading roles and permissions...</div>
+    return <div style={{ padding: 20, color: '#6e6a63', fontSize: 13 }}>Loading roles and permissions...</div>
   }
   if (error && !roles.length) {
     return (
@@ -274,15 +274,15 @@ export default function RolesPermissions({ workspaceId, workspaceName }) {
   return (
     <div style={{ padding: 20, maxWidth: 900 }}>
       <div style={{ marginBottom: 20 }}>
-        <div style={{ fontSize: 16, fontWeight: 600, color: '#111827' }}>
+        <div style={{ fontSize: 16, fontWeight: 600, color: '#14130f' }}>
           Roles and Permissions
           {isSuperAdminMode && workspaceName && (
-            <span style={{ fontSize: 12, fontWeight: 500, color: '#6b7280', marginLeft: 8 }}>
+            <span style={{ fontSize: 12, fontWeight: 500, color: '#6e6a63', marginLeft: 8 }}>
               - Editing <strong>{workspaceName}</strong>
             </span>
           )}
         </div>
-        <div style={{ fontSize: 12, color: '#6b7280', marginTop: 4 }}>
+        <div style={{ fontSize: 12, color: '#6e6a63', marginTop: 4 }}>
           Configure what each role can do in your workspace. Director always has full access.
         </div>
       </div>
@@ -308,7 +308,7 @@ export default function RolesPermissions({ workspaceId, workspaceName }) {
         />
       ))}
 
-      <div style={{ marginTop: 24, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', borderTop: '0.5px solid #e5e7eb' }}>
+      <div style={{ marginTop: 24, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', borderTop: '0.5px solid #dcd8d0' }}>
         <div>
           <Btn variant="ghost" size="sm" onClick={() => setResetOpen(true)} disabled={saving}>
             Reset to defaults
@@ -333,8 +333,8 @@ export default function RolesPermissions({ workspaceId, workspaceName }) {
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16 }}
           onClick={e => { if (e.target === e.currentTarget) setResetOpen(false) }}>
           <div style={{ background: '#fff', borderRadius: 14, padding: 20, width: '100%', maxWidth: 420 }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: '#111827' }}>Reset to defaults?</div>
-            <div style={{ fontSize: 12, color: '#6b7280', marginTop: 8, lineHeight: 1.5 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: '#14130f' }}>Reset to defaults?</div>
+            <div style={{ fontSize: 12, color: '#6e6a63', marginTop: 8, lineHeight: 1.5 }}>
               This will restore all role permissions to their default values. Any customizations you have made will be lost.
             </div>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 20 }}>

@@ -21,8 +21,8 @@ const TEAM_TYPES = [
 function Field({ label, hint, children }) {
   return (
     <div style={{ marginBottom: 16 }}>
-      <label style={{ fontSize: 11, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.4px' }}>{label}</label>
-      {hint && <div style={{ fontSize: 11, color: '#9ca3af', marginBottom: 6 }}>{hint}</div>}
+      <label style={{ fontSize: 11, fontWeight: 600, color: '#4a4742', display: 'block', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.4px' }}>{label}</label>
+      {hint && <div style={{ fontSize: 11, color: '#9a958c', marginBottom: 6 }}>{hint}</div>}
       {children}
     </div>
   )
@@ -31,14 +31,14 @@ function Field({ label, hint, children }) {
 function Input({ value, onChange, placeholder, disabled }) {
   return (
     <input value={value || ''} onChange={onChange} placeholder={placeholder} disabled={disabled}
-      style={{ width: '100%', padding: '9px 12px', border: '0.5px solid #e5e7eb', borderRadius: 8, fontSize: 13, outline: 'none', background: disabled ? '#f9fafb' : '#fff', color: '#111827', boxSizing: 'border-box' }} />
+      style={{ width: '100%', padding: '9px 12px', border: '0.5px solid #dcd8d0', borderRadius: 8, fontSize: 13, outline: 'none', background: disabled ? '#faf9f7' : '#fff', color: '#14130f', boxSizing: 'border-box' }} />
   )
 }
 
 function Select({ value, onChange, options }) {
   return (
     <select value={value || ''} onChange={onChange}
-      style={{ width: '100%', padding: '9px 12px', border: '0.5px solid #e5e7eb', borderRadius: 8, fontSize: 13, outline: 'none', background: '#fff', color: '#111827' }}>
+      style={{ width: '100%', padding: '9px 12px', border: '0.5px solid #dcd8d0', borderRadius: 8, fontSize: 13, outline: 'none', background: '#fff', color: '#14130f' }}>
       {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
     </select>
   )
@@ -48,7 +48,7 @@ function Btn({ onClick, children, variant = 'primary', size = 'md', disabled, st
   const sizes = { sm: { padding: '5px 10px', fontSize: 11 }, md: { padding: '8px 14px', fontSize: 12 } }
   const variants = {
     primary: { background: ACCENT, color: '#fff', border: 'none' },
-    ghost: { background: 'transparent', color: '#6b7280', border: '0.5px solid #e5e7eb' },
+    ghost: { background: 'transparent', color: '#6e6a63', border: '0.5px solid #dcd8d0' },
     danger: { background: '#fee2e2', color: '#dc2626', border: '0.5px solid #fca5a5' },
   }
   return (
@@ -60,8 +60,8 @@ function Btn({ onClick, children, variant = 'primary', size = 'md', disabled, st
 }
 
 function StatusDot({ status }) {
-  const colors = { online: '#22c55e', away: '#f59e0b', offline: '#9ca3af', busy: '#ef4444' }
-  return <div style={{ width: 7, height: 7, borderRadius: '50%', background: colors[status] || '#9ca3af', flexShrink: 0 }} />
+  const colors = { online: '#22c55e', away: '#f59e0b', offline: '#9a958c', busy: '#ef4444' }
+  return <div style={{ width: 7, height: 7, borderRadius: '50%', background: colors[status] || '#9a958c', flexShrink: 0 }} />
 }
 
 function Modal({ title, subtitle, onClose, children, width = 540 }) {
@@ -69,12 +69,12 @@ function Modal({ title, subtitle, onClose, children, width = 540 }) {
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16 }}
       onClick={e => { if (e.target === e.currentTarget) onClose() }}>
       <div style={{ background: '#fff', borderRadius: 14, width: '100%', maxWidth: width, maxHeight: '90vh', overflowY: 'auto' }}>
-        <div style={{ padding: '18px 20px', borderBottom: '0.5px solid #f1f4f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, background: '#fff', zIndex: 1 }}>
+        <div style={{ padding: '18px 20px', borderBottom: '0.5px solid #f5f3ef', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, background: '#fff', zIndex: 1 }}>
           <div>
-            <div style={{ fontSize: 14, fontWeight: 600, color: '#111827' }}>{title}</div>
-            {subtitle && <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>{subtitle}</div>}
+            <div style={{ fontSize: 14, fontWeight: 600, color: '#14130f' }}>{title}</div>
+            {subtitle && <div style={{ fontSize: 11, color: '#9a958c', marginTop: 2 }}>{subtitle}</div>}
           </div>
-          <button onClick={onClose} style={{ width: 28, height: 28, borderRadius: 7, border: '0.5px solid #e5e7eb', background: '#f9fafb', cursor: 'pointer', fontSize: 14, color: '#6b7280', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+          <button onClick={onClose} style={{ width: 28, height: 28, borderRadius: 7, border: '0.5px solid #dcd8d0', background: '#faf9f7', cursor: 'pointer', fontSize: 14, color: '#6e6a63', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
         </div>
         <div style={{ padding: 20 }}>{children}</div>
       </div>
@@ -140,11 +140,11 @@ function TeamModal({ team, agents, onClose, onSave }) {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
           {TEAM_TYPES.map(t => (
             <div key={t.value} onClick={() => setForm(p => ({ ...p, type: t.value }))}
-              style={{ display: 'flex', gap: 10, padding: '10px 12px', borderRadius: 8, border: `1.5px solid ${form.type === t.value ? ACCENT : '#e5e7eb'}`, cursor: 'pointer', background: form.type === t.value ? ACCENT_LIGHT : '#fff', transition: 'all .1s' }}>
+              style={{ display: 'flex', gap: 10, padding: '10px 12px', borderRadius: 8, border: `1.5px solid ${form.type === t.value ? ACCENT : '#dcd8d0'}`, cursor: 'pointer', background: form.type === t.value ? ACCENT_LIGHT : '#fff', transition: 'all .1s' }}>
               <span style={{ fontSize: 18, flexShrink: 0 }}>{t.icon}</span>
               <div>
-                <div style={{ fontSize: 12, fontWeight: 600, color: form.type === t.value ? ACCENT : '#111827' }}>{t.label}</div>
-                <div style={{ fontSize: 10, color: '#9ca3af', marginTop: 1, lineHeight: 1.4 }}>{t.desc}</div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: form.type === t.value ? ACCENT : '#14130f' }}>{t.label}</div>
+                <div style={{ fontSize: 10, color: '#9a958c', marginTop: 1, lineHeight: 1.4 }}>{t.desc}</div>
               </div>
             </div>
           ))}
@@ -162,7 +162,7 @@ function TeamModal({ team, agents, onClose, onSave }) {
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', paddingTop: 4 }}>
             {TEAM_COLORS.map(c => (
               <button key={c} onClick={() => setForm(p => ({ ...p, color: c }))}
-                style={{ width: 26, height: 26, borderRadius: 7, background: c, border: form.color === c ? '3px solid #111827' : '2px solid transparent', cursor: 'pointer', transition: 'border .1s' }} />
+                style={{ width: 26, height: 26, borderRadius: 7, background: c, border: form.color === c ? '3px solid #14130f' : '2px solid transparent', cursor: 'pointer', transition: 'border .1s' }} />
             ))}
           </div>
         </Field>
@@ -174,34 +174,34 @@ function TeamModal({ team, agents, onClose, onSave }) {
 
       <Field label={`Team Members — ${form.members.length} selected`} hint="Select agents to add to this team. No limit.">
         <div style={{ marginBottom: 8, position: 'relative' }}>
-          <svg style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', width: 11, height: 11, color: '#9ca3af', pointerEvents: 'none' }} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="7" cy="7" r="4"/><path d="M10.5 10.5l3 3" strokeLinecap="round"/></svg>
+          <svg style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', width: 11, height: 11, color: '#9a958c', pointerEvents: 'none' }} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="7" cy="7" r="4"/><path d="M10.5 10.5l3 3" strokeLinecap="round"/></svg>
           <input value={memberSearch} onChange={e => setMemberSearch(e.target.value)} placeholder="Search agents…"
-            style={{ width: '100%', padding: '7px 10px 7px 26px', border: '0.5px solid #e5e7eb', borderRadius: 7, fontSize: 12, outline: 'none', background: '#f9fafb', color: '#111827', boxSizing: 'border-box' }} />
+            style={{ width: '100%', padding: '7px 10px 7px 26px', border: '0.5px solid #dcd8d0', borderRadius: 7, fontSize: 12, outline: 'none', background: '#faf9f7', color: '#14130f', boxSizing: 'border-box' }} />
         </div>
-        <div style={{ maxHeight: 200, overflowY: 'auto', border: '0.5px solid #e5e7eb', borderRadius: 9, padding: 6 }}>
+        <div style={{ maxHeight: 200, overflowY: 'auto', border: '0.5px solid #dcd8d0', borderRadius: 9, padding: 6 }}>
           {filteredAgents.length === 0 ? (
-            <div style={{ padding: '20px 0', textAlign: 'center', fontSize: 12, color: '#9ca3af' }}>No agents found</div>
+            <div style={{ padding: '20px 0', textAlign: 'center', fontSize: 12, color: '#9a958c' }}>No agents found</div>
           ) : filteredAgents.map(a => {
             const selected = form.members.includes(a.id)
             const rc = getRoleColor(a.role)
             return (
               <div key={a.id} onClick={() => toggleMember(a.id)}
                 style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 7, cursor: 'pointer', background: selected ? ACCENT_LIGHT : 'transparent', marginBottom: 2, transition: 'background .1s' }}
-                onMouseEnter={e => { if (!selected) e.currentTarget.style.background = '#f9fafb' }}
+                onMouseEnter={e => { if (!selected) e.currentTarget.style.background = '#faf9f7' }}
                 onMouseLeave={e => { if (!selected) e.currentTarget.style.background = 'transparent' }}>
-                <div style={{ width: 16, height: 16, borderRadius: 4, border: `1.5px solid ${selected ? ACCENT : '#d1d5db'}`, background: selected ? ACCENT : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all .15s' }}>
+                <div style={{ width: 16, height: 16, borderRadius: 4, border: `1.5px solid ${selected ? ACCENT : '#c2bdb3'}`, background: selected ? ACCENT : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all .15s' }}>
                   {selected && <svg width="9" height="9" viewBox="0 0 10 10"><path d="M1.5 5l2.5 2.5 5-5" stroke="white" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/></svg>}
                 </div>
                 <div style={{ width: 28, height: 28, borderRadius: 8, background: rc.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: rc.color, flexShrink: 0 }}>
                   {a.name?.[0]?.toUpperCase()}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 12, fontWeight: 500, color: '#111827' }}>{a.name}</div>
-                  <div style={{ fontSize: 10, color: '#9ca3af' }}>{getRoleLabel(a.role)}</div>
+                  <div style={{ fontSize: 12, fontWeight: 500, color: '#14130f' }}>{a.name}</div>
+                  <div style={{ fontSize: 10, color: '#9a958c' }}>{getRoleLabel(a.role)}</div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                   <StatusDot status={a.status} />
-                  <span style={{ fontSize: 10, color: '#9ca3af', textTransform: 'capitalize' }}>{a.status || 'offline'}</span>
+                  <span style={{ fontSize: 10, color: '#9a958c', textTransform: 'capitalize' }}>{a.status || 'offline'}</span>
                 </div>
                 {parseInt(form.lead_user_id) === a.id && (
                   <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 4, background: '#fef3c7', color: '#92400e', fontWeight: 700 }}>Lead</span>
@@ -275,8 +275,8 @@ export default function Teams() {
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
         <div>
-          <div style={{ fontSize: 15, fontWeight: 600, color: '#111827' }}>Teams</div>
-          <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 3 }}>
+          <div style={{ fontSize: 15, fontWeight: 600, color: '#14130f' }}>Teams</div>
+          <div style={{ fontSize: 12, color: '#9a958c', marginTop: 3 }}>
             {teams.length} team{teams.length !== 1 ? 's' : ''} · {totalAgentsInTeams} agent{totalAgentsInTeams !== 1 ? 's' : ''} assigned
           </div>
         </div>
@@ -284,24 +284,24 @@ export default function Teams() {
       </div>
 
       {/* Info banner */}
-      <div style={{ background: '#eff6ff', border: '0.5px solid #bfdbfe', borderRadius: 10, padding: '12px 16px', marginBottom: 20, display: 'flex', gap: 10 }}>
+      <div style={{ background: '#eeedf5', border: '0.5px solid #dcd8d0', borderRadius: 10, padding: '12px 16px', marginBottom: 20, display: 'flex', gap: 10 }}>
         <span style={{ fontSize: 16, flexShrink: 0 }}>💡</span>
-        <div style={{ fontSize: 12, color: '#1e40af', lineHeight: 1.6 }}>
+        <div style={{ fontSize: 12, color: '#2d2a7a', lineHeight: 1.6 }}>
           <strong>Teams control routing.</strong> Candidates auto-route to your Recruitment team. Clients auto-route to your Client Relations team.
           Each team can have its own routing rules, SLA targets and business hours. An agent can belong to multiple teams.
         </div>
       </div>
 
       {loading ? (
-        <div style={{ textAlign: 'center', padding: 60, color: '#9ca3af' }}>
+        <div style={{ textAlign: 'center', padding: 60, color: '#9a958c' }}>
           <div style={{ fontSize: 28, marginBottom: 10 }}>⏳</div>
           <div>Loading teams…</div>
         </div>
       ) : teams.length === 0 ? (
-        <div style={{ background: '#fff', borderRadius: 12, border: '0.5px solid #e5e7eb', padding: '60px 20px', textAlign: 'center' }}>
+        <div style={{ background: '#fff', borderRadius: 12, border: '0.5px solid #dcd8d0', padding: '60px 20px', textAlign: 'center' }}>
           <div style={{ fontSize: 40, marginBottom: 14 }}>🤝</div>
-          <div style={{ fontSize: 14, fontWeight: 500, color: '#6b7280', marginBottom: 6 }}>No teams yet</div>
-          <div style={{ fontSize: 12, color: '#9ca3af', marginBottom: 20, maxWidth: 320, margin: '0 auto 20px' }}>
+          <div style={{ fontSize: 14, fontWeight: 500, color: '#6e6a63', marginBottom: 6 }}>No teams yet</div>
+          <div style={{ fontSize: 12, color: '#9a958c', marginBottom: 20, maxWidth: 320, margin: '0 auto 20px' }}>
             Create teams to organise your agents and enable smart conversation routing
           </div>
           {hasPermission('manage_teams') && <Btn onClick={() => setShowAdd(true)}>+ Create First Team</Btn>}
@@ -315,18 +315,18 @@ export default function Teams() {
             const lead = members.find(m => (m.id || m) === t.lead_user_id)
 
             return (
-              <div key={t.id} style={{ background: '#fff', borderRadius: 12, border: '0.5px solid #e5e7eb', overflow: 'hidden' }}>
+              <div key={t.id} style={{ background: '#fff', borderRadius: 12, border: '0.5px solid #dcd8d0', overflow: 'hidden' }}>
                 {/* Team header */}
-                <div style={{ padding: '16px 18px', borderBottom: '0.5px solid #f1f4f9', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div style={{ padding: '16px 18px', borderBottom: '0.5px solid #f5f3ef', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                   <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
                     <div style={{ width: 42, height: 42, borderRadius: 11, background: t.color + '18', border: `1.5px solid ${t.color}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>
                       {typeInfo.icon}
                     </div>
                     <div>
-                      <div style={{ fontSize: 14, fontWeight: 600, color: '#111827', marginBottom: 3 }}>{t.name}</div>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: '#14130f', marginBottom: 3 }}>{t.name}</div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 10, background: t.color + '18', color: t.color, fontWeight: 600 }}>{typeInfo.label}</span>
-                        <span style={{ fontSize: 10, color: '#9ca3af' }}>{members.length} member{members.length !== 1 ? 's' : ''}</span>
+                        <span style={{ fontSize: 10, color: '#9a958c' }}>{members.length} member{members.length !== 1 ? 's' : ''}</span>
                         {onlineMembers.length > 0 && (
                           <span style={{ fontSize: 10, color: '#16a34a' }}>· {onlineMembers.length} online</span>
                         )}
@@ -341,20 +341,20 @@ export default function Teams() {
 
                 {/* Description */}
                 {t.description && (
-                  <div style={{ padding: '10px 18px', fontSize: 12, color: '#6b7280', borderBottom: '0.5px solid #f9fafb', lineHeight: 1.5 }}>
+                  <div style={{ padding: '10px 18px', fontSize: 12, color: '#6e6a63', borderBottom: '0.5px solid #faf9f7', lineHeight: 1.5 }}>
                     {t.description}
                   </div>
                 )}
 
                 {/* Team lead */}
                 {lead && (
-                  <div style={{ padding: '10px 18px', display: 'flex', alignItems: 'center', gap: 8, borderBottom: '0.5px solid #f9fafb' }}>
-                    <span style={{ fontSize: 10, color: '#9ca3af', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.4px' }}>Lead</span>
+                  <div style={{ padding: '10px 18px', display: 'flex', alignItems: 'center', gap: 8, borderBottom: '0.5px solid #faf9f7' }}>
+                    <span style={{ fontSize: 10, color: '#9a958c', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.4px' }}>Lead</span>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                       <div style={{ width: 20, height: 20, borderRadius: 6, background: '#fef3c7', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700, color: '#92400e' }}>
                         {lead.name?.[0]?.toUpperCase()}
                       </div>
-                      <span style={{ fontSize: 12, color: '#374151', fontWeight: 500 }}>{lead.name}</span>
+                      <span style={{ fontSize: 12, color: '#4a4742', fontWeight: 500 }}>{lead.name}</span>
                       <span style={{ fontSize: 10 }}>⭐</span>
                     </div>
                   </div>
@@ -363,13 +363,13 @@ export default function Teams() {
                 {/* Members */}
                 <div style={{ padding: '12px 18px' }}>
                   {members.length === 0 ? (
-                    <div style={{ fontSize: 12, color: '#9ca3af', textAlign: 'center', padding: '10px 0' }}>No members yet — edit to add agents</div>
+                    <div style={{ fontSize: 12, color: '#9a958c', textAlign: 'center', padding: '10px 0' }}>No members yet — edit to add agents</div>
                   ) : (
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                       {members.map(m => (
-                        <div key={m.id || m} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '4px 9px', background: '#f9fafb', borderRadius: 8, border: '0.5px solid #e5e7eb' }}>
+                        <div key={m.id || m} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '4px 9px', background: '#faf9f7', borderRadius: 8, border: '0.5px solid #dcd8d0' }}>
                           <StatusDot status={m.status} />
-                          <span style={{ fontSize: 11, color: '#374151', fontWeight: 500 }}>{m.name}</span>
+                          <span style={{ fontSize: 11, color: '#4a4742', fontWeight: 500 }}>{m.name}</span>
                           {(m.id || m) === t.lead_user_id && <span style={{ fontSize: 10 }}>⭐</span>}
                         </div>
                       ))}
@@ -378,15 +378,15 @@ export default function Teams() {
                 </div>
 
                 {/* Footer stats */}
-                <div style={{ padding: '10px 18px', background: '#f9fafb', borderTop: '0.5px solid #f1f4f9', display: 'flex', gap: 16 }}>
-                  <div style={{ fontSize: 11, color: '#9ca3af' }}>
-                    <span style={{ fontWeight: 600, color: '#374151' }}>{onlineMembers.length}</span> online
+                <div style={{ padding: '10px 18px', background: '#faf9f7', borderTop: '0.5px solid #f5f3ef', display: 'flex', gap: 16 }}>
+                  <div style={{ fontSize: 11, color: '#9a958c' }}>
+                    <span style={{ fontWeight: 600, color: '#4a4742' }}>{onlineMembers.length}</span> online
                   </div>
-                  <div style={{ fontSize: 11, color: '#9ca3af' }}>
-                    <span style={{ fontWeight: 600, color: '#374151' }}>{members.filter(m => m.status === 'away').length}</span> away
+                  <div style={{ fontSize: 11, color: '#9a958c' }}>
+                    <span style={{ fontWeight: 600, color: '#4a4742' }}>{members.filter(m => m.status === 'away').length}</span> away
                   </div>
-                  <div style={{ fontSize: 11, color: '#9ca3af' }}>
-                    <span style={{ fontWeight: 600, color: '#374151' }}>{members.filter(m => !m.status || m.status === 'offline').length}</span> offline
+                  <div style={{ fontSize: 11, color: '#9a958c' }}>
+                    <span style={{ fontWeight: 600, color: '#4a4742' }}>{members.filter(m => !m.status || m.status === 'offline').length}</span> offline
                   </div>
                 </div>
               </div>

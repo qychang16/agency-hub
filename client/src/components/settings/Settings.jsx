@@ -69,9 +69,9 @@ export default function Settings() {
       case 'audit': return <AuditLog />
       default: return (
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ textAlign: 'center', color: '#9ca3af' }}>
+          <div style={{ textAlign: 'center', color: '#9a958c' }}>
             <div style={{ fontSize: 36, marginBottom: 10 }}>🚧</div>
-            <div style={{ fontSize: 14, fontWeight: 500, color: '#6b7280' }}>Coming soon</div>
+            <div style={{ fontSize: 14, fontWeight: 500, color: '#6e6a63' }}>Coming soon</div>
           </div>
         </div>
       )
@@ -82,14 +82,14 @@ export default function Settings() {
     <div style={{ display: 'flex', flex: 1, overflow: 'hidden', background: '#faf9f7' }}>
       {/* Sidebar */}
       {!isMobile && (
-        <div style={{ width: 220, flexShrink: 0, background: '#fff', borderRight: '0.5px solid #e5e7eb', overflowY: 'auto', padding: '16px 10px' }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.6px', padding: '4px 10px', marginBottom: 10 }}>
+        <div style={{ width: 220, flexShrink: 0, background: '#fff', borderRight: '0.5px solid #dcd8d0', overflowY: 'auto', padding: '16px 10px' }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: '#9a958c', textTransform: 'uppercase', letterSpacing: '0.6px', padding: '4px 10px', marginBottom: 10 }}>
             Settings
           </div>
           {visibleTabs.map(tab => (
             <button key={tab.key} onClick={() => setActiveTab(tab.key)}
-              style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 9, padding: '9px 10px', borderRadius: 8, border: 'none', background: activeTab === tab.key ? ACCENT_LIGHT : 'transparent', color: activeTab === tab.key ? ACCENT : '#374151', cursor: 'pointer', fontSize: 12, fontWeight: activeTab === tab.key ? 600 : 400, textAlign: 'left', marginBottom: 2, transition: 'all .1s' }}
-              onMouseEnter={e => { if (activeTab !== tab.key) e.currentTarget.style.background = '#f9fafb' }}
+              style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 9, padding: '9px 10px', borderRadius: 8, border: 'none', background: activeTab === tab.key ? ACCENT_LIGHT : 'transparent', color: activeTab === tab.key ? ACCENT : '#4a4742', cursor: 'pointer', fontSize: 12, fontWeight: activeTab === tab.key ? 600 : 400, textAlign: 'left', marginBottom: 2, transition: 'all .1s' }}
+              onMouseEnter={e => { if (activeTab !== tab.key) e.currentTarget.style.background = '#faf9f7' }}
               onMouseLeave={e => { if (activeTab !== tab.key) e.currentTarget.style.background = 'transparent' }}>
               <span style={{ fontSize: 15 }}>{tab.icon}</span>
               {tab.label}
@@ -97,19 +97,19 @@ export default function Settings() {
           ))}
 
           {/* Version info */}
-          <div style={{ marginTop: 'auto', padding: '16px 10px 4px', borderTop: '0.5px solid #f1f4f9', marginLeft: -10, marginRight: -10, paddingLeft: 10 }}>
-            <div style={{ fontSize: 10, color: '#9ca3af' }}>Tel-Cloud v2.0.0</div>
-            <div style={{ fontSize: 10, color: '#d1d5db', marginTop: 2 }}>© 2026 Y.E.C Consultancy</div>
+          <div style={{ marginTop: 'auto', padding: '16px 10px 4px', borderTop: '0.5px solid #f5f3ef', marginLeft: -10, marginRight: -10, paddingLeft: 10 }}>
+            <div style={{ fontSize: 10, color: '#9a958c' }}>Tel-Cloud v2.0.0</div>
+            <div style={{ fontSize: 10, color: '#c2bdb3', marginTop: 2 }}>© 2026 Y.E.C Consultancy</div>
           </div>
         </div>
       )}
 
       {/* Mobile tab selector */}
       {isMobile && (
-        <div style={{ position: 'fixed', bottom: 60, left: 0, right: 0, background: '#fff', borderTop: '0.5px solid #e5e7eb', padding: '8px 12px', zIndex: 20, overflowX: 'auto', display: 'flex', gap: 6 }}>
+        <div style={{ position: 'fixed', bottom: 60, left: 0, right: 0, background: '#fff', borderTop: '0.5px solid #dcd8d0', padding: '8px 12px', zIndex: 20, overflowX: 'auto', display: 'flex', gap: 6 }}>
           {visibleTabs.map(tab => (
             <button key={tab.key} onClick={() => setActiveTab(tab.key)}
-              style={{ padding: '5px 10px', borderRadius: 7, border: 'none', background: activeTab === tab.key ? ACCENT : '#f1f4f9', color: activeTab === tab.key ? '#fff' : '#6b7280', cursor: 'pointer', fontSize: 11, fontWeight: activeTab === tab.key ? 600 : 400, whiteSpace: 'nowrap', flexShrink: 0 }}>
+              style={{ padding: '5px 10px', borderRadius: 7, border: 'none', background: activeTab === tab.key ? ACCENT : '#f5f3ef', color: activeTab === tab.key ? '#fff' : '#6e6a63', cursor: 'pointer', fontSize: 11, fontWeight: activeTab === tab.key ? 600 : 400, whiteSpace: 'nowrap', flexShrink: 0 }}>
               {tab.icon} {tab.label}
             </button>
           ))}

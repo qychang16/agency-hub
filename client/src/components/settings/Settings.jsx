@@ -79,7 +79,7 @@ export default function Settings() {
   }
 
   return (
-    <div style={{ display: 'flex', flex: 1, overflow: 'hidden', background: '#faf9f7' }}>
+    <div className="flex-col md:flex-row" style={{ display: 'flex', flex: 1, overflow: 'hidden', background: '#faf9f7' }}>
       {/* Sidebar */}
       {!isMobile && (
         <div style={{ width: 220, flexShrink: 0, background: '#fff', borderRight: '0.5px solid #dcd8d0', overflowY: 'auto', padding: '16px 10px' }}>
@@ -104,12 +104,12 @@ export default function Settings() {
         </div>
       )}
 
-      {/* Mobile tab selector */}
+      {/* Mobile tab selector - sticky top, not floating */}
       {isMobile && (
-        <div style={{ position: 'fixed', bottom: 60, left: 0, right: 0, background: '#fff', borderTop: '0.5px solid #dcd8d0', padding: '8px 12px', zIndex: 20, overflowX: 'auto', display: 'flex', gap: 6 }}>
+        <div style={{ position: 'sticky', top: 0, left: 0, right: 0, background: '#fff', borderBottom: '0.5px solid #dcd8d0', padding: '10px 12px', zIndex: 20, overflowX: 'auto', display: 'flex', gap: 6, flexShrink: 0 }}>
           {visibleTabs.map(tab => (
             <button key={tab.key} onClick={() => setActiveTab(tab.key)}
-              style={{ padding: '5px 10px', borderRadius: 7, border: 'none', background: activeTab === tab.key ? ACCENT : '#f5f3ef', color: activeTab === tab.key ? '#fff' : '#6e6a63', cursor: 'pointer', fontSize: 11, fontWeight: activeTab === tab.key ? 600 : 400, whiteSpace: 'nowrap', flexShrink: 0 }}>
+              style={{ padding: '7px 12px', borderRadius: 7, border: 'none', background: activeTab === tab.key ? ACCENT : '#f5f3ef', color: activeTab === tab.key ? '#fff' : '#6e6a63', cursor: 'pointer', fontSize: 12, fontWeight: activeTab === tab.key ? 600 : 500, whiteSpace: 'nowrap', flexShrink: 0, minHeight: 36 }}>
               {tab.icon} {tab.label}
             </button>
           ))}
@@ -117,7 +117,7 @@ export default function Settings() {
       )}
 
       {/* Content */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '16px' : '24px 28px' }}>
+      <div className="px-4 py-4 md:px-7 md:py-6" style={{ flex: 1, overflowY: 'auto' }}>
         {renderTab()}
       </div>
     </div>

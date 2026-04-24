@@ -213,3 +213,17 @@ Permission system now end-to-end:
 - Tailwind v4 confirmed working via `@import "tailwindcss"` in `client/src/index.css`. Responsive utilities (`md:`, `sm:`) work as expected.
 - Design token system (`client/src/utils/designTokens.js`) is sound. Mobile polish used Tailwind classNames alongside existing inline styles rather than rewriting. No refactor needed.
 - Inbox three-pane collapse already works correctly via `mobileView` state in App.jsx. Don't rewrite it.
+
+## Mobile polish — deferred (needs live conversations to test)
+
+Test once Meta WhatsApp API is connected and real conversations are flowing.
+
+- **ChatWindow header buttons may crowd on narrow mobile widths.** Four action buttons (+ Project / Resolve / Reassign / Contact) sit after avatar + name. On screens under ~400px this may overflow or cramp.
+  - Fix: add `className="flex-wrap md:flex-nowrap"` to the outer header row container and to the actions `<div>` wrapping the GhostButtons.
+  - File: `client/src/components/inbox/ChatWindow.jsx` (header around line 240, actions row around line 330)
+
+- **Composer hint text is desktop-only noise on mobile.** The "Enter to send - Shift+Enter for new line - Ctrl+K to search" hint below the composer is meaningless on mobile (no physical keyboard).
+  - Fix: wrap the hint `<span>` with `className="hidden md:inline"`, and add an empty placeholder `<span className="md:hidden" />` to preserve the `justify-content: space-between` alignment of the status pill on the right.
+  - File: `client/src/components/inbox/ChatWindow.jsx` (composer footer around line 550)
+
+- **Test steps when ready:** Open any conversation on phone at <400px width. Verify (1) header buttons wrap to a second row cleanly if they don't fit, (2) composer hint is hidden, (3) status pill ("24hr window open") still aligns to the right.

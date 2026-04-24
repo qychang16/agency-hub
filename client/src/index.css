@@ -1,1 +1,15 @@
 @import "tailwindcss";
+
+/* Mobile viewport fix — iOS Safari address bar hides on scroll,
+   making 100vh taller than the visible area. 100dvh fixes this. */
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+/* Prevent pull-to-refresh overscroll on mobile */
+body {
+  overscroll-behavior-y: contain;
+  -webkit-text-size-adjust: 100%;
+}

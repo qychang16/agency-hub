@@ -393,8 +393,8 @@ function MainApp() {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', fontFamily: 'system-ui,-apple-system,sans-serif', background: '#f1f4f9', overflow: 'hidden' }}>
-      <Topbar
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100dvh', minHeight: '100vh', fontFamily: 'system-ui,-apple-system,sans-serif', background: '#f1f4f9', overflow: 'hidden' }}>
+            <Topbar
         activeNav={activeNav}
         setActiveNav={setActiveNav}
         onNewContact={() => setShowNewContact(true)}
@@ -447,7 +447,7 @@ function AppWithAuth() {
 
   if (loading) {
     return (
-      <div style={{ minHeight: '100vh', background: '#f1f4f9', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ minHeight: '100dvh', background: '#f1f4f9', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ textAlign: 'center' }}>
           <div style={{ fontSize: 32, marginBottom: 12 }}>⚙️</div>
           <div style={{ fontSize: 13, color: '#9ca3af' }}>Loading…</div>

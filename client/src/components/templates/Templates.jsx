@@ -166,9 +166,9 @@ function TemplateEditor({ template, onClose, onSaved }) {
       title={isEdit ? `Edit — ${template.name}` : 'New Template'}
       subtitle="WhatsApp Business template — requires Meta approval before sending"
       onClose={onClose}>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 260px', gap: 24 }}>
+      <div className="grid grid-cols-1 md:grid-cols-[1fr_260px]" style={{ gap: 24 }}>
         <div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+          <div className="grid grid-cols-1 sm:grid-cols-2" style={{ gap: 12, marginBottom: 16 }}>
             <div>
               <label style={{ fontSize: 11, fontWeight: 600, color: '#4a4742', display: 'block', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.4px' }}>
                 Template Name <span style={{ color: '#ef4444' }}>*</span>
@@ -361,7 +361,7 @@ export default function Templates() {
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#f5f3ef' }}>
-      <div style={{ padding: '24px 28px 16px', flexShrink: 0 }}>
+      <div className="px-4 pt-5 pb-4 md:px-7 md:pt-6" style={{ flexShrink: 0 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 14, marginBottom: 20 }}>
           <div>
             <div style={{ fontSize: 22, fontWeight: 700, color: '#14130f', marginBottom: 4, letterSpacing: '-0.3px' }}>Templates</div>
@@ -375,7 +375,7 @@ export default function Templates() {
             </Btn>
           )}
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
           {[
             { label: 'Approved', value: counts.approved, color: '#2d6a4f' },
             { label: 'Pending', value: counts.pending, color: '#9a6a00' },
@@ -390,7 +390,7 @@ export default function Templates() {
         </div>
       </div>
 
-      <div style={{ background: '#fff', borderBottom: '0.5px solid #dcd8d0', padding: '12px 28px', display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap', flexShrink: 0 }}>
+      <div className="px-4 md:px-7 py-3 gap-3 md:gap-4" style={{ background: '#fff', borderBottom: '0.5px solid #dcd8d0', display: 'flex', alignItems: 'center', flexWrap: 'wrap', flexShrink: 0 }}>
         <div style={{ display: 'flex', gap: 4 }}>
           {FILTER_TABS.map(t => (
             <button key={t.key} onClick={() => setActiveTab(t.key)}
@@ -404,14 +404,15 @@ export default function Templates() {
             </button>
           ))}
         </div>
-        <div style={{ marginLeft: 'auto', position: 'relative' }}>
+        <div className="w-full md:w-auto md:ml-auto" style={{ position: 'relative' }}>
           <svg style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', width: 12, height: 12, color: '#9a958c', pointerEvents: 'none' }} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="7" cy="7" r="4"/><path d="M10.5 10.5l3 3" strokeLinecap="round"/></svg>
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search templates…"
-            style={{ padding: '6px 10px 6px 26px', border: '0.5px solid #dcd8d0', borderRadius: 8, fontSize: 12, outline: 'none', background: '#faf9f7', color: '#14130f', width: 200 }} />
+            className="w-full md:w-[200px]"
+            style={{ padding: '6px 10px 6px 26px', border: '0.5px solid #dcd8d0', borderRadius: 8, fontSize: 12, outline: 'none', background: '#faf9f7', color: '#14130f', boxSizing: 'border-box' }} />
         </div>
       </div>
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: '20px 28px' }}>
+      <div className="px-4 py-5 md:px-7" style={{ flex: 1, overflowY: 'auto' }}>
         {loading ? (
           <div style={{ textAlign: 'center', padding: 60, color: '#9a958c' }}>
             <div style={{ fontSize: 32, marginBottom: 12 }}>📋</div>

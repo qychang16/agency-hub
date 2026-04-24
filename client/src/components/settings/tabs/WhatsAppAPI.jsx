@@ -194,7 +194,7 @@ export default function WhatsAppAPI() {
       </div>
 
       {/* Connection summary */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 20 }}>
+      <div className="grid grid-cols-1 sm:grid-cols-3" style={{ gap: 12, marginBottom: 20 }}>
         {[
           { label: 'Phone Numbers', value: phoneNumbers.length, sub: `${connectedNumbers.length} connected`, icon: '📱', color: ACCENT, bg: ACCENT_LIGHT },
           { label: 'API Status', value: isConnected ? 'Live' : 'Offline', sub: isConnected ? 'Receiving messages' : 'No API connection', icon: isConnected ? '✅' : '⚠️', color: isConnected ? '#16a34a' : '#d97706', bg: isConnected ? '#dcfce7' : '#fef3c7' },
@@ -211,7 +211,7 @@ export default function WhatsAppAPI() {
         ))}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+      <div className="grid grid-cols-1 md:grid-cols-2" style={{ gap: 16 }}>
         {/* Left column */}
         <div>
           {/* API Credentials */}

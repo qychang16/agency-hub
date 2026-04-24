@@ -77,7 +77,7 @@ function RoleCard({ role, config, onChange, expanded, onToggleExpand, locked, di
             <div style={{ fontSize: 11, color: '#6e6a63', marginTop: 2 }}>{meta.desc}</div>
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16, fontSize: 11, color: '#6e6a63' }}>
+        <div className="hidden md:flex" style={{ alignItems: 'center', gap: 16, fontSize: 11, color: '#6e6a63' }}>
           <div>Scope: <strong style={{ color: '#4a4742' }}>{config.scope === 'workspace_wide' ? 'Workspace-wide' : 'Project only'}</strong></div>
           <div>{permCount} / {totalPerms} permissions</div>
           {!locked && <div style={{ fontSize: 14, color: '#9a958c' }}>{expanded ? 'v' : '>'}</div>}
@@ -272,7 +272,7 @@ export default function RolesPermissions({ workspaceId, workspaceName }) {
   }
 
   return (
-    <div style={{ padding: 20, maxWidth: 900 }}>
+    <div className="p-4 md:p-5" style={{ maxWidth: 900 }}>
       <div style={{ marginBottom: 20 }}>
         <div style={{ fontSize: 16, fontWeight: 600, color: '#14130f' }}>
           Roles and Permissions

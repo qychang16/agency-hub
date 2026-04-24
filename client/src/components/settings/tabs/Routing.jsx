@@ -210,7 +210,7 @@ export default function Routing() {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+      <div className="grid grid-cols-1 md:grid-cols-2" style={{ gap: 16 }}>
         {/* Left column */}
         <div>
           {/* Assignment mode */}
@@ -398,7 +398,7 @@ export default function Routing() {
                 { value: 'nothing', label: 'Do nothing — assign normally' },
               ]} />
             </Field>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div className="grid grid-cols-1 sm:grid-cols-2" style={{ gap: 12 }}>
               <Field label="Blackout start" hint="No scheduled messages sent before this time">
                 <input type="time" value={routing.blackout_start || '22:00'} onChange={e => setRouting(p => ({ ...p, blackout_start: e.target.value }))}
                   style={{ width: '100%', padding: '9px 12px', border: '0.5px solid #dcd8d0', borderRadius: 8, fontSize: 13, outline: 'none', background: '#fff', color: '#14130f' }} />

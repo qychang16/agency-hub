@@ -98,7 +98,7 @@ export default function EmailIntegration() {
       </div>
 
       {/* How it works */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12, marginBottom: 20 }}>
+      <div className="grid grid-cols-1 sm:grid-cols-2" style={{ gap: 12, marginBottom: 20 }}>
         {[
           { icon: '📅', title: 'Manual Scheduled Email', desc: 'Agent reviews conversation, confirms candidate is ready, then manually schedules email at a specific date and time. Full control — nothing sends without agent approval.', tag: 'Primary', tagColor: '#2d2a7a', tagBg: '#eeedf5' },
           { icon: '⚡', title: 'Immediate Send', desc: 'For executive search placements where speed matters. Agent triggers email and it sends straight away. Used for C-suite confirmations and VIP client communications.', tag: 'Executive Search', tagColor: '#92400e', tagBg: '#fef3c7' },
@@ -116,7 +116,7 @@ export default function EmailIntegration() {
         ))}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+      <div className="grid grid-cols-1 md:grid-cols-2" style={{ gap: 16 }}>
         <div>
           {/* Outlook Connection */}
           <Card>

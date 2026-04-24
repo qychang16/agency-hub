@@ -185,3 +185,31 @@ Permission system now end-to-end:
 - Role matrix configurable per workspace by director
 - Super admin can manage any tenant's role matrix
 
+---
+
+## Mobile Responsiveness Polish (Apr 25, 2026 session)
+
+**Status:** Foundation + 4 pages shipped. Inbox diagnosed as structurally fine (empty-state illusion from 401 noise). Remaining items are polish and one unrelated auth issue.
+
+### Shipped this session
+- [x] Phase 0: 100vh -> 100dvh viewport fix (iOS Safari address bar) - commit 2dd3996
+- [x] Projects mobile polish (padding, touch targets, stacked Clients/Candidates) - commit 99594d0
+- [x] Settings floating tab bar bug fix (position:fixed bottom:60 -> sticky top) - commit 56a9d5e
+- [x] Scheduled page responsive polish (stats, filters, expanded detail stacking) - commit 8e25741
+- [x] Templates page responsive polish (stats, filters, editor modal stacking) - commit 7fc99e2
+
+### Pending - mobile follow-ups
+- [ ] **AgencyProfile inner fields clip on mobile** - Location & Timezone grid inside Settings > Agency Profile tab doesn't stack on narrow viewports. Text cut off mid-word. Fix in `client/src/components/settings/tabs/AgencyProfile.jsx`.
+- [ ] **ChatWindow mobile header overflow** - 4 action buttons (+ Project, Resolve, Reassign, Contact) will overflow at 400px once a conversation is opened. Needs overflow menu or mobile visibility rules. Verify with real data after 401 fix.
+- [ ] **Inbox empty state** - "No conversations" alone reads as broken. Add icon + helpful copy similar to Projects / Templates empty states.
+- [ ] **ChatWindow composer hint text** - "Enter to send - Shift+Enter - Ctrl+K" useless on mobile touch. Hide with `hidden md:inline`.
+- [ ] **Templates editor Buttons row** - 4-element inline row (type select + label + url + remove) overflows on mobile. Low priority - editing on mobile is an edge case.
+- [ ] **Real-device QA pass** - DevTools emulation validated; need actual phone testing on same-LAN `vite --host`. Check iOS Safari + Android Chrome. Cover all 5 shipped pages end-to-end.
+
+### Pending - auth hygiene (surfaced during mobile work)
+- [ ] **401 auth noise on page load** - 8-16 failed requests fire on every refresh before AuthContext hydrates. Token is still valid (pages render), but wasteful and clutters console. Pre-existing, not caused by mobile work. Investigate which components fire fetches before token is available.
+
+### Notes for next mobile session
+- Tailwind v4 confirmed working via `@import "tailwindcss"` in `client/src/index.css`. Responsive utilities (`md:`, `sm:`) work as expected.
+- Design token system (`client/src/utils/designTokens.js`) is sound. Mobile polish used Tailwind classNames alongside existing inline styles rather than rewriting. No refactor needed.
+- Inbox three-pane collapse already works correctly via `mobileView` state in App.jsx. Don't rewrite it.

@@ -234,7 +234,7 @@ function ProjectCard({ project, onEdit, onArchive, onRestore, onDelete, onSelect
         )}
 
         {/* Actions */}
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        <div className="[&>button]:min-h-[40px] md:[&>button]:min-h-0" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {!isArchived && (
             <>
               <Btn size="sm" onClick={() => onSelect(project)} style={{ flex: 1, justifyContent: 'center' }}>
@@ -519,7 +519,7 @@ function ProjectView({ project, onBack, onRenamed, canManageProjects, canManageM
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#faf9f7', fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif" }}>
       {/* Header - cream, editorial, matches Inbox */}
-      <div style={{ padding: '20px 28px 16px', flexShrink: 0, borderBottom: '0.5px solid #dcd8d0' }}>
+      <div className="px-4 pt-5 pb-4 md:px-7" style={{ flexShrink: 0, borderBottom: '0.5px solid #dcd8d0' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 14 }}>
           <button onClick={onBack}
             style={{ background: '#fff', border: '0.5px solid #dcd8d0', color: '#4a4742', borderRadius: 6, padding: '6px 12px', cursor: 'pointer', fontSize: 12, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 5 }}>
@@ -592,7 +592,7 @@ function ProjectView({ project, onBack, onRenamed, canManageProjects, canManageM
       </div>
 
       {/* Content */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '16px 28px' }}>
+      <div className="px-4 py-4 md:px-7" style={{ flex: 1, overflowY: 'auto' }}>
         {view === 'members' ? (
           <MembersPanel project={project} agents={agents} canManageMembers={canManageMembers} />
         ) : loading ? (
@@ -601,7 +601,7 @@ function ProjectView({ project, onBack, onRenamed, canManageProjects, canManageM
             <div>Loading project conversations...</div>
           </div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 16 }}>
+          <div className="grid grid-cols-1 md:grid-cols-[1fr_2fr]" style={{ gap: 16 }}>
 
             {/* CLIENT CONTACTS - fixed left panel */}
             <div>
@@ -725,12 +725,13 @@ export default function Projects() {
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#faf9f7', fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif" }}>
       {/* Header - cream, editorial, matches Inbox */}
-      <div style={{ padding: '24px 28px 16px', flexShrink: 0 }}>
+      <div className="px-4 pt-5 pb-4 md:px-7 md:pt-6" style={{ flexShrink: 0 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 14, marginBottom: 20 }}>
           <div>
             <div style={{ fontSize: 22, fontWeight: 700, color: '#14130f', marginBottom: 4, letterSpacing: '-0.3px' }}>Projects</div>
             <div style={{ fontSize: 12, color: '#6e6a63' }}>
-              {active.length} active &middot; {archived.length} archived{canManageProjects ? ' \u00b7 Double-click any project name to rename' : ''}
+              {active.length} active &middot; {archived.length} archived
+              <span className="hidden md:inline">{canManageProjects ? ' \u00b7 Double-click any project name to rename' : ''}</span>
             </div>
           </div>
           {canManageProjects && (
@@ -741,15 +742,15 @@ export default function Projects() {
         </div>
 
         {/* Stats - light cards on cream */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 16 }}>
+        <div className="grid grid-cols-3 gap-2.5 mb-4">
           {[
             { label: 'Active Projects', value: projects.filter(p => p.status === 'active').length, color: '#2d6a4f' },
             { label: 'Total Conversations', value: projects.reduce((a, p) => a + (parseInt(p.total_conversations) || 0), 0), color: '#2d2a7a' },
             { label: 'Unread', value: projects.reduce((a, p) => a + (parseInt(p.unread_conversations) || 0), 0), color: '#8e2a2a' },
           ].map(s => (
-            <div key={s.label} style={{ background: '#fff', borderRadius: 8, padding: '14px 16px', border: '0.5px solid #dcd8d0' }}>
-              <div style={{ fontSize: 24, fontWeight: 700, color: s.color, letterSpacing: '-0.3px' }}>{s.value}</div>
-              <div style={{ fontSize: 10, color: '#6e6a63', marginTop: 3, textTransform: 'uppercase', letterSpacing: '0.6px', fontWeight: 500 }}>{s.label}</div>
+            <div key={s.label} className="p-3 md:p-4" style={{ background: '#fff', borderRadius: 8, border: '0.5px solid #dcd8d0' }}>
+              <div className="text-xl md:text-2xl" style={{ fontWeight: 700, color: s.color, letterSpacing: '-0.3px' }}>{s.value}</div>
+              <div className="text-[9px] md:text-[10px] leading-tight" style={{ color: '#6e6a63', marginTop: 3, textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 500 }}>{s.label}</div>
             </div>
           ))}
         </div>
@@ -770,7 +771,7 @@ export default function Projects() {
       </div>
 
       {/* Project grid */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '20px 28px' }}>
+      <div className="px-4 py-5 md:px-7" style={{ flex: 1, overflowY: 'auto' }}>
         {loading ? (
           <div style={{ textAlign: 'center', padding: 60, color: '#9ca3af' }}>
             <div style={{ fontSize: 32, marginBottom: 12 }}>[P]</div>

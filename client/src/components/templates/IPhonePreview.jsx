@@ -1,7 +1,7 @@
 export default function IPhonePreview({ body, buttons = [] }) {
   const now = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false })
   const highlighted = (body || '').replace(/\{\{(\w+)\}\}/g, (_, v) =>
-    `<span style="background:#dbeafe;color:#1e40af;padding:1px 4px;border-radius:3px;font-weight:600;font-size:11px;">{{${v}}}</span>`
+    `<span style="background:#eeedf5;color:#2d2a7a;padding:1px 4px;border-radius:3px;font-weight:600;font-size:11px;">{{${v}}}</span>`
   )
   return (
     <div style={{ width: 260, flexShrink: 0 }}>

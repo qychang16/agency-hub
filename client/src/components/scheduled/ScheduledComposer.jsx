@@ -7,10 +7,10 @@ import { fmtSGT } from '../../utils/dates'
 function Field({ label, hint, children, required }) {
   return (
     <div style={{ marginBottom: 16 }}>
-      <label style={{ fontSize: 11, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+      <label style={{ fontSize: 11, fontWeight: 600, color: '#4a4742', display: 'block', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.4px' }}>
         {label}{required && <span style={{ color: '#ef4444', marginLeft: 3 }}>*</span>}
       </label>
-      {hint && <div style={{ fontSize: 11, color: '#9ca3af', marginBottom: 6 }}>{hint}</div>}
+      {hint && <div style={{ fontSize: 11, color: '#9a958c', marginBottom: 6 }}>{hint}</div>}
       {children}
     </div>
   )
@@ -19,14 +19,14 @@ function Field({ label, hint, children, required }) {
 function Input({ value, onChange, placeholder, type = 'text', disabled }) {
   return (
     <input type={type} value={value || ''} onChange={onChange} placeholder={placeholder} disabled={disabled}
-      style={{ width: '100%', padding: '9px 12px', border: '0.5px solid #e5e7eb', borderRadius: 8, fontSize: 13, outline: 'none', background: disabled ? '#f9fafb' : '#fff', color: '#111827', boxSizing: 'border-box' }} />
+      style={{ width: '100%', padding: '9px 12px', border: '0.5px solid #dcd8d0', borderRadius: 8, fontSize: 13, outline: 'none', background: disabled ? '#faf9f7' : '#fff', color: '#14130f', boxSizing: 'border-box' }} />
   )
 }
 
 function Select({ value, onChange, options, disabled }) {
   return (
     <select value={value || ''} onChange={onChange} disabled={disabled}
-      style={{ width: '100%', padding: '9px 12px', border: '0.5px solid #e5e7eb', borderRadius: 8, fontSize: 13, outline: 'none', background: disabled ? '#f9fafb' : '#fff', color: '#111827' }}>
+      style={{ width: '100%', padding: '9px 12px', border: '0.5px solid #dcd8d0', borderRadius: 8, fontSize: 13, outline: 'none', background: disabled ? '#faf9f7' : '#fff', color: '#14130f' }}>
       {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
     </select>
   )
@@ -36,7 +36,7 @@ function Btn({ onClick, children, variant = 'primary', size = 'md', disabled, st
   const sizes = { sm: { padding: '5px 10px', fontSize: 11 }, md: { padding: '9px 16px', fontSize: 13 } }
   const variants = {
     primary: { background: ACCENT, color: '#fff', border: 'none' },
-    ghost: { background: 'transparent', color: '#6b7280', border: '0.5px solid #e5e7eb' },
+    ghost: { background: 'transparent', color: '#6e6a63', border: '0.5px solid #dcd8d0' },
     dark: { background: NAVY, color: '#fff', border: 'none' },
     amber: { background: '#fef3c7', color: '#92400e', border: '0.5px solid #fde68a' },
   }
@@ -225,10 +225,10 @@ export default function ScheduledComposer({ onClose, onSaved, prefillContact, pr
       <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 800, maxHeight: '92vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
         {/* Modal header */}
-        <div style={{ padding: '18px 24px', borderBottom: '0.5px solid #f1f4f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, background: '#fff' }}>
+        <div style={{ padding: '18px 24px', borderBottom: '0.5px solid #f5f3ef', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, background: '#fff' }}>
           <div>
-            <div style={{ fontSize: 15, fontWeight: 600, color: '#111827' }}>Schedule Message</div>
-            <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>
+            <div style={{ fontSize: 15, fontWeight: 600, color: '#14130f' }}>Schedule Message</div>
+            <div style={{ fontSize: 11, color: '#9a958c', marginTop: 2 }}>
               Step {step} of 2 — {step === 1 ? 'Compose your message' : 'Preview and confirm'}
             </div>
           </div>
@@ -237,12 +237,12 @@ export default function ScheduledComposer({ onClose, onSaved, prefillContact, pr
             <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
               {[1, 2].map(s => (
                 <div key={s} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <div style={{ width: 24, height: 24, borderRadius: '50%', background: step >= s ? ACCENT : '#f1f4f9', color: step >= s ? '#fff' : '#9ca3af', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700 }}>{s}</div>
-                  {s < 2 && <div style={{ width: 20, height: 1.5, background: step > s ? ACCENT : '#e5e7eb' }} />}
+                  <div style={{ width: 24, height: 24, borderRadius: '50%', background: step >= s ? ACCENT : '#f5f3ef', color: step >= s ? '#fff' : '#9a958c', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700 }}>{s}</div>
+                  {s < 2 && <div style={{ width: 20, height: 1.5, background: step > s ? ACCENT : '#dcd8d0' }} />}
                 </div>
               ))}
             </div>
-            <button onClick={onClose} style={{ width: 28, height: 28, borderRadius: 7, border: '0.5px solid #e5e7eb', background: '#f9fafb', cursor: 'pointer', fontSize: 14, color: '#6b7280', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+            <button onClick={onClose} style={{ width: 28, height: 28, borderRadius: 7, border: '0.5px solid #dcd8d0', background: '#faf9f7', cursor: 'pointer', fontSize: 14, color: '#6e6a63', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
           </div>
         </div>
 
@@ -257,9 +257,9 @@ export default function ScheduledComposer({ onClose, onSaved, prefillContact, pr
                   <div style={{ display: 'flex', gap: 8 }}>
                     {CHANNELS.map(c => (
                       <div key={c.value} onClick={() => setChannel(c.value)}
-                        style={{ flex: 1, padding: '10px 12px', borderRadius: 9, border: `1.5px solid ${channel === c.value ? ACCENT : '#e5e7eb'}`, cursor: 'pointer', background: channel === c.value ? ACCENT_LIGHT : '#fff', transition: 'all .15s' }}>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: channel === c.value ? ACCENT : '#111827', marginBottom: 3 }}>{c.label}</div>
-                        <div style={{ fontSize: 10, color: '#9ca3af' }}>{c.desc}</div>
+                        style={{ flex: 1, padding: '10px 12px', borderRadius: 9, border: `1.5px solid ${channel === c.value ? ACCENT : '#dcd8d0'}`, cursor: 'pointer', background: channel === c.value ? ACCENT_LIGHT : '#fff', transition: 'all .15s' }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: channel === c.value ? ACCENT : '#14130f', marginBottom: 3 }}>{c.label}</div>
+                        <div style={{ fontSize: 10, color: '#9a958c' }}>{c.desc}</div>
                       </div>
                     ))}
                   </div>
@@ -270,9 +270,9 @@ export default function ScheduledComposer({ onClose, onSaved, prefillContact, pr
                   <div style={{ display: 'flex', gap: 8 }}>
                     {SEND_MODES.map(m => (
                       <div key={m.value} onClick={() => setSendMode(m.value)}
-                        style={{ flex: 1, padding: '10px 12px', borderRadius: 9, border: `1.5px solid ${sendMode === m.value ? ACCENT : '#e5e7eb'}`, cursor: 'pointer', background: sendMode === m.value ? ACCENT_LIGHT : '#fff', transition: 'all .15s' }}>
-                        <div style={{ fontSize: 12, fontWeight: 600, color: sendMode === m.value ? ACCENT : '#111827', marginBottom: 3 }}>{m.label}</div>
-                        <div style={{ fontSize: 10, color: '#9ca3af' }}>{m.desc}</div>
+                        style={{ flex: 1, padding: '10px 12px', borderRadius: 9, border: `1.5px solid ${sendMode === m.value ? ACCENT : '#dcd8d0'}`, cursor: 'pointer', background: sendMode === m.value ? ACCENT_LIGHT : '#fff', transition: 'all .15s' }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: sendMode === m.value ? ACCENT : '#14130f', marginBottom: 3 }}>{m.label}</div>
+                        <div style={{ fontSize: 10, color: '#9a958c' }}>{m.desc}</div>
                       </div>
                     ))}
                   </div>
@@ -286,8 +286,8 @@ export default function ScheduledComposer({ onClose, onSaved, prefillContact, pr
                         {selectedContact.name?.[0]?.toUpperCase()}
                       </div>
                       <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: '#111827' }}>{selectedContact.name}</div>
-                        <div style={{ fontSize: 11, color: '#9ca3af' }}>{channel === 'email' ? selectedContact.email : selectedContact.phone}</div>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: '#14130f' }}>{selectedContact.name}</div>
+                        <div style={{ fontSize: 11, color: '#9a958c' }}>{channel === 'email' ? selectedContact.email : selectedContact.phone}</div>
                       </div>
                       <div style={{ display: 'flex', gap: 4 }}>
                         {!selectedContact.pdpa_consented && <span style={{ fontSize: 9, padding: '2px 6px', borderRadius: 4, background: '#fee2e2', color: '#dc2626', fontWeight: 600 }}>No PDPA</span>}
@@ -298,22 +298,22 @@ export default function ScheduledComposer({ onClose, onSaved, prefillContact, pr
                   ) : (
                     <div>
                       <div style={{ position: 'relative', marginBottom: 6 }}>
-                        <svg style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', width: 12, height: 12, color: '#9ca3af', pointerEvents: 'none' }} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="7" cy="7" r="4"/><path d="M10.5 10.5l3 3" strokeLinecap="round"/></svg>
+                        <svg style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', width: 12, height: 12, color: '#9a958c', pointerEvents: 'none' }} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="7" cy="7" r="4"/><path d="M10.5 10.5l3 3" strokeLinecap="round"/></svg>
                         <input value={contactSearch} onChange={e => setContactSearch(e.target.value)} placeholder="Search by name, phone or email…" autoFocus
-                          style={{ width: '100%', padding: '8px 10px 8px 27px', border: '0.5px solid #e5e7eb', borderRadius: 8, fontSize: 12, outline: 'none', background: '#f9fafb', color: '#111827', boxSizing: 'border-box' }} />
+                          style={{ width: '100%', padding: '8px 10px 8px 27px', border: '0.5px solid #dcd8d0', borderRadius: 8, fontSize: 12, outline: 'none', background: '#faf9f7', color: '#14130f', boxSizing: 'border-box' }} />
                       </div>
-                      <div style={{ maxHeight: 180, overflowY: 'auto', border: '0.5px solid #e5e7eb', borderRadius: 8 }}>
+                      <div style={{ maxHeight: 180, overflowY: 'auto', border: '0.5px solid #dcd8d0', borderRadius: 8 }}>
                         {filteredContacts.slice(0, 20).map(c => (
                           <div key={c.id} onClick={() => selectContact(c)}
-                            style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', cursor: 'pointer', borderBottom: '0.5px solid #f9fafb' }}
-                            onMouseEnter={e => e.currentTarget.style.background = '#f9fafb'}
+                            style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', cursor: 'pointer', borderBottom: '0.5px solid #faf9f7' }}
+                            onMouseEnter={e => e.currentTarget.style.background = '#faf9f7'}
                             onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                            <div style={{ width: 30, height: 30, borderRadius: 8, background: c.type === 'candidate' ? '#ede9fe' : '#dbeafe', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: c.type === 'candidate' ? '#5b21b6' : '#1e40af', flexShrink: 0 }}>
+                            <div style={{ width: 30, height: 30, borderRadius: 8, background: c.type === 'candidate' ? '#ede9fe' : '#eeedf5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: c.type === 'candidate' ? '#5b21b6' : '#2d2a7a', flexShrink: 0 }}>
                               {c.name?.[0]?.toUpperCase()}
                             </div>
                             <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ fontSize: 12, fontWeight: 500, color: '#111827' }}>{c.name}</div>
-                              <div style={{ fontSize: 10, color: '#9ca3af' }}>{c.phone} {c.email ? `· ${c.email}` : ''}</div>
+                              <div style={{ fontSize: 12, fontWeight: 500, color: '#14130f' }}>{c.name}</div>
+                              <div style={{ fontSize: 10, color: '#9a958c' }}>{c.phone} {c.email ? `· ${c.email}` : ''}</div>
                             </div>
                             <div style={{ display: 'flex', gap: 4 }}>
                               {c.dnc && <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 4, background: '#fee2e2', color: '#dc2626', fontWeight: 600 }}>DNC</span>}
@@ -322,7 +322,7 @@ export default function ScheduledComposer({ onClose, onSaved, prefillContact, pr
                           </div>
                         ))}
                         {filteredContacts.length === 0 && (
-                          <div style={{ padding: '20px 0', textAlign: 'center', fontSize: 12, color: '#9ca3af' }}>No contacts found</div>
+                          <div style={{ padding: '20px 0', textAlign: 'center', fontSize: 12, color: '#9a958c' }}>No contacts found</div>
                         )}
                       </div>
                     </div>
@@ -334,9 +334,9 @@ export default function ScheduledComposer({ onClose, onSaved, prefillContact, pr
                   <Field label="Schedule Date & Time (SGT)" required>
                     <div style={{ display: 'flex', gap: 8 }}>
                       <input type="date" value={scheduledDate} onChange={e => setScheduledDate(e.target.value)}
-                        style={{ flex: 1, padding: '9px 12px', border: '0.5px solid #e5e7eb', borderRadius: 8, fontSize: 13, outline: 'none', background: '#fff', color: '#111827' }} />
+                        style={{ flex: 1, padding: '9px 12px', border: '0.5px solid #dcd8d0', borderRadius: 8, fontSize: 13, outline: 'none', background: '#fff', color: '#14130f' }} />
                       <input type="time" value={scheduledTime} onChange={e => setScheduledTime(e.target.value)}
-                        style={{ width: 110, padding: '9px 12px', border: `0.5px solid ${isBlackedOut() ? '#fde68a' : '#e5e7eb'}`, borderRadius: 8, fontSize: 13, outline: 'none', background: isBlackedOut() ? '#fffbeb' : '#fff', color: '#111827' }} />
+                        style={{ width: 110, padding: '9px 12px', border: `0.5px solid ${isBlackedOut() ? '#fde68a' : '#dcd8d0'}`, borderRadius: 8, fontSize: 13, outline: 'none', background: isBlackedOut() ? '#fffbeb' : '#fff', color: '#14130f' }} />
                     </div>
                     {isBlackedOut() && (
                       <div style={{ fontSize: 11, color: '#92400e', marginTop: 6, display: 'flex', gap: 5 }}>
@@ -375,7 +375,7 @@ export default function ScheduledComposer({ onClose, onSaved, prefillContact, pr
                     if (t) selectTemplate(t)
                     else { setSelectedTemplate(null); setBody(''); setSubject('') }
                   }}
-                    style={{ width: '100%', padding: '9px 12px', border: '0.5px solid #e5e7eb', borderRadius: 8, fontSize: 13, outline: 'none', background: '#fff', color: '#111827', marginBottom: 8 }}>
+                    style={{ width: '100%', padding: '9px 12px', border: '0.5px solid #dcd8d0', borderRadius: 8, fontSize: 13, outline: 'none', background: '#fff', color: '#14130f', marginBottom: 8 }}>
                     <option value="">— Type your own message —</option>
                     {templates.filter(t => channel === 'email' ? t.type === 'email' : t.type !== 'email').map(t => (
                       <option key={t.id} value={t.id}>{t.name}</option>
@@ -396,8 +396,8 @@ export default function ScheduledComposer({ onClose, onSaved, prefillContact, pr
                     placeholder={channel === 'email'
                       ? 'Dear {{name}},\n\nWe are pleased to confirm your interview…\n\nBest regards,\n{{agent_name}}'
                       : 'Dear {{name}},\n\nWe would like to confirm your interview for {{role}} at {{company}}…'}
-                    style={{ width: '100%', padding: '10px 12px', border: '0.5px solid #e5e7eb', borderRadius: 8, fontSize: 12, outline: 'none', background: '#fff', color: '#111827', resize: 'vertical', fontFamily: 'inherit', boxSizing: 'border-box', lineHeight: 1.6, minHeight: 180 }} />
-                  <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 5 }}>
+                    style={{ width: '100%', padding: '10px 12px', border: '0.5px solid #dcd8d0', borderRadius: 8, fontSize: 12, outline: 'none', background: '#fff', color: '#14130f', resize: 'vertical', fontFamily: 'inherit', boxSizing: 'border-box', lineHeight: 1.6, minHeight: 180 }} />
+                  <div style={{ fontSize: 11, color: '#9a958c', marginTop: 5 }}>
                     Use {'{{name}}'}, {'{{role}}'}, {'{{company}}'}, {'{{date}}'}, {'{{time}}'}, {'{{venue}}'} as variables
                   </div>
                 </Field>
@@ -405,7 +405,7 @@ export default function ScheduledComposer({ onClose, onSaved, prefillContact, pr
                 {/* Variable filler */}
                 {bodyVars.length > 0 && (
                   <Field label="Fill Variables" hint="Replace placeholders with actual values">
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '12px', background: '#f9fafb', borderRadius: 8, border: '0.5px solid #e5e7eb' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '12px', background: '#faf9f7', borderRadius: 8, border: '0.5px solid #dcd8d0' }}>
                       {bodyVars.map(v => (
                         <div key={v} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                           <div style={{ fontSize: 11, fontFamily: 'monospace', color: '#5b21b6', background: '#ede9fe', padding: '3px 8px', borderRadius: 4, minWidth: 80, textAlign: 'center', flexShrink: 0 }}>
@@ -413,7 +413,7 @@ export default function ScheduledComposer({ onClose, onSaved, prefillContact, pr
                           </div>
                           <input value={variables[v] || ''} onChange={e => setVariables(p => ({ ...p, [v]: e.target.value }))}
                             placeholder={`Enter ${v}…`}
-                            style={{ flex: 1, padding: '7px 10px', border: `0.5px solid ${variables[v] ? '#86efac' : '#e5e7eb'}`, borderRadius: 7, fontSize: 12, outline: 'none', background: '#fff', color: '#111827' }} />
+                            style={{ flex: 1, padding: '7px 10px', border: `0.5px solid ${variables[v] ? '#86efac' : '#dcd8d0'}`, borderRadius: 7, fontSize: 12, outline: 'none', background: '#fff', color: '#14130f' }} />
                           {variables[v] && <span style={{ fontSize: 12, color: '#16a34a' }}>✓</span>}
                         </div>
                       ))}
@@ -432,16 +432,16 @@ export default function ScheduledComposer({ onClose, onSaved, prefillContact, pr
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
               {/* Preview */}
               <div>
-                <div style={{ fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.4px' }}>Message Preview</div>
-                <div style={{ background: '#f9fafb', borderRadius: 12, border: '0.5px solid #e5e7eb', overflow: 'hidden' }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: '#4a4742', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.4px' }}>Message Preview</div>
+                <div style={{ background: '#faf9f7', borderRadius: 12, border: '0.5px solid #dcd8d0', overflow: 'hidden' }}>
                   {/* Preview header */}
-                  <div style={{ padding: '12px 16px', background: channel === 'email' ? '#eff6ff' : '#f0fdf4', borderBottom: '0.5px solid #e5e7eb', display: 'flex', gap: 10, alignItems: 'center' }}>
+                  <div style={{ padding: '12px 16px', background: channel === 'email' ? '#eeedf5' : '#f0fdf4', borderBottom: '0.5px solid #dcd8d0', display: 'flex', gap: 10, alignItems: 'center' }}>
                     <span style={{ fontSize: 20 }}>{channel === 'email' ? '📧' : '💬'}</span>
                     <div>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: '#111827' }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: '#14130f' }}>
                         {channel === 'email' ? 'Email to' : 'WhatsApp to'} {selectedContact?.name}
                       </div>
-                      <div style={{ fontSize: 11, color: '#9ca3af' }}>
+                      <div style={{ fontSize: 11, color: '#9a958c' }}>
                         {channel === 'email' ? selectedContact?.email : selectedContact?.phone}
                       </div>
                     </div>
@@ -449,14 +449,14 @@ export default function ScheduledComposer({ onClose, onSaved, prefillContact, pr
 
                   {/* Email subject */}
                   {channel === 'email' && subject && (
-                    <div style={{ padding: '10px 16px', borderBottom: '0.5px solid #e5e7eb', fontSize: 13, fontWeight: 600, color: '#111827' }}>
+                    <div style={{ padding: '10px 16px', borderBottom: '0.5px solid #dcd8d0', fontSize: 13, fontWeight: 600, color: '#14130f' }}>
                       {subject}
                     </div>
                   )}
 
                   {/* Body */}
-                  <div style={{ padding: '14px 16px', fontSize: 12, color: '#374151', lineHeight: 1.7, whiteSpace: 'pre-wrap', maxHeight: 300, overflowY: 'auto' }}>
-                    {previewBody || <span style={{ color: '#9ca3af', fontStyle: 'italic' }}>No message content</span>}
+                  <div style={{ padding: '14px 16px', fontSize: 12, color: '#4a4742', lineHeight: 1.7, whiteSpace: 'pre-wrap', maxHeight: 300, overflowY: 'auto' }}>
+                    {previewBody || <span style={{ color: '#9a958c', fontStyle: 'italic' }}>No message content</span>}
                   </div>
                 </div>
 
@@ -470,8 +470,8 @@ export default function ScheduledComposer({ onClose, onSaved, prefillContact, pr
 
               {/* Summary */}
               <div>
-                <div style={{ fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.4px' }}>Send Summary</div>
-                <div style={{ background: '#fff', borderRadius: 12, border: '0.5px solid #e5e7eb', overflow: 'hidden' }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: '#4a4742', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.4px' }}>Send Summary</div>
+                <div style={{ background: '#fff', borderRadius: 12, border: '0.5px solid #dcd8d0', overflow: 'hidden' }}>
                   {[
                     ['Recipient', selectedContact?.name],
                     ['Contact', channel === 'email' ? selectedContact?.email : selectedContact?.phone],
@@ -483,9 +483,9 @@ export default function ScheduledComposer({ onClose, onSaved, prefillContact, pr
                     ['PDPA consent', selectedContact?.pdpa_consented ? '✓ Consented' : '✗ Not consented'],
                     ['DNC status', selectedContact?.dnc ? '⚠ DNC flagged' : '✓ Clear'],
                   ].filter(Boolean).map(([label, value]) => value && (
-                    <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '11px 16px', borderBottom: '0.5px solid #f9fafb', fontSize: 12 }}>
-                      <span style={{ color: '#9ca3af' }}>{label}</span>
-                      <span style={{ color: '#111827', fontWeight: 500, textAlign: 'right', maxWidth: '60%' }}>{value}</span>
+                    <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '11px 16px', borderBottom: '0.5px solid #faf9f7', fontSize: 12 }}>
+                      <span style={{ color: '#9a958c' }}>{label}</span>
+                      <span style={{ color: '#14130f', fontWeight: 500, textAlign: 'right', maxWidth: '60%' }}>{value}</span>
                     </div>
                   ))}
                 </div>
@@ -493,7 +493,7 @@ export default function ScheduledComposer({ onClose, onSaved, prefillContact, pr
                 {/* Scheduled bubble preview */}
                 {sendMode === 'scheduled' && (
                   <div style={{ marginTop: 14 }}>
-                    <div style={{ fontSize: 11, color: '#9ca3af', marginBottom: 8 }}>How it appears in the conversation thread:</div>
+                    <div style={{ fontSize: 11, color: '#9a958c', marginBottom: 8 }}>How it appears in the conversation thread:</div>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
                       <div style={{ maxWidth: '80%', padding: '10px 14px', borderRadius: 12, borderBottomRightRadius: 3, background: '#fef3c7', border: '1px solid #fde68a', fontSize: 12, color: '#92400e', lineHeight: 1.5 }}>
                         <div style={{ fontSize: 10, fontWeight: 600, color: '#d97706', marginBottom: 5, display: 'flex', alignItems: 'center', gap: 5 }}>
@@ -513,7 +513,7 @@ export default function ScheduledComposer({ onClose, onSaved, prefillContact, pr
         </div>
 
         {/* Footer */}
-        <div style={{ padding: '14px 24px', borderTop: '0.5px solid #f1f4f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, background: '#fff' }}>
+        <div style={{ padding: '14px 24px', borderTop: '0.5px solid #f5f3ef', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, background: '#fff' }}>
           <div style={{ flex: 1 }}>
             {error && (
               <div style={{ fontSize: 12, color: '#dc2626', display: 'flex', alignItems: 'center', gap: 6 }}>

@@ -6,7 +6,7 @@ import { ACCENT, ACCENT_LIGHT, NAVY } from '../../utils/designTokens'
 function IPhonePreview({ body, buttons = [] }) {
   const now = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false })
   const highlighted = (body || '').replace(/\{\{(\w+)\}\}/g, (_, v) =>
-    `<span style="background:#dbeafe;color:#1e40af;padding:1px 4px;border-radius:3px;font-weight:600;font-size:11px;">{{${v}}}</span>`
+    `<span style="background:#eeedf5;color:#2d2a7a;padding:1px 4px;border-radius:3px;font-weight:600;font-size:11px;">{{${v}}}</span>`
   )
   return (
     <div style={{ width: 240, flexShrink: 0 }}>
@@ -68,7 +68,7 @@ function Btn({ onClick, children, variant = 'primary', size = 'md', disabled, st
   const sizes = { sm: { padding: '5px 10px', fontSize: 11 }, md: { padding: '8px 14px', fontSize: 12 } }
   const variants = {
     primary: { background: ACCENT, color: '#fff', border: 'none' },
-    ghost: { background: 'transparent', color: '#6b7280', border: '0.5px solid #e5e7eb' },
+    ghost: { background: 'transparent', color: '#6e6a63', border: '0.5px solid #dcd8d0' },
     danger: { background: '#fee2e2', color: '#dc2626', border: '0.5px solid #fca5a5' },
     dark: { background: NAVY, color: '#fff', border: 'none' },
     success: { background: '#dcfce7', color: '#16a34a', border: '0.5px solid #86efac' },
@@ -86,12 +86,12 @@ function Modal({ title, subtitle, onClose, children, width = 860 }) {
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16 }}
       onClick={e => { if (e.target === e.currentTarget) onClose() }}>
       <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: width, maxHeight: '92vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <div style={{ padding: '18px 24px', borderBottom: '0.5px solid #f1f4f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+        <div style={{ padding: '18px 24px', borderBottom: '0.5px solid #f5f3ef', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
           <div>
-            <div style={{ fontSize: 14, fontWeight: 600, color: '#111827' }}>{title}</div>
-            {subtitle && <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>{subtitle}</div>}
+            <div style={{ fontSize: 14, fontWeight: 600, color: '#14130f' }}>{title}</div>
+            {subtitle && <div style={{ fontSize: 11, color: '#9a958c', marginTop: 2 }}>{subtitle}</div>}
           </div>
-          <button onClick={onClose} style={{ width: 28, height: 28, borderRadius: 7, border: '0.5px solid #e5e7eb', background: '#f9fafb', cursor: 'pointer', fontSize: 14, color: '#6b7280', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+          <button onClick={onClose} style={{ width: 28, height: 28, borderRadius: 7, border: '0.5px solid #dcd8d0', background: '#faf9f7', cursor: 'pointer', fontSize: 14, color: '#6e6a63', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
         </div>
         <div style={{ flex: 1, overflowY: 'auto', padding: 24 }}>{children}</div>
       </div>
@@ -108,7 +108,7 @@ const CATEGORIES = [
 const STATUS_STYLES = {
   approved: { bg: '#dcfce7', color: '#16a34a', label: '✓ Approved' },
   pending: { bg: '#fef3c7', color: '#92400e', label: '⏳ Pending' },
-  draft: { bg: '#f1f4f9', color: '#6b7280', label: '✏ Draft' },
+  draft: { bg: '#f5f3ef', color: '#6e6a63', label: '✏ Draft' },
   rejected: { bg: '#fee2e2', color: '#dc2626', label: '✗ Rejected' },
 }
 
@@ -170,22 +170,22 @@ function TemplateEditor({ template, onClose, onSaved }) {
         <div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
             <div>
-              <label style={{ fontSize: 11, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+              <label style={{ fontSize: 11, fontWeight: 600, color: '#4a4742', display: 'block', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.4px' }}>
                 Template Name <span style={{ color: '#ef4444' }}>*</span>
               </label>
               <input
                 value={name}
                 onChange={e => setName(e.target.value.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, ''))}
                 placeholder="e.g. interview_confirmation"
-                style={{ width: '100%', padding: '9px 12px', border: '0.5px solid #e5e7eb', borderRadius: 8, fontSize: 13, outline: 'none', background: '#fff', color: '#111827', boxSizing: 'border-box', fontFamily: 'monospace' }} />
-              <div style={{ fontSize: 10, color: '#9ca3af', marginTop: 4 }}>Lowercase letters and underscores only</div>
+                style={{ width: '100%', padding: '9px 12px', border: '0.5px solid #dcd8d0', borderRadius: 8, fontSize: 13, outline: 'none', background: '#fff', color: '#14130f', boxSizing: 'border-box', fontFamily: 'monospace' }} />
+              <div style={{ fontSize: 10, color: '#9a958c', marginTop: 4 }}>Lowercase letters and underscores only</div>
             </div>
             <div>
-              <label style={{ fontSize: 11, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+              <label style={{ fontSize: 11, fontWeight: 600, color: '#4a4742', display: 'block', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.4px' }}>
                 Category <span style={{ color: '#ef4444' }}>*</span>
               </label>
               <select value={category} onChange={e => setCategory(e.target.value)}
-                style={{ width: '100%', padding: '9px 12px', border: '0.5px solid #e5e7eb', borderRadius: 8, fontSize: 13, outline: 'none', background: '#fff', color: '#111827' }}>
+                style={{ width: '100%', padding: '9px 12px', border: '0.5px solid #dcd8d0', borderRadius: 8, fontSize: 13, outline: 'none', background: '#fff', color: '#14130f' }}>
                 {CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label} — {c.desc}</option>)}
               </select>
             </div>
@@ -193,37 +193,37 @@ function TemplateEditor({ template, onClose, onSaved }) {
 
           <div style={{ marginBottom: 8 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-              <label style={{ fontSize: 11, fontWeight: 600, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+              <label style={{ fontSize: 11, fontWeight: 600, color: '#4a4742', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
                 Message Body <span style={{ color: '#ef4444' }}>*</span>
               </label>
-              <span style={{ fontSize: 11, color: '#9ca3af' }}>{body.length} characters</span>
+              <span style={{ fontSize: 11, color: '#9a958c' }}>{body.length} characters</span>
             </div>
             <textarea
               value={body}
               onChange={e => setBody(e.target.value)}
               rows={10}
               placeholder={'Dear {{name}},\n\nWe are pleased to confirm your interview for the position of {{role}} at {{company}}.\n\nDate: {{date}}\nTime: {{time}}\nVenue: {{venue}}\n\nWe look forward to meeting you.'}
-              style={{ width: '100%', padding: '10px 12px', border: '0.5px solid #e5e7eb', borderRadius: 8, fontSize: 12, outline: 'none', background: '#fff', color: '#111827', resize: 'vertical', fontFamily: 'inherit', boxSizing: 'border-box', lineHeight: 1.6 }} />
+              style={{ width: '100%', padding: '10px 12px', border: '0.5px solid #dcd8d0', borderRadius: 8, fontSize: 12, outline: 'none', background: '#fff', color: '#14130f', resize: 'vertical', fontFamily: 'inherit', boxSizing: 'border-box', lineHeight: 1.6 }} />
           </div>
 
           <div style={{ marginBottom: 16 }}>
-            <div style={{ fontSize: 11, color: '#9ca3af', marginBottom: 6 }}>Quick insert variable:</div>
+            <div style={{ fontSize: 11, color: '#9a958c', marginBottom: 6 }}>Quick insert variable:</div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
               {QUICK_VARS.map(v => (
                 <button key={v} onClick={() => insertVariable(v)}
-                  style={{ padding: '3px 9px', borderRadius: 6, border: '0.5px solid #e5e7eb', fontSize: 11, background: '#f9fafb', color: '#374151', cursor: 'pointer', fontFamily: 'monospace' }}>
+                  style={{ padding: '3px 9px', borderRadius: 6, border: '0.5px solid #dcd8d0', fontSize: 11, background: '#faf9f7', color: '#4a4742', cursor: 'pointer', fontFamily: 'monospace' }}>
                   {`{{${v}}}`}
                 </button>
               ))}
             </div>
           </div>
 
-          <div style={{ padding: '10px 12px', background: '#f9fafb', borderRadius: 8, border: '0.5px solid #e5e7eb', marginBottom: 16 }}>
-            <div style={{ fontSize: 11, fontWeight: 600, color: '#374151', marginBottom: 6 }}>WhatsApp Formatting</div>
+          <div style={{ padding: '10px 12px', background: '#faf9f7', borderRadius: 8, border: '0.5px solid #dcd8d0', marginBottom: 16 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: '#4a4742', marginBottom: 6 }}>WhatsApp Formatting</div>
             <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
               {[['*bold*', 'Bold'], ['_italic_', 'Italic'], ['~strike~', 'Strikethrough'], ['`code`', 'Monospace']].map(([syntax, label]) => (
-                <div key={label} style={{ fontSize: 11, color: '#6b7280', display: 'flex', gap: 5, alignItems: 'center' }}>
-                  <code style={{ background: '#e5e7eb', padding: '1px 5px', borderRadius: 3, fontSize: 10 }}>{syntax}</code>
+                <div key={label} style={{ fontSize: 11, color: '#6e6a63', display: 'flex', gap: 5, alignItems: 'center' }}>
+                  <code style={{ background: '#dcd8d0', padding: '1px 5px', borderRadius: 3, fontSize: 10 }}>{syntax}</code>
                   <span>→ {label}</span>
                 </div>
               ))}
@@ -232,7 +232,7 @@ function TemplateEditor({ template, onClose, onSaved }) {
 
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <label style={{ fontSize: 11, fontWeight: 600, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+              <label style={{ fontSize: 11, fontWeight: 600, color: '#4a4742', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
                 Buttons (optional, max 3)
               </label>
               {buttons.length < 3 && <Btn variant="ghost" size="sm" onClick={addButton}>+ Add Button</Btn>}
@@ -240,16 +240,16 @@ function TemplateEditor({ template, onClose, onSaved }) {
             {buttons.map((b, i) => (
               <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
                 <select value={b.type} onChange={e => updateButton(i, 'type', e.target.value)}
-                  style={{ width: 140, padding: '8px 10px', border: '0.5px solid #e5e7eb', borderRadius: 7, fontSize: 12, outline: 'none', background: '#fff', color: '#111827', flexShrink: 0 }}>
+                  style={{ width: 140, padding: '8px 10px', border: '0.5px solid #dcd8d0', borderRadius: 7, fontSize: 12, outline: 'none', background: '#fff', color: '#14130f', flexShrink: 0 }}>
                   <option value="quick_reply">Quick Reply</option>
                   <option value="call_to_action">Call to Action</option>
                   <option value="phone">Phone Number</option>
                 </select>
                 <input value={b.label} onChange={e => updateButton(i, 'label', e.target.value)} placeholder="Button label"
-                  style={{ flex: 1, padding: '8px 10px', border: '0.5px solid #e5e7eb', borderRadius: 7, fontSize: 12, outline: 'none', background: '#fff', color: '#111827' }} />
+                  style={{ flex: 1, padding: '8px 10px', border: '0.5px solid #dcd8d0', borderRadius: 7, fontSize: 12, outline: 'none', background: '#fff', color: '#14130f' }} />
                 {b.type === 'call_to_action' && (
                   <input value={b.url || ''} onChange={e => updateButton(i, 'url', e.target.value)} placeholder="https://…"
-                    style={{ flex: 1, padding: '8px 10px', border: '0.5px solid #e5e7eb', borderRadius: 7, fontSize: 12, outline: 'none', background: '#fff', color: '#111827' }} />
+                    style={{ flex: 1, padding: '8px 10px', border: '0.5px solid #dcd8d0', borderRadius: 7, fontSize: 12, outline: 'none', background: '#fff', color: '#14130f' }} />
                 )}
                 <button onClick={() => removeButton(i)}
                   style={{ width: 28, height: 28, borderRadius: 7, border: '0.5px solid #fca5a5', background: '#fee2e2', cursor: 'pointer', color: '#dc2626', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>×</button>
@@ -263,7 +263,7 @@ function TemplateEditor({ template, onClose, onSaved }) {
             </div>
           )}
 
-          <div style={{ display: 'flex', gap: 10, marginTop: 20, paddingTop: 16, borderTop: '0.5px solid #f1f4f9' }}>
+          <div style={{ display: 'flex', gap: 10, marginTop: 20, paddingTop: 16, borderTop: '0.5px solid #f5f3ef' }}>
             <Btn variant="ghost" onClick={onClose} style={{ flex: 1 }}>Cancel</Btn>
             <Btn variant="ghost" onClick={() => save('draft')} disabled={saving} style={{ flex: 1 }}>Save as Draft</Btn>
             {(user?.role === 'director' || user?.role === 'manager') ? (
@@ -279,9 +279,9 @@ function TemplateEditor({ template, onClose, onSaved }) {
         </div>
 
         <div>
-          <div style={{ fontSize: 11, fontWeight: 600, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 12 }}>Live Preview</div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: '#4a4742', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 12 }}>Live Preview</div>
           <IPhonePreview body={body} buttons={buttons} />
-          <div style={{ marginTop: 12, fontSize: 11, color: '#9ca3af', lineHeight: 1.5, textAlign: 'center' }}>
+          <div style={{ marginTop: 12, fontSize: 11, color: '#9a958c', lineHeight: 1.5, textAlign: 'center' }}>
             Variables shown in blue will be replaced with actual data when sent
           </div>
         </div>
@@ -360,45 +360,44 @@ export default function Templates() {
   const canCreate = hasPermission('manage_templates')
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#f1f4f9' }}>
-      <div style={{ background: NAVY, padding: '20px 28px', flexShrink: 0 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 14 }}>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#f5f3ef' }}>
+      <div style={{ padding: '24px 28px 16px', flexShrink: 0 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 14, marginBottom: 20 }}>
           <div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: '#fff', marginBottom: 4 }}>Templates</div>
-            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)' }}>
-              {counts.approved} approved · {counts.pending} pending approval · {counts.draft} drafts
+            <div style={{ fontSize: 22, fontWeight: 700, color: '#14130f', marginBottom: 4, letterSpacing: '-0.3px' }}>Templates</div>
+            <div style={{ fontSize: 12, color: '#6e6a63' }}>
+              {counts.approved} approved {'\u00b7'} {counts.pending} pending approval {'\u00b7'} {counts.draft} drafts
             </div>
           </div>
           {canCreate && (
-            <Btn onClick={() => { setEditingTemplate(null); setShowEditor(true) }}
-              style={{ background: '#fff', color: NAVY }}>
+            <Btn onClick={() => { setEditingTemplate(null); setShowEditor(true) }}>
               + New Template
             </Btn>
           )}
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginTop: 18 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
           {[
-            { label: 'Approved', value: counts.approved, color: '#34d399' },
-            { label: 'Pending', value: counts.pending, color: '#fbbf24' },
-            { label: 'Drafts', value: counts.draft, color: '#94a3b8' },
-            { label: 'Rejected', value: counts.rejected, color: '#f87171' },
+            { label: 'Approved', value: counts.approved, color: '#2d6a4f' },
+            { label: 'Pending', value: counts.pending, color: '#9a6a00' },
+            { label: 'Drafts', value: counts.draft, color: '#6e6a63' },
+            { label: 'Rejected', value: counts.rejected, color: '#8e2a2a' },
           ].map(s => (
-            <div key={s.label} style={{ background: 'rgba(255,255,255,0.07)', borderRadius: 10, padding: '12px 14px', border: '0.5px solid rgba(255,255,255,0.1)' }}>
-              <div style={{ fontSize: 22, fontWeight: 700, color: s.color }}>{s.value}</div>
-              <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', marginTop: 3 }}>{s.label}</div>
+            <div key={s.label} style={{ background: '#fff', borderRadius: 8, padding: '14px 16px', border: '0.5px solid #dcd8d0' }}>
+              <div style={{ fontSize: 24, fontWeight: 700, color: s.color, letterSpacing: '-0.3px' }}>{s.value}</div>
+              <div style={{ fontSize: 10, color: '#6e6a63', marginTop: 3, textTransform: 'uppercase', letterSpacing: '0.6px', fontWeight: 500 }}>{s.label}</div>
             </div>
           ))}
         </div>
       </div>
 
-      <div style={{ background: '#fff', borderBottom: '0.5px solid #e5e7eb', padding: '12px 28px', display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap', flexShrink: 0 }}>
+      <div style={{ background: '#fff', borderBottom: '0.5px solid #dcd8d0', padding: '12px 28px', display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap', flexShrink: 0 }}>
         <div style={{ display: 'flex', gap: 4 }}>
           {FILTER_TABS.map(t => (
             <button key={t.key} onClick={() => setActiveTab(t.key)}
-              style={{ padding: '5px 12px', borderRadius: 7, border: 'none', background: activeTab === t.key ? ACCENT : 'transparent', color: activeTab === t.key ? '#fff' : '#6b7280', fontSize: 12, cursor: 'pointer', fontWeight: activeTab === t.key ? 600 : 400, display: 'flex', alignItems: 'center', gap: 5 }}>
+              style={{ padding: '5px 12px', borderRadius: 7, border: 'none', background: activeTab === t.key ? ACCENT : 'transparent', color: activeTab === t.key ? '#fff' : '#6e6a63', fontSize: 12, cursor: 'pointer', fontWeight: activeTab === t.key ? 600 : 400, display: 'flex', alignItems: 'center', gap: 5 }}>
               {t.label}
               {counts[t.key] > 0 && (
-                <span style={{ fontSize: 10, padding: '1px 5px', borderRadius: 10, background: activeTab === t.key ? 'rgba(255,255,255,0.3)' : '#f1f4f9', color: activeTab === t.key ? '#fff' : '#6b7280' }}>
+                <span style={{ fontSize: 10, padding: '1px 5px', borderRadius: 10, background: activeTab === t.key ? 'rgba(255,255,255,0.3)' : '#f5f3ef', color: activeTab === t.key ? '#fff' : '#6e6a63' }}>
                   {counts[t.key]}
                 </span>
               )}
@@ -406,23 +405,23 @@ export default function Templates() {
           ))}
         </div>
         <div style={{ marginLeft: 'auto', position: 'relative' }}>
-          <svg style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', width: 12, height: 12, color: '#9ca3af', pointerEvents: 'none' }} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="7" cy="7" r="4"/><path d="M10.5 10.5l3 3" strokeLinecap="round"/></svg>
+          <svg style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', width: 12, height: 12, color: '#9a958c', pointerEvents: 'none' }} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="7" cy="7" r="4"/><path d="M10.5 10.5l3 3" strokeLinecap="round"/></svg>
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search templates…"
-            style={{ padding: '6px 10px 6px 26px', border: '0.5px solid #e5e7eb', borderRadius: 8, fontSize: 12, outline: 'none', background: '#f9fafb', color: '#111827', width: 200 }} />
+            style={{ padding: '6px 10px 6px 26px', border: '0.5px solid #dcd8d0', borderRadius: 8, fontSize: 12, outline: 'none', background: '#faf9f7', color: '#14130f', width: 200 }} />
         </div>
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '20px 28px' }}>
         {loading ? (
-          <div style={{ textAlign: 'center', padding: 60, color: '#9ca3af' }}>
+          <div style={{ textAlign: 'center', padding: 60, color: '#9a958c' }}>
             <div style={{ fontSize: 32, marginBottom: 12 }}>📋</div>
             <div>Loading templates…</div>
           </div>
         ) : filtered.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '60px 20px' }}>
             <div style={{ fontSize: 48, marginBottom: 16 }}>📋</div>
-            <div style={{ fontSize: 15, fontWeight: 600, color: '#374151', marginBottom: 6 }}>No templates found</div>
-            <div style={{ fontSize: 13, color: '#9ca3af', marginBottom: 24 }}>
+            <div style={{ fontSize: 15, fontWeight: 600, color: '#4a4742', marginBottom: 6 }}>No templates found</div>
+            <div style={{ fontSize: 13, color: '#9a958c', marginBottom: 24 }}>
               {activeTab === 'all' ? 'Create your first WhatsApp template to get started.' : `No ${activeTab} templates.`}
             </div>
             {canCreate && activeTab === 'all' && (
@@ -435,13 +434,13 @@ export default function Templates() {
               const ss = STATUS_STYLES[t.status] || STATUS_STYLES.draft
               const buttons = Array.isArray(t.buttons) ? t.buttons : []
               return (
-                <div key={t.id} style={{ background: '#fff', borderRadius: 12, border: '0.5px solid #e5e7eb', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                  <div style={{ padding: '14px 16px', borderBottom: '0.5px solid #f1f4f9', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div key={t.id} style={{ background: '#fff', borderRadius: 12, border: '0.5px solid #dcd8d0', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                  <div style={{ padding: '14px 16px', borderBottom: '0.5px solid #f5f3ef', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: '#111827', marginBottom: 5, fontFamily: 'monospace' }}>{t.name}</div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: '#14130f', marginBottom: 5, fontFamily: 'monospace' }}>{t.name}</div>
                       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                         <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 6, background: ss.bg, color: ss.color, fontWeight: 600 }}>{ss.label}</span>
-                        <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 6, background: '#f1f4f9', color: '#6b7280', textTransform: 'capitalize' }}>{t.category}</span>
+                        <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 6, background: '#f5f3ef', color: '#6e6a63', textTransform: 'capitalize' }}>{t.category}</span>
                         {buttons.length > 0 && (
                           <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 6, background: '#ede9fe', color: '#5b21b6' }}>
                             {buttons.length} button{buttons.length !== 1 ? 's' : ''}
@@ -451,7 +450,7 @@ export default function Templates() {
                     </div>
                   </div>
                   <div style={{ padding: '12px 16px', flex: 1 }}>
-                    <div style={{ fontSize: 12, color: '#374151', lineHeight: 1.6, maxHeight: 100, overflow: 'hidden' }}>
+                    <div style={{ fontSize: 12, color: '#4a4742', lineHeight: 1.6, maxHeight: 100, overflow: 'hidden' }}>
                       {t.body?.slice(0, 200)}{t.body?.length > 200 ? '…' : ''}
                     </div>
                   </div>
@@ -466,7 +465,7 @@ export default function Templates() {
                       </div>
                     </div>
                   )}
-                  <div style={{ padding: '10px 16px', borderTop: '0.5px solid #f1f4f9', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  <div style={{ padding: '10px 16px', borderTop: '0.5px solid #f5f3ef', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                     <Btn variant="ghost" size="sm" onClick={() => setPreviewTemplate(t)}>Preview</Btn>
                     {canCreate && (
                       <Btn variant="ghost" size="sm" onClick={() => { setEditingTemplate(t); setShowEditor(true) }}>Edit</Btn>
@@ -501,9 +500,9 @@ export default function Templates() {
           <div style={{ background: '#fff', borderRadius: 16, padding: 24, maxWidth: 400, width: '100%' }}
             onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <div style={{ fontSize: 14, fontWeight: 600, color: '#111827' }}>{previewTemplate.name}</div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: '#14130f' }}>{previewTemplate.name}</div>
               <button onClick={() => setPreviewTemplate(null)}
-                style={{ width: 28, height: 28, borderRadius: 7, border: '0.5px solid #e5e7eb', background: '#f9fafb', cursor: 'pointer', fontSize: 14, color: '#6b7280', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+                style={{ width: 28, height: 28, borderRadius: 7, border: '0.5px solid #dcd8d0', background: '#faf9f7', cursor: 'pointer', fontSize: 14, color: '#6e6a63', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
             </div>
             <div style={{ display: 'flex', justifyContent: 'center' }}>
               <IPhonePreview body={previewTemplate.body} buttons={previewTemplate.buttons || []} />

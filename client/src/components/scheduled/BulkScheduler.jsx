@@ -7,10 +7,10 @@ import { fmtSGT } from '../../utils/dates'
 function Field({ label, hint, children, required }) {
   return (
     <div style={{ marginBottom: 16 }}>
-      <label style={{ fontSize: 11, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+      <label style={{ fontSize: 11, fontWeight: 600, color: '#4a4742', display: 'block', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.4px' }}>
         {label}{required && <span style={{ color: '#ef4444', marginLeft: 3 }}>*</span>}
       </label>
-      {hint && <div style={{ fontSize: 11, color: '#9ca3af', marginBottom: 6 }}>{hint}</div>}
+      {hint && <div style={{ fontSize: 11, color: '#9a958c', marginBottom: 6 }}>{hint}</div>}
       {children}
     </div>
   )
@@ -19,7 +19,7 @@ function Field({ label, hint, children, required }) {
 function Select({ value, onChange, options, disabled }) {
   return (
     <select value={value || ''} onChange={onChange} disabled={disabled}
-      style={{ width: '100%', padding: '9px 12px', border: '0.5px solid #e5e7eb', borderRadius: 8, fontSize: 13, outline: 'none', background: disabled ? '#f9fafb' : '#fff', color: '#111827' }}>
+      style={{ width: '100%', padding: '9px 12px', border: '0.5px solid #dcd8d0', borderRadius: 8, fontSize: 13, outline: 'none', background: disabled ? '#faf9f7' : '#fff', color: '#14130f' }}>
       {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
     </select>
   )
@@ -29,7 +29,7 @@ function Btn({ onClick, children, variant = 'primary', size = 'md', disabled, st
   const sizes = { sm: { padding: '5px 10px', fontSize: 11 }, md: { padding: '9px 16px', fontSize: 13 } }
   const variants = {
     primary: { background: ACCENT, color: '#fff', border: 'none' },
-    ghost: { background: 'transparent', color: '#6b7280', border: '0.5px solid #e5e7eb' },
+    ghost: { background: 'transparent', color: '#6e6a63', border: '0.5px solid #dcd8d0' },
     dark: { background: NAVY, color: '#fff', border: 'none' },
     success: { background: '#dcfce7', color: '#16a34a', border: '0.5px solid #86efac' },
     danger: { background: '#fee2e2', color: '#dc2626', border: '0.5px solid #fca5a5' },
@@ -253,10 +253,10 @@ export default function BulkScheduler({ onClose, onSaved }) {
       <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 900, maxHeight: '92vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
         {/* Header */}
-        <div style={{ padding: '18px 24px', borderBottom: '0.5px solid #f1f4f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+        <div style={{ padding: '18px 24px', borderBottom: '0.5px solid #f5f3ef', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
           <div>
-            <div style={{ fontSize: 15, fontWeight: 600, color: '#111827' }}>Bulk Schedule via CSV</div>
-            <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>Send personalised messages to multiple contacts at once</div>
+            <div style={{ fontSize: 15, fontWeight: 600, color: '#14130f' }}>Bulk Schedule via CSV</div>
+            <div style={{ fontSize: 11, color: '#9a958c', marginTop: 2 }}>Send personalised messages to multiple contacts at once</div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
             {/* Step indicators */}
@@ -264,16 +264,16 @@ export default function BulkScheduler({ onClose, onSaved }) {
               {STEPS.map((s, i) => (
                 <div key={s} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                    <div style={{ width: 22, height: 22, borderRadius: '50%', background: step > i + 1 ? '#16a34a' : step === i + 1 ? ACCENT : '#f1f4f9', color: step >= i + 1 ? '#fff' : '#9ca3af', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, flexShrink: 0 }}>
+                    <div style={{ width: 22, height: 22, borderRadius: '50%', background: step > i + 1 ? '#16a34a' : step === i + 1 ? ACCENT : '#f5f3ef', color: step >= i + 1 ? '#fff' : '#9a958c', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, flexShrink: 0 }}>
                       {step > i + 1 ? '✓' : i + 1}
                     </div>
-                    <span style={{ fontSize: 10, color: step === i + 1 ? ACCENT : step > i + 1 ? '#16a34a' : '#9ca3af', fontWeight: step === i + 1 ? 600 : 400, whiteSpace: 'nowrap' }}>{s}</span>
+                    <span style={{ fontSize: 10, color: step === i + 1 ? ACCENT : step > i + 1 ? '#16a34a' : '#9a958c', fontWeight: step === i + 1 ? 600 : 400, whiteSpace: 'nowrap' }}>{s}</span>
                   </div>
-                  {i < STEPS.length - 1 && <div style={{ width: 16, height: 1.5, background: step > i + 1 ? '#16a34a' : '#e5e7eb', marginLeft: 4 }} />}
+                  {i < STEPS.length - 1 && <div style={{ width: 16, height: 1.5, background: step > i + 1 ? '#16a34a' : '#dcd8d0', marginLeft: 4 }} />}
                 </div>
               ))}
             </div>
-            <button onClick={onClose} style={{ width: 28, height: 28, borderRadius: 7, border: '0.5px solid #e5e7eb', background: '#f9fafb', cursor: 'pointer', fontSize: 14, color: '#6b7280', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+            <button onClick={onClose} style={{ width: 28, height: 28, borderRadius: 7, border: '0.5px solid #dcd8d0', background: '#faf9f7', cursor: 'pointer', fontSize: 14, color: '#6e6a63', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
           </div>
         </div>
 
@@ -283,8 +283,8 @@ export default function BulkScheduler({ onClose, onSaved }) {
           {/* STEP 1 — Setup */}
           {step === 1 && (
             <div style={{ maxWidth: 600, margin: '0 auto' }}>
-              <div style={{ fontSize: 14, fontWeight: 600, color: '#111827', marginBottom: 4 }}>Configure your bulk send</div>
-              <div style={{ fontSize: 12, color: '#9ca3af', marginBottom: 24 }}>Set up the channel, template and send time before uploading your CSV.</div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: '#14130f', marginBottom: 4 }}>Configure your bulk send</div>
+              <div style={{ fontSize: 12, color: '#9a958c', marginBottom: 24 }}>Set up the channel, template and send time before uploading your CSV.</div>
 
               <Field label="Channel" required>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
@@ -293,9 +293,9 @@ export default function BulkScheduler({ onClose, onSaved }) {
                     { value: 'email', label: '📧 Email', desc: 'Via connected Outlook. Requires candidate email address.' },
                   ].map(c => (
                     <div key={c.value} onClick={() => setChannel(c.value)}
-                      style={{ padding: '12px 14px', borderRadius: 9, border: `1.5px solid ${channel === c.value ? ACCENT : '#e5e7eb'}`, cursor: 'pointer', background: channel === c.value ? ACCENT_LIGHT : '#fff', transition: 'all .15s' }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: channel === c.value ? ACCENT : '#111827', marginBottom: 4 }}>{c.label}</div>
-                      <div style={{ fontSize: 11, color: '#9ca3af' }}>{c.desc}</div>
+                      style={{ padding: '12px 14px', borderRadius: 9, border: `1.5px solid ${channel === c.value ? ACCENT : '#dcd8d0'}`, cursor: 'pointer', background: channel === c.value ? ACCENT_LIGHT : '#fff', transition: 'all .15s' }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: channel === c.value ? ACCENT : '#14130f', marginBottom: 4 }}>{c.label}</div>
+                      <div style={{ fontSize: 11, color: '#9a958c' }}>{c.desc}</div>
                     </div>
                   ))}
                 </div>
@@ -307,14 +307,14 @@ export default function BulkScheduler({ onClose, onSaved }) {
                   setSelectedTemplate(t || null)
                   if (t?.subject) setSubject(t.subject)
                 }}
-                  style={{ width: '100%', padding: '9px 12px', border: '0.5px solid #e5e7eb', borderRadius: 8, fontSize: 13, outline: 'none', background: '#fff', color: '#111827' }}>
+                  style={{ width: '100%', padding: '9px 12px', border: '0.5px solid #dcd8d0', borderRadius: 8, fontSize: 13, outline: 'none', background: '#fff', color: '#14130f' }}>
                   <option value="">Select a template…</option>
                   {templates.filter(t => channel === 'email' ? t.type === 'email' : t.type !== 'email').map(t => (
                     <option key={t.id} value={t.id}>{t.name}</option>
                   ))}
                 </select>
                 {selectedTemplate && (
-                  <div style={{ marginTop: 8, padding: '10px 12px', background: '#f9fafb', borderRadius: 8, fontSize: 12, color: '#374151', lineHeight: 1.6, border: '0.5px solid #e5e7eb', whiteSpace: 'pre-wrap', maxHeight: 120, overflowY: 'auto' }}>
+                  <div style={{ marginTop: 8, padding: '10px 12px', background: '#faf9f7', borderRadius: 8, fontSize: 12, color: '#4a4742', lineHeight: 1.6, border: '0.5px solid #dcd8d0', whiteSpace: 'pre-wrap', maxHeight: 120, overflowY: 'auto' }}>
                     {selectedTemplate.body}
                   </div>
                 )}
@@ -323,7 +323,7 @@ export default function BulkScheduler({ onClose, onSaved }) {
               {channel === 'email' && (
                 <Field label="Email Subject" required hint="Use {{name}} or other variables — auto-filled per recipient">
                   <input value={subject} onChange={e => setSubject(e.target.value)} placeholder="e.g. Interview Confirmation — {{role}} at {{company}}"
-                    style={{ width: '100%', padding: '9px 12px', border: '0.5px solid #e5e7eb', borderRadius: 8, fontSize: 13, outline: 'none', background: '#fff', color: '#111827', boxSizing: 'border-box' }} />
+                    style={{ width: '100%', padding: '9px 12px', border: '0.5px solid #dcd8d0', borderRadius: 8, fontSize: 13, outline: 'none', background: '#fff', color: '#14130f', boxSizing: 'border-box' }} />
                 </Field>
               )}
 
@@ -336,9 +336,9 @@ export default function BulkScheduler({ onClose, onSaved }) {
               <Field label="Schedule Date & Time (SGT)" required hint="All messages in this batch will send at the same time">
                 <div style={{ display: 'flex', gap: 8 }}>
                   <input type="date" value={scheduledDate} onChange={e => setScheduledDate(e.target.value)}
-                    style={{ flex: 1, padding: '9px 12px', border: '0.5px solid #e5e7eb', borderRadius: 8, fontSize: 13, outline: 'none', background: '#fff', color: '#111827' }} />
+                    style={{ flex: 1, padding: '9px 12px', border: '0.5px solid #dcd8d0', borderRadius: 8, fontSize: 13, outline: 'none', background: '#fff', color: '#14130f' }} />
                   <input type="time" value={scheduledTime} onChange={e => setScheduledTime(e.target.value)}
-                    style={{ width: 110, padding: '9px 12px', border: '0.5px solid #e5e7eb', borderRadius: 8, fontSize: 13, outline: 'none', background: '#fff', color: '#111827' }} />
+                    style={{ width: 110, padding: '9px 12px', border: '0.5px solid #dcd8d0', borderRadius: 8, fontSize: 13, outline: 'none', background: '#fff', color: '#14130f' }} />
                 </div>
                 {scheduledDate && scheduledTime && (
                   <div style={{ fontSize: 11, color: '#16a34a', marginTop: 6 }}>
@@ -352,10 +352,10 @@ export default function BulkScheduler({ onClose, onSaved }) {
           {/* STEP 2 — Upload */}
           {step === 2 && (
             <div style={{ maxWidth: 600, margin: '0 auto' }}>
-              <div style={{ fontSize: 14, fontWeight: 600, color: '#111827', marginBottom: 4 }}>Upload your CSV file</div>
-              <div style={{ fontSize: 12, color: '#9ca3af', marginBottom: 20 }}>
-                Your CSV must include a <code style={{ background: '#f1f4f9', padding: '1px 5px', borderRadius: 3 }}>phone</code> {channel === 'email' ? 'or ' : 'and '}
-                {channel === 'email' && <code style={{ background: '#f1f4f9', padding: '1px 5px', borderRadius: 3 }}>email</code>} column and a <code style={{ background: '#f1f4f9', padding: '1px 5px', borderRadius: 3 }}>name</code> column.
+              <div style={{ fontSize: 14, fontWeight: 600, color: '#14130f', marginBottom: 4 }}>Upload your CSV file</div>
+              <div style={{ fontSize: 12, color: '#9a958c', marginBottom: 20 }}>
+                Your CSV must include a <code style={{ background: '#f5f3ef', padding: '1px 5px', borderRadius: 3 }}>phone</code> {channel === 'email' ? 'or ' : 'and '}
+                {channel === 'email' && <code style={{ background: '#f5f3ef', padding: '1px 5px', borderRadius: 3 }}>email</code>} column and a <code style={{ background: '#f5f3ef', padding: '1px 5px', borderRadius: 3 }}>name</code> column.
                 Other columns are used to fill template variables.
               </div>
 
@@ -377,24 +377,24 @@ export default function BulkScheduler({ onClose, onSaved }) {
                 onDragLeave={() => setDragOver(false)}
                 onDrop={e => { e.preventDefault(); setDragOver(false); handleFile(e.dataTransfer.files[0]) }}
                 onClick={() => fileRef.current?.click()}
-                style={{ border: `2px dashed ${dragOver ? ACCENT : '#d1d5db'}`, borderRadius: 12, padding: '40px 20px', textAlign: 'center', cursor: 'pointer', background: dragOver ? ACCENT_LIGHT : '#f9fafb', transition: 'all .2s', marginBottom: 16 }}>
+                style={{ border: `2px dashed ${dragOver ? ACCENT : '#c2bdb3'}`, borderRadius: 12, padding: '40px 20px', textAlign: 'center', cursor: 'pointer', background: dragOver ? ACCENT_LIGHT : '#faf9f7', transition: 'all .2s', marginBottom: 16 }}>
                 <div style={{ fontSize: 36, marginBottom: 12 }}>📄</div>
-                <div style={{ fontSize: 14, fontWeight: 600, color: '#374151', marginBottom: 6 }}>
+                <div style={{ fontSize: 14, fontWeight: 600, color: '#4a4742', marginBottom: 6 }}>
                   {dragOver ? 'Drop your CSV here' : 'Drag & drop your CSV file'}
                 </div>
-                <div style={{ fontSize: 12, color: '#9ca3af', marginBottom: 14 }}>or click to browse files · CSV or TXT format</div>
+                <div style={{ fontSize: 12, color: '#9a958c', marginBottom: 14 }}>or click to browse files · CSV or TXT format</div>
                 <Btn variant="ghost" size="sm" onClick={e => { e.stopPropagation(); fileRef.current?.click() }}>Browse Files</Btn>
                 <input ref={fileRef} type="file" accept=".csv,.txt,text/csv" style={{ display: 'none' }} onChange={e => handleFile(e.target.files[0])} />
               </div>
 
               {/* Or paste CSV */}
               <div style={{ marginBottom: 8 }}>
-                <div style={{ fontSize: 11, fontWeight: 600, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: '#9a958c', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span>Or paste CSV text directly</span>
                   <button onClick={downloadSample} style={{ fontSize: 11, color: ACCENT, background: 'transparent', border: 'none', cursor: 'pointer', fontWeight: 600 }}>⬇ Download sample CSV</button>
                 </div>
                 <textarea value={csvText} onChange={e => setCsvText(e.target.value)} rows={6} placeholder={`phone,name,role,company,date,time\n+6591234001,Sarah Lim,HR Executive,ABC Pte Ltd,25 Apr,10am`}
-                  style={{ width: '100%', padding: '10px 12px', border: '0.5px solid #e5e7eb', borderRadius: 8, fontSize: 11, outline: 'none', background: '#fff', color: '#374151', resize: 'vertical', fontFamily: 'monospace', boxSizing: 'border-box', lineHeight: 1.5 }} />
+                  style={{ width: '100%', padding: '10px 12px', border: '0.5px solid #dcd8d0', borderRadius: 8, fontSize: 11, outline: 'none', background: '#fff', color: '#4a4742', resize: 'vertical', fontFamily: 'monospace', boxSizing: 'border-box', lineHeight: 1.5 }} />
                 {csvText && (
                   <Btn size="sm" onClick={() => processCSV(csvText)} style={{ marginTop: 8 }}>Process CSV →</Btn>
                 )}
@@ -432,29 +432,29 @@ export default function BulkScheduler({ onClose, onSaved }) {
               )}
 
               {/* Preview table */}
-              <div style={{ background: '#fff', borderRadius: 12, border: '0.5px solid #e5e7eb', overflow: 'hidden' }}>
+              <div style={{ background: '#fff', borderRadius: 12, border: '0.5px solid #dcd8d0', overflow: 'hidden' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>
-                    <tr style={{ background: '#f9fafb' }}>
-                      <th style={{ padding: '10px 14px', fontSize: 10, fontWeight: 600, color: '#9ca3af', textAlign: 'left', textTransform: 'uppercase', letterSpacing: '0.5px', borderBottom: '0.5px solid #f1f4f9' }}>Row</th>
-                      <th style={{ padding: '10px 14px', fontSize: 10, fontWeight: 600, color: '#9ca3af', textAlign: 'left', textTransform: 'uppercase', letterSpacing: '0.5px', borderBottom: '0.5px solid #f1f4f9' }}>Contact</th>
-                      <th style={{ padding: '10px 14px', fontSize: 10, fontWeight: 600, color: '#9ca3af', textAlign: 'left', textTransform: 'uppercase', letterSpacing: '0.5px', borderBottom: '0.5px solid #f1f4f9' }}>Message Preview</th>
-                      <th style={{ padding: '10px 14px', fontSize: 10, fontWeight: 600, color: '#9ca3af', textAlign: 'left', textTransform: 'uppercase', letterSpacing: '0.5px', borderBottom: '0.5px solid #f1f4f9' }}>Status</th>
+                    <tr style={{ background: '#faf9f7' }}>
+                      <th style={{ padding: '10px 14px', fontSize: 10, fontWeight: 600, color: '#9a958c', textAlign: 'left', textTransform: 'uppercase', letterSpacing: '0.5px', borderBottom: '0.5px solid #f5f3ef' }}>Row</th>
+                      <th style={{ padding: '10px 14px', fontSize: 10, fontWeight: 600, color: '#9a958c', textAlign: 'left', textTransform: 'uppercase', letterSpacing: '0.5px', borderBottom: '0.5px solid #f5f3ef' }}>Contact</th>
+                      <th style={{ padding: '10px 14px', fontSize: 10, fontWeight: 600, color: '#9a958c', textAlign: 'left', textTransform: 'uppercase', letterSpacing: '0.5px', borderBottom: '0.5px solid #f5f3ef' }}>Message Preview</th>
+                      <th style={{ padding: '10px 14px', fontSize: 10, fontWeight: 600, color: '#9a958c', textAlign: 'left', textTransform: 'uppercase', letterSpacing: '0.5px', borderBottom: '0.5px solid #f5f3ef' }}>Status</th>
                     </tr>
                   </thead>
                   <tbody>
                     {validated.map((v, i) => (
-                      <tr key={i} style={{ borderBottom: '0.5px solid #f9fafb', background: v.status === 'error' ? '#fff5f5' : v.status === 'warning' ? '#fffbeb' : 'transparent' }}
-                        onMouseEnter={e => e.currentTarget.style.background = v.status === 'error' ? '#fef2f2' : v.status === 'warning' ? '#fef9c3' : '#f9fafb'}
+                      <tr key={i} style={{ borderBottom: '0.5px solid #faf9f7', background: v.status === 'error' ? '#fff5f5' : v.status === 'warning' ? '#fffbeb' : 'transparent' }}
+                        onMouseEnter={e => e.currentTarget.style.background = v.status === 'error' ? '#fef2f2' : v.status === 'warning' ? '#fef9c3' : '#faf9f7'}
                         onMouseLeave={e => e.currentTarget.style.background = v.status === 'error' ? '#fff5f5' : v.status === 'warning' ? '#fffbeb' : 'transparent'}>
-                        <td style={{ padding: '10px 14px', fontSize: 12, color: '#9ca3af' }}>{v.row._line}</td>
+                        <td style={{ padding: '10px 14px', fontSize: 12, color: '#9a958c' }}>{v.row._line}</td>
                         <td style={{ padding: '10px 14px' }}>
-                          <div style={{ fontSize: 12, fontWeight: 500, color: '#111827' }}>{v.row.name || '—'}</div>
-                          <div style={{ fontSize: 11, color: '#9ca3af' }}>{v.row.phone || v.row.email || '—'}</div>
+                          <div style={{ fontSize: 12, fontWeight: 500, color: '#14130f' }}>{v.row.name || '—'}</div>
+                          <div style={{ fontSize: 11, color: '#9a958c' }}>{v.row.phone || v.row.email || '—'}</div>
                         </td>
                         <td style={{ padding: '10px 14px', maxWidth: 300 }}>
-                          <div style={{ fontSize: 11, color: '#374151', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {v.filledBody?.slice(0, 80) || <span style={{ color: '#9ca3af', fontStyle: 'italic' }}>No template selected</span>}
+                          <div style={{ fontSize: 11, color: '#4a4742', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {v.filledBody?.slice(0, 80) || <span style={{ color: '#9a958c', fontStyle: 'italic' }}>No template selected</span>}
                             {v.filledBody?.length > 80 ? '…' : ''}
                           </div>
                           {v.hasUnfilled && (
@@ -490,23 +490,23 @@ export default function BulkScheduler({ onClose, onSaved }) {
               {saved ? (
                 <div style={{ padding: '40px 20px' }}>
                   <div style={{ fontSize: 56, marginBottom: 16 }}>🎉</div>
-                  <div style={{ fontSize: 18, fontWeight: 700, color: '#111827', marginBottom: 8 }}>{savedCount} messages scheduled</div>
-                  <div style={{ fontSize: 13, color: '#9ca3af', marginBottom: 20 }}>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: '#14130f', marginBottom: 8 }}>{savedCount} messages scheduled</div>
+                  <div style={{ fontSize: 13, color: '#9a958c', marginBottom: 20 }}>
                     All {savedCount} messages will send on {new Date(`${scheduledDate}T${scheduledTime}:00+08:00`).toLocaleString('en-GB', { timeZone: 'Asia/Singapore', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })} SGT
                   </div>
-                  <div style={{ fontSize: 12, color: '#9ca3af' }}>Closing in a moment…</div>
+                  <div style={{ fontSize: 12, color: '#9a958c' }}>Closing in a moment…</div>
                 </div>
               ) : (
                 <div style={{ padding: '20px 0' }}>
                   <div style={{ fontSize: 48, marginBottom: 16 }}>📅</div>
-                  <div style={{ fontSize: 18, fontWeight: 700, color: '#111827', marginBottom: 8 }}>Ready to schedule</div>
-                  <div style={{ fontSize: 13, color: '#9ca3af', marginBottom: 24 }}>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: '#14130f', marginBottom: 8 }}>Ready to schedule</div>
+                  <div style={{ fontSize: 13, color: '#9a958c', marginBottom: 24 }}>
                     {validCount} message{validCount !== 1 ? 's' : ''} will be scheduled.
                     {errorCount > 0 && ` ${errorCount} row${errorCount !== 1 ? 's' : ''} with errors will be skipped.`}
                   </div>
 
                   {/* Final summary */}
-                  <div style={{ background: '#f9fafb', borderRadius: 12, border: '0.5px solid #e5e7eb', padding: '16px 20px', textAlign: 'left', marginBottom: 24 }}>
+                  <div style={{ background: '#faf9f7', borderRadius: 12, border: '0.5px solid #dcd8d0', padding: '16px 20px', textAlign: 'left', marginBottom: 24 }}>
                     {[
                       ['Recipients', `${validCount} contact${validCount !== 1 ? 's' : ''}`],
                       ['Channel', channel === 'email' ? '📧 Email' : '💬 WhatsApp'],
@@ -514,9 +514,9 @@ export default function BulkScheduler({ onClose, onSaved }) {
                       ['Send time', `${scheduledDate} ${scheduledTime} SGT`],
                       errorCount > 0 ? ['Skipping', `${errorCount} row${errorCount !== 1 ? 's' : ''} with errors`] : null,
                     ].filter(Boolean).map(([label, value]) => (
-                      <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '0.5px solid #f1f4f9', fontSize: 13 }}>
-                        <span style={{ color: '#9ca3af' }}>{label}</span>
-                        <span style={{ color: '#111827', fontWeight: 500 }}>{value}</span>
+                      <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '0.5px solid #f5f3ef', fontSize: 13 }}>
+                        <span style={{ color: '#9a958c' }}>{label}</span>
+                        <span style={{ color: '#14130f', fontWeight: 500 }}>{value}</span>
                       </div>
                     ))}
                   </div>
@@ -538,10 +538,10 @@ export default function BulkScheduler({ onClose, onSaved }) {
         </div>
 
         {/* Footer */}
-        <div style={{ padding: '14px 24px', borderTop: '0.5px solid #f1f4f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, background: '#fff' }}>
+        <div style={{ padding: '14px 24px', borderTop: '0.5px solid #f5f3ef', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, background: '#fff' }}>
           <div>
             {step === 3 && (
-              <div style={{ fontSize: 12, color: '#9ca3af' }}>
+              <div style={{ fontSize: 12, color: '#9a958c' }}>
                 {validCount} ready · {warningCount} warnings · {errorCount} errors
               </div>
             )}

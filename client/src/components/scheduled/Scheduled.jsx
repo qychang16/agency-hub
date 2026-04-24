@@ -10,7 +10,7 @@ function Btn({ onClick, children, variant = 'primary', size = 'md', disabled, st
   const sizes = { sm: { padding: '5px 10px', fontSize: 11 }, md: { padding: '8px 14px', fontSize: 12 } }
   const variants = {
     primary: { background: ACCENT, color: '#fff', border: 'none' },
-    ghost: { background: 'transparent', color: '#6b7280', border: '0.5px solid #e5e7eb' },
+    ghost: { background: 'transparent', color: '#6e6a63', border: '0.5px solid #dcd8d0' },
     danger: { background: '#fee2e2', color: '#dc2626', border: '0.5px solid #fca5a5' },
     dark: { background: NAVY, color: '#fff', border: 'none' },
   }
@@ -25,10 +25,10 @@ function Btn({ onClick, children, variant = 'primary', size = 'md', disabled, st
 function StatusBadge({ status }) {
   const styles = {
     pending: { bg: '#fef3c7', color: '#92400e', label: '⏳ Scheduled' },
-    sending: { bg: '#dbeafe', color: '#1e40af', label: '📤 Sending' },
+    sending: { bg: '#eeedf5', color: '#2d2a7a', label: '📤 Sending' },
     sent: { bg: '#dcfce7', color: '#16a34a', label: '✓ Sent' },
     failed: { bg: '#fee2e2', color: '#dc2626', label: '✗ Failed' },
-    cancelled: { bg: '#f1f4f9', color: '#9ca3af', label: '— Cancelled' },
+    cancelled: { bg: '#f5f3ef', color: '#9a958c', label: '— Cancelled' },
   }
   const s = styles[status] || styles.pending
   return (
@@ -40,7 +40,7 @@ function StatusBadge({ status }) {
 
 function ChannelBadge({ channel }) {
   return (
-    <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 6, background: channel === 'email' ? '#eff6ff' : '#f0fdf4', color: channel === 'email' ? '#1e40af' : '#16a34a', fontWeight: 600 }}>
+    <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 6, background: channel === 'email' ? '#eeedf5' : '#f0fdf4', color: channel === 'email' ? '#2d2a7a' : '#16a34a', fontWeight: 600 }}>
       {channel === 'email' ? '📧 Email' : '💬 WhatsApp'}
     </span>
   )
@@ -115,59 +115,57 @@ export default function Scheduled() {
   const nextMessage = messages.filter(m => m.status === 'pending').sort((a, b) => new Date(a.scheduled_at) - new Date(b.scheduled_at))[0]
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#f1f4f9' }}>
-      {/* Header */}
-      <div style={{ background: NAVY, padding: '20px 28px', flexShrink: 0 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 14 }}>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#f5f3ef' }}>
+      {/* Header - cream, editorial, matches Inbox */}
+      <div style={{ padding: '24px 28px 16px', flexShrink: 0 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 14, marginBottom: 20 }}>
           <div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: '#fff', marginBottom: 4 }}>Scheduled Messages</div>
-            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)' }}>
+            <div style={{ fontSize: 22, fontWeight: 700, color: '#14130f', marginBottom: 4, letterSpacing: '-0.3px' }}>Scheduled Messages</div>
+            <div style={{ fontSize: 12, color: '#6e6a63' }}>
               {pendingCount > 0 ? `${pendingCount} message${pendingCount !== 1 ? 's' : ''} scheduled` : 'No messages scheduled'}
-              {nextMessage && ` · Next: ${fmtSGT(nextMessage.scheduled_at)}`}
+              {nextMessage && ` \u00b7 Next: ${fmtSGT(nextMessage.scheduled_at)}`}
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             {hasPermission('manage_scheduled_messages') && (
-              <Btn variant="ghost" onClick={() => setShowBulk(true)}
-                style={{ border: '0.5px solid rgba(255,255,255,0.3)', color: '#fff' }}>
-                📊 Bulk CSV
+              <Btn variant="ghost" onClick={() => setShowBulk(true)}>
+                Bulk CSV
               </Btn>
             )}
             {hasPermission('manage_scheduled_messages') && (
-              <Btn onClick={() => setShowComposer(true)}
-                style={{ background: '#fff', color: NAVY }}>
+              <Btn onClick={() => setShowComposer(true)}>
                 + Schedule Message
               </Btn>
             )}
           </div>
         </div>
 
-        {/* Stats */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginTop: 18 }}>
+        {/* Stats - light cards on cream */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
           {[
-            { label: 'Scheduled', value: counts.pending, icon: '⏳', color: '#fbbf24' },
-            { label: 'Sent', value: counts.sent, icon: '✓', color: '#34d399' },
-            { label: 'Failed', value: counts.failed, icon: '✗', color: '#f87171' },
-            { label: 'Cancelled', value: counts.cancelled, icon: '—', color: '#94a3b8' },
+            { label: 'Scheduled', value: counts.pending, color: '#9a6a00' },
+            { label: 'Sent', value: counts.sent, color: '#2d6a4f' },
+            { label: 'Failed', value: counts.failed, color: '#8e2a2a' },
+            { label: 'Cancelled', value: counts.cancelled, color: '#6e6a63' },
           ].map(s => (
-            <div key={s.label} style={{ background: 'rgba(255,255,255,0.07)', borderRadius: 10, padding: '12px 14px', border: '0.5px solid rgba(255,255,255,0.1)' }}>
-              <div style={{ fontSize: 22, fontWeight: 700, color: s.color }}>{s.value}</div>
-              <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', marginTop: 3 }}>{s.icon} {s.label}</div>
+            <div key={s.label} style={{ background: '#fff', borderRadius: 8, padding: '14px 16px', border: '0.5px solid #dcd8d0' }}>
+              <div style={{ fontSize: 24, fontWeight: 700, color: s.color, letterSpacing: '-0.3px' }}>{s.value}</div>
+              <div style={{ fontSize: 10, color: '#6e6a63', marginTop: 3, textTransform: 'uppercase', letterSpacing: '0.6px', fontWeight: 500 }}>{s.label}</div>
             </div>
           ))}
         </div>
       </div>
 
       {/* Filters */}
-      <div style={{ background: '#fff', borderBottom: '0.5px solid #e5e7eb', padding: '12px 28px', display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap', flexShrink: 0 }}>
+      <div style={{ background: '#fff', borderBottom: '0.5px solid #dcd8d0', padding: '12px 28px', display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap', flexShrink: 0 }}>
         {/* Status tabs */}
         <div style={{ display: 'flex', gap: 4 }}>
           {FILTER_TABS.map(t => (
             <button key={t.key} onClick={() => setActiveTab(t.key)}
-              style={{ padding: '5px 12px', borderRadius: 7, border: 'none', background: activeTab === t.key ? ACCENT : 'transparent', color: activeTab === t.key ? '#fff' : '#6b7280', fontSize: 12, cursor: 'pointer', fontWeight: activeTab === t.key ? 600 : 400, display: 'flex', alignItems: 'center', gap: 5 }}>
+              style={{ padding: '5px 12px', borderRadius: 7, border: 'none', background: activeTab === t.key ? ACCENT : 'transparent', color: activeTab === t.key ? '#fff' : '#6e6a63', fontSize: 12, cursor: 'pointer', fontWeight: activeTab === t.key ? 600 : 400, display: 'flex', alignItems: 'center', gap: 5 }}>
               {t.label}
               {counts[t.key] > 0 && (
-                <span style={{ fontSize: 10, padding: '1px 5px', borderRadius: 10, background: activeTab === t.key ? 'rgba(255,255,255,0.3)' : '#f1f4f9', color: activeTab === t.key ? '#fff' : '#6b7280' }}>
+                <span style={{ fontSize: 10, padding: '1px 5px', borderRadius: 10, background: activeTab === t.key ? 'rgba(255,255,255,0.3)' : '#f5f3ef', color: activeTab === t.key ? '#fff' : '#6e6a63' }}>
                   {counts[t.key]}
                 </span>
               )}
@@ -175,13 +173,13 @@ export default function Scheduled() {
           ))}
         </div>
 
-        <div style={{ width: 1, height: 20, background: '#e5e7eb' }} />
+        <div style={{ width: 1, height: 20, background: '#dcd8d0' }} />
 
         {/* Channel filter */}
         <div style={{ display: 'flex', gap: 4 }}>
           {[['all', 'All Channels'], ['whatsapp', '💬 WhatsApp'], ['email', '📧 Email']].map(([k, l]) => (
             <button key={k} onClick={() => setChannelFilter(k)}
-              style={{ padding: '4px 10px', borderRadius: 6, border: `0.5px solid ${channelFilter === k ? ACCENT : '#e5e7eb'}`, background: channelFilter === k ? ACCENT_LIGHT : 'transparent', color: channelFilter === k ? ACCENT : '#6b7280', fontSize: 11, cursor: 'pointer', fontWeight: channelFilter === k ? 600 : 400 }}>
+              style={{ padding: '4px 10px', borderRadius: 6, border: `0.5px solid ${channelFilter === k ? ACCENT : '#dcd8d0'}`, background: channelFilter === k ? ACCENT_LIGHT : 'transparent', color: channelFilter === k ? ACCENT : '#6e6a63', fontSize: 11, cursor: 'pointer', fontWeight: channelFilter === k ? 600 : 400 }}>
               {l}
             </button>
           ))}
@@ -189,9 +187,9 @@ export default function Scheduled() {
 
         {/* Search */}
         <div style={{ marginLeft: 'auto', position: 'relative' }}>
-          <svg style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', width: 12, height: 12, color: '#9ca3af', pointerEvents: 'none' }} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="7" cy="7" r="4"/><path d="M10.5 10.5l3 3" strokeLinecap="round"/></svg>
+          <svg style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', width: 12, height: 12, color: '#9a958c', pointerEvents: 'none' }} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="7" cy="7" r="4"/><path d="M10.5 10.5l3 3" strokeLinecap="round"/></svg>
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search contact or message…"
-            style={{ padding: '6px 10px 6px 26px', border: '0.5px solid #e5e7eb', borderRadius: 8, fontSize: 12, outline: 'none', background: '#f9fafb', color: '#111827', width: 220 }} />
+            style={{ padding: '6px 10px 6px 26px', border: '0.5px solid #dcd8d0', borderRadius: 8, fontSize: 12, outline: 'none', background: '#faf9f7', color: '#14130f', width: 220 }} />
         </div>
 
         <Btn variant="ghost" size="sm" onClick={load}>↻ Refresh</Btn>
@@ -200,17 +198,17 @@ export default function Scheduled() {
       {/* Message list */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px 28px' }}>
         {loading ? (
-          <div style={{ textAlign: 'center', padding: 60, color: '#9ca3af' }}>
+          <div style={{ textAlign: 'center', padding: 60, color: '#9a958c' }}>
             <div style={{ fontSize: 32, marginBottom: 12 }}>⏳</div>
             <div>Loading scheduled messages…</div>
           </div>
         ) : filtered.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '60px 20px' }}>
             <div style={{ fontSize: 48, marginBottom: 16 }}>📅</div>
-            <div style={{ fontSize: 15, fontWeight: 600, color: '#374151', marginBottom: 6 }}>
+            <div style={{ fontSize: 15, fontWeight: 600, color: '#4a4742', marginBottom: 6 }}>
               {activeTab === 'pending' ? 'No messages scheduled' : `No ${activeTab} messages`}
             </div>
-            <div style={{ fontSize: 13, color: '#9ca3af', marginBottom: 24, maxWidth: 360, margin: '0 auto 24px' }}>
+            <div style={{ fontSize: 13, color: '#9a958c', marginBottom: 24, maxWidth: 360, margin: '0 auto 24px' }}>
               {activeTab === 'pending'
                 ? 'Schedule a WhatsApp or email message to send to a candidate or client at a specific time.'
                 : 'Messages matching this filter will appear here.'}
@@ -231,7 +229,7 @@ export default function Scheduled() {
               const isPast = minsLeft !== null && minsLeft <= 0
 
               return (
-                <div key={msg.id} style={{ background: '#fff', borderRadius: 12, border: `0.5px solid ${isImminent ? '#fde68a' : '#e5e7eb'}`, overflow: 'hidden', transition: 'border-color .2s' }}>
+                <div key={msg.id} style={{ background: '#fff', borderRadius: 12, border: `0.5px solid ${isImminent ? '#fde68a' : '#dcd8d0'}`, overflow: 'hidden', transition: 'border-color .2s' }}>
                   {/* Imminent warning */}
                   {isImminent && (
                     <div style={{ background: '#fffbeb', padding: '6px 16px', fontSize: 11, color: '#92400e', borderBottom: '0.5px solid #fde68a', display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -243,14 +241,14 @@ export default function Scheduled() {
                   <div style={{ padding: '14px 18px', display: 'flex', alignItems: 'flex-start', gap: 14, cursor: 'pointer' }}
                     onClick={() => setExpandedId(isExpanded ? null : msg.id)}>
                     {/* Channel icon */}
-                    <div style={{ width: 40, height: 40, borderRadius: 10, background: msg.channel === 'email' ? '#eff6ff' : '#f0fdf4', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>
+                    <div style={{ width: 40, height: 40, borderRadius: 10, background: msg.channel === 'email' ? '#eeedf5' : '#f0fdf4', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>
                       {msg.channel === 'email' ? '📧' : '💬'}
                     </div>
 
                     {/* Content */}
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5, flexWrap: 'wrap' }}>
-                        <span style={{ fontSize: 13, fontWeight: 600, color: '#111827' }}>{msg.contact_name || 'Unknown contact'}</span>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: '#14130f' }}>{msg.contact_name || 'Unknown contact'}</span>
                         <ChannelBadge channel={msg.channel} />
                         <StatusBadge status={msg.status} />
                         {msg.bulk_batch_id && (
@@ -259,22 +257,22 @@ export default function Scheduled() {
                       </div>
 
                       {/* Message preview */}
-                      <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 6, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '80%' }}>
+                      <div style={{ fontSize: 12, color: '#6e6a63', marginBottom: 6, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '80%' }}>
                         {msg.subject ? <><strong>{msg.subject}</strong> — </> : ''}{msg.body?.slice(0, 100)}{msg.body?.length > 100 ? '…' : ''}
                       </div>
 
                       {/* Meta info */}
                       <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-                        <span style={{ fontSize: 11, color: '#9ca3af' }}>
+                        <span style={{ fontSize: 11, color: '#9a958c' }}>
                           📅 {fmtSGT(msg.scheduled_at)}
                         </span>
                         {msg.phone_line && (
-                          <span style={{ fontSize: 11, color: '#9ca3af' }}>
+                          <span style={{ fontSize: 11, color: '#9a958c' }}>
                             📱 {msg.phone_line}
                           </span>
                         )}
                         {msg.created_by_name && (
-                          <span style={{ fontSize: 11, color: '#9ca3af' }}>
+                          <span style={{ fontSize: 11, color: '#9a958c' }}>
                             👤 {msg.created_by_name}
                           </span>
                         )}
@@ -309,32 +307,32 @@ export default function Scheduled() {
                           ↻ Retry
                         </Btn>
                       )}
-                      <span style={{ fontSize: 12, color: '#9ca3af' }}>{isExpanded ? '▲' : '▼'}</span>
+                      <span style={{ fontSize: 12, color: '#9a958c' }}>{isExpanded ? '▲' : '▼'}</span>
                     </div>
                     )}
                   </div>
 
                   {/* Expanded detail */}
                   {isExpanded && (
-                    <div style={{ padding: '0 18px 16px', borderTop: '0.5px solid #f1f4f9' }}>
+                    <div style={{ padding: '0 18px 16px', borderTop: '0.5px solid #f5f3ef' }}>
                       <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                         {/* Message body */}
                         <div>
-                          <div style={{ fontSize: 10, fontWeight: 600, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 8 }}>Message Content</div>
+                          <div style={{ fontSize: 10, fontWeight: 600, color: '#9a958c', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 8 }}>Message Content</div>
                           {msg.subject && (
-                            <div style={{ fontSize: 12, fontWeight: 600, color: '#111827', marginBottom: 6 }}>Subject: {msg.subject}</div>
+                            <div style={{ fontSize: 12, fontWeight: 600, color: '#14130f', marginBottom: 6 }}>Subject: {msg.subject}</div>
                           )}
-                          <div style={{ fontSize: 12, color: '#374151', background: '#f9fafb', borderRadius: 8, padding: '10px 12px', lineHeight: 1.6, whiteSpace: 'pre-wrap', maxHeight: 200, overflowY: 'auto', border: '0.5px solid #e5e7eb' }}>
+                          <div style={{ fontSize: 12, color: '#4a4742', background: '#faf9f7', borderRadius: 8, padding: '10px 12px', lineHeight: 1.6, whiteSpace: 'pre-wrap', maxHeight: 200, overflowY: 'auto', border: '0.5px solid #dcd8d0' }}>
                             {msg.body}
                           </div>
                           {msg.email_cc && (
-                            <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 6 }}>CC: {msg.email_cc}</div>
+                            <div style={{ fontSize: 11, color: '#9a958c', marginTop: 6 }}>CC: {msg.email_cc}</div>
                           )}
                         </div>
 
                         {/* Details */}
                         <div>
-                          <div style={{ fontSize: 10, fontWeight: 600, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 8 }}>Details</div>
+                          <div style={{ fontSize: 10, fontWeight: 600, color: '#9a958c', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 8 }}>Details</div>
                           {[
                             ['Contact', msg.contact_name],
                             ['Phone', msg.contact_phone],
@@ -347,9 +345,9 @@ export default function Scheduled() {
                             msg.email_opened_at ? ['Email opened', fmtSGT(msg.email_opened_at)] : null,
                             msg.bulk_batch_id ? ['Batch ID', msg.bulk_batch_id] : null,
                           ].filter(Boolean).map(([label, value]) => (
-                            <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '0.5px solid #f9fafb', fontSize: 12 }}>
-                              <span style={{ color: '#9ca3af' }}>{label}</span>
-                              <span style={{ color: '#374151', fontWeight: 500, textAlign: 'right', maxWidth: '60%' }}>{value || '—'}</span>
+                            <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '0.5px solid #faf9f7', fontSize: 12 }}>
+                              <span style={{ color: '#9a958c' }}>{label}</span>
+                              <span style={{ color: '#4a4742', fontWeight: 500, textAlign: 'right', maxWidth: '60%' }}>{value || '—'}</span>
                             </div>
                           ))}
                         </div>

@@ -148,7 +148,7 @@ export default function PhoneNumbers() {
 
       {/* Info banner */}
       <div style={{ background: '#fffbeb', border: '0.5px solid #fde68a', borderRadius: 10, padding: '12px 16px', marginBottom: 20, display: 'flex', gap: 10 }}>
-        <span style={{ fontSize: 16, flexShrink: 0 }}>💡</span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><path d="M9 18h6"/><path d="M10 22h4"/><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0018 8 6 6 0 006 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 018.91 14"/></svg>
         <div style={{ fontSize: 12, color: '#92400e', lineHeight: 1.6 }}>
           <strong>Multiple numbers fully supported.</strong> Each number can have its own team, routing rules and business hours.
           If a number gets restricted by Meta, mark another as primary instantly — zero downtime for your team or candidates.
@@ -176,7 +176,7 @@ export default function PhoneNumbers() {
       ) : numbers.length === 0 ? (
         <Card>
           <div style={{ textAlign: 'center', padding: '30px 0' }}>
-            <div style={{ fontSize: 40, marginBottom: 12 }}>📱</div>
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#9a958c" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: 12 }}><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M12 18h.01"/></svg>
             <div style={{ fontSize: 13, fontWeight: 500, color: '#6e6a63', marginBottom: 4 }}>No phone numbers added yet</div>
             <div style={{ fontSize: 12, color: '#9a958c', marginBottom: 16 }}>Add your WhatsApp Business number to start receiving messages</div>
             {hasPermission('manage_phone_numbers') && <Btn onClick={() => setShowAdd(true)}>+ Add First Number</Btn>}

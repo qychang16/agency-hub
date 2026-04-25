@@ -285,7 +285,7 @@ export default function Teams() {
 
       {/* Info banner */}
       <div style={{ background: '#eeedf5', border: '0.5px solid #dcd8d0', borderRadius: 10, padding: '12px 16px', marginBottom: 20, display: 'flex', gap: 10 }}>
-        <span style={{ fontSize: 16, flexShrink: 0 }}>💡</span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><path d="M9 18h6"/><path d="M10 22h4"/><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0018 8 6 6 0 006 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 018.91 14"/></svg>
         <div style={{ fontSize: 12, color: '#2d2a7a', lineHeight: 1.6 }}>
           <strong>Teams control routing.</strong> Candidates auto-route to your Recruitment team. Clients auto-route to your Client Relations team.
           Each team can have its own routing rules, SLA targets and business hours. An agent can belong to multiple teams.
@@ -294,12 +294,12 @@ export default function Teams() {
 
       {loading ? (
         <div style={{ textAlign: 'center', padding: 60, color: '#9a958c' }}>
-          <div style={{ fontSize: 28, marginBottom: 10 }}>⏳</div>
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#9a958c" strokeWidth="2" strokeLinecap="round" style={{ marginBottom: 10, animation: 'spin 0.9s linear infinite' }}><path d="M21 12a9 9 0 11-6.219-8.56"/></svg>
           <div>Loading teams…</div>
         </div>
       ) : teams.length === 0 ? (
         <div style={{ background: '#fff', borderRadius: 12, border: '0.5px solid #dcd8d0', padding: '60px 20px', textAlign: 'center' }}>
-          <div style={{ fontSize: 40, marginBottom: 14 }}>🤝</div>
+          <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#9a958c" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: 14 }}><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
           <div style={{ fontSize: 14, fontWeight: 500, color: '#6e6a63', marginBottom: 6 }}>No teams yet</div>
           <div style={{ fontSize: 12, color: '#9a958c', marginBottom: 20, maxWidth: 320, margin: '0 auto 20px' }}>
             Create teams to organise your agents and enable smart conversation routing

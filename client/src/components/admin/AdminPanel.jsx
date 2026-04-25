@@ -105,7 +105,7 @@ export default function AdminPanel() {
         <div style={{ textAlign: 'center', padding: 60, color: '#9ca3af', fontSize: 13 }}>Loading workspaces…</div>
       ) : filtered.length === 0 ? (
         <div style={{ textAlign: 'center', padding: 60, background: '#fff', borderRadius: 12, border: '1px dashed #e5e7eb' }}>
-          <div style={{ fontSize: 32, marginBottom: 8 }}>🏢</div>
+          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#9a958c" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: 8 }}><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01"/><path d="M16 6h.01"/><path d="M12 6h.01"/><path d="M12 10h.01"/><path d="M12 14h.01"/><path d="M16 10h.01"/><path d="M16 14h.01"/><path d="M8 10h.01"/><path d="M8 14h.01"/></svg>
           <div style={{ fontSize: 14, fontWeight: 600, color: '#374151', marginBottom: 4 }}>No workspaces yet</div>
           <div style={{ fontSize: 12, color: '#9ca3af', marginBottom: 16 }}>Create your first workspace to get started</div>
           <button onClick={() => setShowCreate(true)} style={{ padding: '8px 16px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 500, cursor: 'pointer' }}>+ Create workspace</button>
@@ -374,7 +374,7 @@ function PasswordRevealModal({ data, onClose }) {
   return (
     <ModalShell title="Workspace created" subtitle={`${data.workspace.name} is ready.`} onClose={null} width={480}>
       <div style={{ padding: 14, background: '#fef3c7', border: '1px solid #fde68a', borderRadius: 8, fontSize: 13, color: '#92400e', marginBottom: 20, display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-        <div style={{ fontSize: 18, lineHeight: 1 }}>⚠️</div>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
         <div>
           <div style={{ fontWeight: 600, marginBottom: 3 }}>Save this password now</div>
           <div>It will not be shown again. Send it to the director securely (WhatsApp, SMS, or encrypted email).</div>

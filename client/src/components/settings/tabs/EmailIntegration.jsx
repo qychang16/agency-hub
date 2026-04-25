@@ -122,7 +122,7 @@ export default function EmailIntegration() {
           <Card>
             <CardHeader title="Outlook Connection" subtitle="One company email account for all agents. Each agent uses their own signature." />
             <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', background: connected ? '#f0fdf4' : '#faf9f7', borderRadius: 10, marginBottom: 14, border: `1px solid ${connected ? '#86efac' : '#dcd8d0'}` }}>
-              <div style={{ fontSize: 36, flexShrink: 0 }}>📧</div>
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#9a958c" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 13, fontWeight: 600, color: '#14130f' }}>{connected ? connectedEmail : 'No account connected'}</div>
                 <div style={{ fontSize: 11, color: connected ? '#16a34a' : '#9a958c', marginTop: 2 }}>

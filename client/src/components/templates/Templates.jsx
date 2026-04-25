@@ -415,12 +415,12 @@ export default function Templates() {
       <div className="px-4 py-5 md:px-7" style={{ flex: 1, overflowY: 'auto' }}>
         {loading ? (
           <div style={{ textAlign: 'center', padding: 60, color: '#9a958c' }}>
-            <div style={{ fontSize: 32, marginBottom: 12 }}>📋</div>
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#9a958c" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: 12 }}><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8"/><path d="M8 11h8"/><path d="M8 15h5"/></svg>
             <div>Loading templates…</div>
           </div>
         ) : filtered.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '60px 20px' }}>
-            <div style={{ fontSize: 48, marginBottom: 16 }}>📋</div>
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#9a958c" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: 16 }}><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8"/><path d="M8 11h8"/><path d="M8 15h5"/></svg>
             <div style={{ fontSize: 15, fontWeight: 600, color: '#4a4742', marginBottom: 6 }}>No templates found</div>
             <div style={{ fontSize: 13, color: '#9a958c', marginBottom: 24 }}>
               {activeTab === 'all' ? 'Create your first WhatsApp template to get started.' : `No ${activeTab} templates.`}

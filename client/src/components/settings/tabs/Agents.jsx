@@ -340,7 +340,7 @@ function ResetPasswordModal({ agent, onClose }) {
     <Modal title={`Reset Password — ${agent.name}`} subtitle="Agent will be required to change on next login" onClose={onClose} width={420}>
       {done ? (
         <div style={{ textAlign: 'center', padding: '20px 0' }}>
-          <div style={{ fontSize: 36, marginBottom: 12 }}>✅</div>
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: 12 }}><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
           <div style={{ fontSize: 14, fontWeight: 500, color: '#16a34a' }}>Password reset successfully</div>
           <div style={{ fontSize: 12, color: '#9a958c', marginTop: 6 }}>Agent will be prompted to change on next login</div>
         </div>
@@ -465,12 +465,12 @@ export default function Agents() {
       {/* Agent table */}
       {loading ? (
         <div style={{ textAlign: 'center', padding: 60, color: '#9a958c' }}>
-          <div style={{ fontSize: 28, marginBottom: 10 }}>⏳</div>
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#9a958c" strokeWidth="2" strokeLinecap="round" style={{ marginBottom: 10, animation: 'spin 0.9s linear infinite' }}><path d="M21 12a9 9 0 11-6.219-8.56"/></svg>
           <div>Loading agents…</div>
         </div>
       ) : filtered.length === 0 ? (
         <div style={{ background: '#fff', borderRadius: 12, border: '0.5px solid #dcd8d0', padding: '60px 20px', textAlign: 'center' }}>
-          <div style={{ fontSize: 36, marginBottom: 12 }}>👥</div>
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#9a958c" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: 12 }}><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
           <div style={{ fontSize: 13, fontWeight: 500, color: '#6e6a63', marginBottom: 4 }}>No agents found</div>
           <div style={{ fontSize: 12, color: '#9a958c' }}>Try adjusting your search or filters</div>
         </div>

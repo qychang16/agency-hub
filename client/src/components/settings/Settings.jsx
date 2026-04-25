@@ -70,7 +70,7 @@ export default function Settings() {
       default: return (
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div style={{ textAlign: 'center', color: '#9a958c' }}>
-            <div style={{ fontSize: 36, marginBottom: 10 }}>🚧</div>
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#9a958c" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: 10 }}><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
             <div style={{ fontSize: 14, fontWeight: 500, color: '#6e6a63' }}>Coming soon</div>
           </div>
         </div>

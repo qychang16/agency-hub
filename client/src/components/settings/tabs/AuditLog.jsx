@@ -150,12 +150,12 @@ export default function AuditLog() {
       {/* Log table */}
       {loading ? (
         <div style={{ textAlign: 'center', padding: 60, color: '#9a958c' }}>
-          <div style={{ fontSize: 28, marginBottom: 10 }}>⏳</div>
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#9a958c" strokeWidth="2" strokeLinecap="round" style={{ marginBottom: 10, animation: 'spin 0.9s linear infinite' }}><path d="M21 12a9 9 0 11-6.219-8.56"/></svg>
           <div style={{ fontSize: 13 }}>Loading audit log…</div>
         </div>
       ) : filtered.length === 0 ? (
         <div style={{ background: '#fff', borderRadius: 12, border: '0.5px solid #dcd8d0', padding: '60px 20px', textAlign: 'center' }}>
-          <div style={{ fontSize: 36, marginBottom: 12 }}>📋</div>
+          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#9a958c" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: 12 }}><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8"/><path d="M8 11h8"/><path d="M8 15h5"/></svg>
           <div style={{ fontSize: 13, fontWeight: 500, color: '#6e6a63', marginBottom: 4 }}>No audit log entries</div>
           <div style={{ fontSize: 12, color: '#9a958c' }}>{search || category !== 'all' || fromDate || toDate ? 'Try adjusting your filters' : 'Actions will appear here as agents use the platform'}</div>
         </div>

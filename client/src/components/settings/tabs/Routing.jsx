@@ -169,7 +169,7 @@ export default function Routing() {
 
   if (loading) return (
     <div style={{ textAlign: 'center', padding: 60, color: '#9a958c' }}>
-      <div style={{ fontSize: 28, marginBottom: 10 }}>⏳</div>
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#9a958c" strokeWidth="2" strokeLinecap="round" style={{ marginBottom: 10, animation: 'spin 0.9s linear infinite' }}><path d="M21 12a9 9 0 11-6.219-8.56"/></svg>
       <div>Loading routing rules…</div>
     </div>
   )
@@ -299,7 +299,7 @@ export default function Routing() {
 
                 {(routing.escalation_steps || []).length === 0 ? (
                   <div style={{ textAlign: 'center', padding: '20px 0', color: '#9a958c' }}>
-                    <div style={{ fontSize: 24, marginBottom: 8 }}>🔀</div>
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#9a958c" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: 8 }}><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg>
                     <div style={{ fontSize: 12 }}>No escalation steps yet</div>
                     <div style={{ fontSize: 11, marginTop: 4 }}>Add steps to define the escalation chain</div>
                   </div>
@@ -380,7 +380,7 @@ export default function Routing() {
               </>
             ) : (
               <div style={{ textAlign: 'center', padding: '20px 0', color: '#9a958c' }}>
-                <div style={{ fontSize: 24, marginBottom: 8 }}>🔀</div>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#9a958c" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: 8 }}><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg>
                 <div style={{ fontSize: 12 }}>Escalation is disabled</div>
                 <div style={{ fontSize: 11, marginTop: 4 }}>Enable to configure automatic escalation rules</div>
               </div>

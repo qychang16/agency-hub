@@ -378,7 +378,7 @@ export default function BulkScheduler({ onClose, onSaved }) {
                 onDrop={e => { e.preventDefault(); setDragOver(false); handleFile(e.dataTransfer.files[0]) }}
                 onClick={() => fileRef.current?.click()}
                 style={{ border: `2px dashed ${dragOver ? ACCENT : '#c2bdb3'}`, borderRadius: 12, padding: '40px 20px', textAlign: 'center', cursor: 'pointer', background: dragOver ? ACCENT_LIGHT : '#faf9f7', transition: 'all .2s', marginBottom: 16 }}>
-                <div style={{ fontSize: 36, marginBottom: 12 }}>📄</div>
+                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#9a958c" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: 12 }}><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>
                 <div style={{ fontSize: 14, fontWeight: 600, color: '#4a4742', marginBottom: 6 }}>
                   {dragOver ? 'Drop your CSV here' : 'Drag & drop your CSV file'}
                 </div>
@@ -489,7 +489,7 @@ export default function BulkScheduler({ onClose, onSaved }) {
             <div style={{ maxWidth: 500, margin: '0 auto', textAlign: 'center' }}>
               {saved ? (
                 <div style={{ padding: '40px 20px' }}>
-                  <div style={{ fontSize: 56, marginBottom: 16 }}>🎉</div>
+                  <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: 16 }}><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
                   <div style={{ fontSize: 18, fontWeight: 700, color: '#14130f', marginBottom: 8 }}>{savedCount} messages scheduled</div>
                   <div style={{ fontSize: 13, color: '#9a958c', marginBottom: 20 }}>
                     All {savedCount} messages will send on {new Date(`${scheduledDate}T${scheduledTime}:00+08:00`).toLocaleString('en-GB', { timeZone: 'Asia/Singapore', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })} SGT
@@ -498,7 +498,7 @@ export default function BulkScheduler({ onClose, onSaved }) {
                 </div>
               ) : (
                 <div style={{ padding: '20px 0' }}>
-                  <div style={{ fontSize: 48, marginBottom: 16 }}>📅</div>
+                  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#9a958c" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: 16 }}><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/></svg>
                   <div style={{ fontSize: 18, fontWeight: 700, color: '#14130f', marginBottom: 8 }}>Ready to schedule</div>
                   <div style={{ fontSize: 13, color: '#9a958c', marginBottom: 24 }}>
                     {validCount} message{validCount !== 1 ? 's' : ''} will be scheduled.

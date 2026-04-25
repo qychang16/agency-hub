@@ -296,14 +296,14 @@ export default function WhatsAppAPI() {
             <CardHeader title="Connected Phone Numbers" subtitle="Numbers registered under this WhatsApp Business Account" />
             {phoneNumbers.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '20px 0', color: '#9a958c' }}>
-                <div style={{ fontSize: 24, marginBottom: 8 }}>📱</div>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#9a958c" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: 8 }}><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M12 18h.01"/></svg>
                 <div style={{ fontSize: 12 }}>No phone numbers added yet</div>
                 <div style={{ fontSize: 11, marginTop: 4 }}>Go to <strong>Phone Numbers</strong> tab to add numbers</div>
               </div>
             ) : (
               phoneNumbers.map(n => (
                 <div key={n.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', background: '#faf9f7', borderRadius: 8, marginBottom: 8, border: '0.5px solid #dcd8d0' }}>
-                  <span style={{ fontSize: 20 }}>📱</span>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M12 18h.01"/></svg>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 13, fontWeight: 500, color: '#14130f' }}>{n.display_name || n.number}</div>
                     <div style={{ fontSize: 11, color: '#9a958c', fontFamily: 'monospace' }}>{n.number}</div>

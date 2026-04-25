@@ -139,7 +139,7 @@ export default function BusinessHours() {
 
   if (loading) return (
     <div style={{ textAlign: 'center', padding: 60, color: '#9a958c' }}>
-      <div style={{ fontSize: 28, marginBottom: 10 }}>⏳</div>
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#9a958c" strokeWidth="2" strokeLinecap="round" style={{ marginBottom: 10, animation: 'spin 0.9s linear infinite' }}><path d="M21 12a9 9 0 11-6.219-8.56"/></svg>
       <div>Loading business hours…</div>
     </div>
   )

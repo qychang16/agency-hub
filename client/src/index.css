@@ -13,3 +13,7 @@ body {
   overscroll-behavior-y: contain;
   -webkit-text-size-adjust: 100%;
 }
+
+@keyframes spin {
+  to { transform: rotate(360deg) }
+}

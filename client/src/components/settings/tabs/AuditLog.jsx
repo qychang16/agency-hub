@@ -56,7 +56,7 @@ export default function AuditLog() {
   const [toDate, setToDate] = useState('')
   const [expandedId, setExpandedId] = useState(null)
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { if (!token) return; load() }, [token])
 
   async function load() {
     try {

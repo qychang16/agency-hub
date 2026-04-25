@@ -672,7 +672,7 @@ export default function Projects() {
   const [showArchived, setShowArchived] = useState(false)
   const [search, setSearch] = useState('')
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { if (!token) return; load() }, [token])
 
   async function load() {
     try {

@@ -308,7 +308,7 @@ export default function Templates() {
   const [editingTemplate, setEditingTemplate] = useState(null)
   const [previewTemplate, setPreviewTemplate] = useState(null)
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { if (!token) return; load() }, [token])
 
   async function load() {
     try {

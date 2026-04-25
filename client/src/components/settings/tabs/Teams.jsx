@@ -249,7 +249,7 @@ export default function Teams() {
   const [showAdd, setShowAdd] = useState(false)
   const [showEdit, setShowEdit] = useState(null)
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { if (!token) return; load() }, [token])
 
   async function load() {
     try {

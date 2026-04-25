@@ -60,7 +60,7 @@ export default function BusinessHours() {
   const [saved, setSaved] = useState(false)
   const [hoveredDay, setHoveredDay] = useState(null)
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { if (!token) return; load() }, [token])
 
   async function load() {
     try {

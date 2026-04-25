@@ -382,7 +382,7 @@ export default function Agents() {
   const [showReset, setShowReset] = useState(null)
   const [showPermissions, setShowPermissions] = useState(null)
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { if (!token) return; load() }, [token])
 
   async function load() {
     try {

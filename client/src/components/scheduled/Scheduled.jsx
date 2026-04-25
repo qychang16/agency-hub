@@ -66,7 +66,7 @@ export default function Scheduled() {
   const [expandedId, setExpandedId] = useState(null)
   const [cancelling, setCancelling] = useState(null)
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { if (!token) return; load() }, [token])
 
   // Auto-refresh every 30 seconds for pending messages
   useEffect(() => {

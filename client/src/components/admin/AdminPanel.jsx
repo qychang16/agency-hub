@@ -61,7 +61,7 @@ export default function AdminPanel() {
             + Create workspace
           </button>
           <button
-            onClick={logout}
+            onClick={() => { if (window.confirm('Sign out of Tel-Cloud?')) logout() }}
             style={{ padding: '10px 16px', background: '#fff', color: '#6b7280', border: '1px solid #e5e7eb', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
             Sign out
           </button>

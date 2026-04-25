@@ -239,7 +239,7 @@ function UserMenu() {
             Help &amp; shortcuts
           </button>
           <div style={{ borderTop: border.subtle }} />
-          <button onClick={() => { setOpen(false); logout() }}
+          <button onClick={() => { if (window.confirm('Sign out of Tel-Cloud?')) { setOpen(false); logout() } else { setOpen(false) } }}
             style={{
               width: '100%', textAlign: 'left',
               padding: `${space[2]}px ${space[3]}px`,

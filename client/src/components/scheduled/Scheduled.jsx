@@ -177,10 +177,10 @@ export default function Scheduled() {
 
         {/* Channel filter */}
         <div style={{ display: 'flex', gap: 4 }}>
-          {[['all', 'All Channels'], ['whatsapp', '💬 WhatsApp'], ['email', '📧 Email']].map(([k, l]) => (
+          {[['all', 'All Channels', null], ['whatsapp', 'WhatsApp', <svg key="w" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 5, verticalAlign: '-2px', display: 'inline' }}><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>], ['email', 'Email', <svg key="e" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 5, verticalAlign: '-2px', display: 'inline' }}><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>]].map(([k, l, ic]) => (
             <button key={k} onClick={() => setChannelFilter(k)}
               style={{ padding: '4px 10px', borderRadius: 6, border: `0.5px solid ${channelFilter === k ? ACCENT : '#dcd8d0'}`, background: channelFilter === k ? ACCENT_LIGHT : 'transparent', color: channelFilter === k ? ACCENT : '#6e6a63', fontSize: 11, cursor: 'pointer', fontWeight: channelFilter === k ? 600 : 400 }}>
-              {l}
+              {ic}{l}
             </button>
           ))}
         </div>
@@ -217,7 +217,7 @@ export default function Scheduled() {
             {activeTab === 'pending' && (
               <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
                 <Btn onClick={() => setShowComposer(true)}>+ Schedule Single Message</Btn>
-                <Btn variant="ghost" onClick={() => setShowBulk(true)}>📊 Bulk CSV Upload</Btn>
+                <Btn variant="ghost" onClick={() => setShowBulk(true)}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 5, verticalAlign: '-2px', display: 'inline' }}><path d="M3 3v18h18"/><path d="M7 14l4-4 4 4 5-5"/></svg>Bulk CSV Upload</Btn>
               </div>
             )}
           </div>
@@ -243,7 +243,7 @@ export default function Scheduled() {
                     onClick={() => setExpandedId(isExpanded ? null : msg.id)}>
                     {/* Channel icon */}
                     <div style={{ width: 40, height: 40, borderRadius: 10, background: msg.channel === 'email' ? '#eeedf5' : '#f0fdf4', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>
-                      {msg.channel === 'email' ? '📧' : '💬'}
+                      {msg.channel === 'email' ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg> : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>}
                     </div>
 
                     {/* Content */}

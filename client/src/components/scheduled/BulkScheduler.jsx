@@ -289,12 +289,12 @@ export default function BulkScheduler({ onClose, onSaved }) {
               <Field label="Channel" required>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                   {[
-                    { value: 'whatsapp', label: '💬 WhatsApp', desc: 'Requires PDPA consent. Uses approved templates.' },
-                    { value: 'email', label: '📧 Email', desc: 'Via connected Outlook. Requires candidate email address.' },
+                    { value: 'whatsapp', label: 'WhatsApp', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>, desc: 'Requires PDPA consent. Uses approved templates.' },
+                  { value: 'email', label: 'Email', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>, desc: 'Via connected Outlook. Requires candidate email address.' },
                   ].map(c => (
                     <div key={c.value} onClick={() => setChannel(c.value)}
                       style={{ padding: '12px 14px', borderRadius: 9, border: `1.5px solid ${channel === c.value ? ACCENT : '#dcd8d0'}`, cursor: 'pointer', background: channel === c.value ? ACCENT_LIGHT : '#fff', transition: 'all .15s' }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: channel === c.value ? ACCENT : '#14130f', marginBottom: 4 }}>{c.label}</div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: channel === c.value ? ACCENT : '#14130f', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>{c.icon} {c.label}</div>
                       <div style={{ fontSize: 11, color: '#9a958c' }}>{c.desc}</div>
                     </div>
                   ))}

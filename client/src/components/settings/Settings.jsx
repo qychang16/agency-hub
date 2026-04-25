@@ -16,19 +16,36 @@ import NotificationSettings from './tabs/NotificationSettings'
 import SecuritySettings from './tabs/SecuritySettings'
 import AuditLog from './tabs/AuditLog'
 
+const ICON_PROPS = { width: 16, height: 16, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.7, strokeLinecap: 'round', strokeLinejoin: 'round' }
+
+const Icons = {
+  profile: <svg {...ICON_PROPS}><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01"/><path d="M16 6h.01"/><path d="M12 6h.01"/><path d="M12 10h.01"/><path d="M12 14h.01"/><path d="M16 10h.01"/><path d="M16 14h.01"/><path d="M8 10h.01"/><path d="M8 14h.01"/></svg>,
+  phone_numbers: <svg {...ICON_PROPS}><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M12 18h.01"/></svg>,
+  agents: <svg {...ICON_PROPS}><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>,
+  teams: <svg {...ICON_PROPS}><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>,
+  routing: <svg {...ICON_PROPS}><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg>,
+  roles: <svg {...ICON_PROPS}><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>,
+  business_hours: <svg {...ICON_PROPS}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
+  email: <svg {...ICON_PROPS}><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>,
+  whatsapp: <svg {...ICON_PROPS}><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>,
+  notifications: <svg {...ICON_PROPS}><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>,
+  security: <svg {...ICON_PROPS}><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>,
+  audit: <svg {...ICON_PROPS}><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8"/><path d="M8 11h8"/><path d="M8 15h5"/></svg>,
+}
+
 const TABS = [
-  { key: 'profile', label: 'Agency Profile', icon: '🏢' },
-  { key: 'phone_numbers', label: 'Phone Numbers', icon: '📱' },
-  { key: 'agents', label: 'Agents', icon: '👥' },
-  { key: 'teams', label: 'Teams', icon: '🤝' },
-  { key: 'routing', label: 'Routing Rules', icon: '🔀' },
-  { key: 'roles', label: 'Roles & Permissions', icon: '🔑' },
-  { key: 'business_hours', label: 'Business Hours', icon: '🕐' },
-  { key: 'email', label: 'Email Integration', icon: '📧' },
-  { key: 'whatsapp', label: 'WhatsApp API', icon: '💬' },
-  { key: 'notifications', label: 'Notifications', icon: '🔔' },
-  { key: 'security', label: 'Security', icon: '🔒' },
-  { key: 'audit', label: 'Audit Log', icon: '📋' },
+  { key: 'profile', label: 'Agency Profile' },
+  { key: 'phone_numbers', label: 'Phone Numbers' },
+  { key: 'agents', label: 'Agents' },
+  { key: 'teams', label: 'Teams' },
+  { key: 'routing', label: 'Routing Rules' },
+  { key: 'roles', label: 'Roles & Permissions' },
+  { key: 'business_hours', label: 'Business Hours' },
+  { key: 'email', label: 'Email Integration' },
+  { key: 'whatsapp', label: 'WhatsApp API' },
+  { key: 'notifications', label: 'Notifications' },
+  { key: 'security', label: 'Security' },
+  { key: 'audit', label: 'Audit Log' },
 ]
 
 export default function Settings() {
@@ -91,7 +108,7 @@ export default function Settings() {
               style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 9, padding: '9px 10px', borderRadius: 8, border: 'none', background: activeTab === tab.key ? ACCENT_LIGHT : 'transparent', color: activeTab === tab.key ? ACCENT : '#4a4742', cursor: 'pointer', fontSize: 12, fontWeight: activeTab === tab.key ? 600 : 400, textAlign: 'left', marginBottom: 2, transition: 'all .1s' }}
               onMouseEnter={e => { if (activeTab !== tab.key) e.currentTarget.style.background = '#faf9f7' }}
               onMouseLeave={e => { if (activeTab !== tab.key) e.currentTarget.style.background = 'transparent' }}>
-              <span style={{ fontSize: 15 }}>{tab.icon}</span>
+              <span style={{ display: 'flex', alignItems: 'center', color: 'currentColor' }}>{Icons[tab.key]}</span>
               {tab.label}
             </button>
           ))}
@@ -110,7 +127,7 @@ export default function Settings() {
           {visibleTabs.map(tab => (
             <button key={tab.key} onClick={() => setActiveTab(tab.key)}
               style={{ padding: '7px 12px', borderRadius: 7, border: 'none', background: activeTab === tab.key ? ACCENT : '#f5f3ef', color: activeTab === tab.key ? '#fff' : '#6e6a63', cursor: 'pointer', fontSize: 12, fontWeight: activeTab === tab.key ? 600 : 500, whiteSpace: 'nowrap', flexShrink: 0, minHeight: 36 }}>
-              {tab.icon} {tab.label}
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>{Icons[tab.key]} {tab.label}</span>
             </button>
           ))}
         </div>

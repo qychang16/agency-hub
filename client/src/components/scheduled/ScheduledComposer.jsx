@@ -62,13 +62,13 @@ function extractVariables(body) {
 }
 
 const SEND_MODES = [
-  { value: 'scheduled', label: '📅 Scheduled Send', desc: 'Sends at the exact date and time you set' },
-  { value: 'immediate', label: '⚡ Send Immediately', desc: 'Sends right now — for executive search and urgent placements' },
+  { value: 'scheduled', label: 'Scheduled Send', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/></svg>, desc: 'Sends at the exact date and time you set' },
+  { value: 'immediate', label: 'Send Immediately', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>, desc: 'Sends right now — for executive search and urgent placements' },
 ]
 
 const CHANNELS = [
-  { value: 'whatsapp', label: '💬 WhatsApp', desc: 'Sends via WhatsApp to candidate\'s number' },
-  { value: 'email', label: '📧 Email (Outlook)', desc: 'Sends via connected Outlook account' },
+  { value: 'whatsapp', label: 'WhatsApp', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>, desc: 'Sends via WhatsApp to candidate\'s number' },
+  { value: 'email', label: 'Email (Outlook)', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>, desc: 'Sends via connected Outlook account' },
 ]
 
 export default function ScheduledComposer({ onClose, onSaved, prefillContact, prefillConversation }) {
@@ -258,7 +258,7 @@ export default function ScheduledComposer({ onClose, onSaved, prefillContact, pr
                     {CHANNELS.map(c => (
                       <div key={c.value} onClick={() => setChannel(c.value)}
                         style={{ flex: 1, padding: '10px 12px', borderRadius: 9, border: `1.5px solid ${channel === c.value ? ACCENT : '#dcd8d0'}`, cursor: 'pointer', background: channel === c.value ? ACCENT_LIGHT : '#fff', transition: 'all .15s' }}>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: channel === c.value ? ACCENT : '#14130f', marginBottom: 3 }}>{c.label}</div>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: channel === c.value ? ACCENT : '#14130f', marginBottom: 3, display: 'flex', alignItems: 'center', gap: 6 }}>{c.icon} {c.label}</div>
                         <div style={{ fontSize: 10, color: '#9a958c' }}>{c.desc}</div>
                       </div>
                     ))}
@@ -271,7 +271,7 @@ export default function ScheduledComposer({ onClose, onSaved, prefillContact, pr
                     {SEND_MODES.map(m => (
                       <div key={m.value} onClick={() => setSendMode(m.value)}
                         style={{ flex: 1, padding: '10px 12px', borderRadius: 9, border: `1.5px solid ${sendMode === m.value ? ACCENT : '#dcd8d0'}`, cursor: 'pointer', background: sendMode === m.value ? ACCENT_LIGHT : '#fff', transition: 'all .15s' }}>
-                        <div style={{ fontSize: 12, fontWeight: 600, color: sendMode === m.value ? ACCENT : '#14130f', marginBottom: 3 }}>{m.label}</div>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: sendMode === m.value ? ACCENT : '#14130f', marginBottom: 3, display: 'flex', alignItems: 'center', gap: 6 }}>{m.icon} {m.label}</div>
                         <div style={{ fontSize: 10, color: '#9a958c' }}>{m.desc}</div>
                       </div>
                     ))}

@@ -158,12 +158,12 @@ export default function PhoneNumbers() {
       {/* Scenario guide */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 20 }}>
         {[
-          { icon: '🔄', title: 'Number restricted?', desc: 'Mark backup as primary instantly. Conversations continue on new number.' },
-          { icon: '👥', title: '1 agent, 2 numbers', desc: 'Assign agent to both lines. They see all conversations in one unified inbox.' },
-          { icon: '🌏', title: 'Regional offices', desc: 'SG, MY, ID, PH numbers each assigned to their local team.' },
+          { iconKey: 'restricted', title: 'Number restricted?', desc: 'Mark backup as primary instantly. Conversations continue on new number.', icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg> },
+            { iconKey: 'multi', title: '1 agent, 2 numbers', desc: 'Assign agent to both lines. They see all conversations in one unified inbox.', icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg> },
+            { iconKey: 'regional', title: 'Regional offices', desc: 'SG, MY, ID, PH numbers each assigned to their local team.', icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg> },
         ].map(s => (
           <div key={s.title} style={{ background: '#fff', borderRadius: 10, border: '0.5px solid #dcd8d0', padding: '14px 16px' }}>
-            <div style={{ fontSize: 20, marginBottom: 6 }}>{s.icon}</div>
+            <div style={{ marginBottom: 6, color: 'currentColor', display: 'flex', alignItems: 'center' }}>{s.icon}</div>
             <div style={{ fontSize: 12, fontWeight: 600, color: '#14130f', marginBottom: 4 }}>{s.title}</div>
             <div style={{ fontSize: 11, color: '#9a958c', lineHeight: 1.5 }}>{s.desc}</div>
           </div>
@@ -188,7 +188,7 @@ export default function PhoneNumbers() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
               {/* Icon */}
               <div style={{ width: 48, height: 48, borderRadius: 12, background: n.connected ? '#dcfce7' : n.status === 'restricted' ? '#fee2e2' : '#f5f3ef', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flexShrink: 0 }}>
-                📱
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M12 18h.01"/></svg>
               </div>
 
               {/* Info */}

@@ -215,8 +215,8 @@ export default function InboxList({ activeConvoId, setActiveConvoId, isMobile, m
   const [phoneNumbers, setPhoneNumbers] = useState([])
   const [phoneFilter, setPhoneFilter] = useState('all')
 
-  useEffect(() => { load() }, [statusFilter, phoneFilter])
-  useEffect(() => { loadProjects(); loadPhoneNumbers() }, [])
+  useEffect(() => { if (!token) return; load() }, [token, statusFilter, phoneFilter])
+  useEffect(() => { if (!token) return; loadProjects(); loadPhoneNumbers() }, [token])
 
   async function load() {
     try {

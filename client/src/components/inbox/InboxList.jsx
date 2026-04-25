@@ -448,9 +448,62 @@ export default function InboxList({ activeConvoId, setActiveConvoId, isMobile, m
         {loading ? (
           <div style={{ textAlign: 'center', padding: space[10], color: ink[500], fontSize: textSize.sm }}>Loading…</div>
         ) : filtered.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: space[10] }}>
-            <div style={{ fontSize: textSize.sm, color: ink[500] }}>No conversations</div>
-          </div>
+          (() => {
+            // Determine what kind of empty state to show
+            const hasFilters = search || statusFilter !== 'open' || typeFilter !== 'all' || projectFilter !== 'all' || phoneFilter !== 'all'
+            const isSearch = !!search
+            return (
+              <div style={{ textAlign: 'center', padding: `${space[10]}px ${space[6]}px` }}>
+                <div style={{
+                  width: 48, height: 48, borderRadius: radius.pill,
+                  background: ink[100], border: `0.5px solid ${ink[300]}`,
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                  marginBottom: space[3],
+                }}>
+                  <svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke={ink[500]} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    {isSearch ? (
+                      <>
+                        <circle cx="7" cy="7" r="4.5"/>
+                        <path d="M10.5 10.5l3 3"/>
+                      </>
+                    ) : (
+                      <>
+                        <path d="M2.5 4.5h11v8a1 1 0 01-1 1h-9a1 1 0 01-1-1v-8z"/>
+                        <path d="M2.5 4.5L8 9l5.5-4.5"/>
+                      </>
+                    )}
+                  </svg>
+                </div>
+                <div style={{
+                  fontSize: textSize.sm,
+                  fontWeight: textWeight.semibold,
+                  color: ink[800],
+                  marginBottom: space[1] + 2,
+                  fontFamily: fonts.body,
+                }}>
+                  {isSearch
+                    ? 'No matches found'
+                    : hasFilters
+                      ? 'No conversations match these filters'
+                      : 'No conversations yet'}
+                </div>
+                <div style={{
+                  fontSize: textSize.xs,
+                  color: ink[600],
+                  lineHeight: 1.5,
+                  maxWidth: 220,
+                  margin: '0 auto',
+                  fontFamily: fonts.body,
+                }}>
+                  {isSearch
+                    ? `Nothing matches "${search}". Try a different name or phone number.`
+                    : hasFilters
+                      ? 'Adjust the filters above or clear them to see all conversations.'
+                      : 'Conversations will appear here when candidates or clients message your WhatsApp business number.'}
+                </div>
+              </div>
+            )
+          })()
         ) : (
           filtered.map(c => (
             <ConvoCard key={c.id} convo={c} isActive={activeConvoId === c.id}

@@ -190,7 +190,9 @@ function ProjectCard({ project, onEdit, onArchive, onRestore, onDelete, onSelect
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 14 }}>
           <div style={{ width: 42, height: 42, borderRadius: 10, background: project.colour + '20', border: `1.5px solid ${project.colour}40`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <span style={{ fontSize: 18 }}>[P]</span>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={project.colour} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/>
+            </svg>
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             {renaming && canManageProjects ? (
@@ -362,7 +364,12 @@ function MembersPanel({ project, agents, canManageMembers }) {
           <div style={{ padding: 30, textAlign: 'center', color: '#9ca3af', fontSize: 13 }}>Loading members...</div>
         ) : members.length === 0 ? (
           <div style={{ padding: '40px 20px', textAlign: 'center' }}>
-            <div style={{ fontSize: 32, marginBottom: 10 }}>[T]</div>
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: 10 }}>
+              <path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/>
+              <circle cx="9" cy="7" r="4"/>
+              <path d="M22 21v-2a4 4 0 00-3-3.87"/>
+              <path d="M16 3.13a4 4 0 010 7.75"/>
+            </svg>
             <div style={{ fontSize: 13, fontWeight: 500, color: '#6b7280', marginBottom: 4 }}>No team members yet</div>
             <div style={{ fontSize: 12, color: '#9ca3af' }}>
               {canManageMembers && eligibleToAdd.length > 0
@@ -597,7 +604,9 @@ function ProjectView({ project, onBack, onRenamed, canManageProjects, canManageM
           <MembersPanel project={project} agents={agents} canManageMembers={canManageMembers} />
         ) : loading ? (
           <div style={{ textAlign: 'center', padding: 60, color: '#9ca3af' }}>
-            <div style={{ fontSize: 32, marginBottom: 12 }}>[P]</div>
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: 12 }}>
+              <path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/>
+            </svg>
             <div>Loading project conversations...</div>
           </div>
         ) : (
@@ -774,12 +783,16 @@ export default function Projects() {
       <div className="px-4 py-5 md:px-7" style={{ flex: 1, overflowY: 'auto' }}>
         {loading ? (
           <div style={{ textAlign: 'center', padding: 60, color: '#9ca3af' }}>
-            <div style={{ fontSize: 32, marginBottom: 12 }}>[P]</div>
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: 12 }}>
+              <path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/>
+            </svg>
             <div>Loading projects...</div>
           </div>
         ) : active.length === 0 && !showArchived ? (
           <div style={{ textAlign: 'center', padding: '60px 20px' }}>
-            <div style={{ fontSize: 56, marginBottom: 16 }}>[P]</div>
+            <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: 16 }}>
+              <path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/>
+            </svg>
             <div style={{ fontSize: 16, fontWeight: 600, color: '#374151', marginBottom: 8 }}>No projects yet</div>
             <div style={{ fontSize: 13, color: '#9ca3af', marginBottom: 24, maxWidth: 400, margin: '0 auto 24px' }}>
               {canManageProjects

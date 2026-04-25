@@ -166,12 +166,24 @@ function LoginScreen() {
 
 // ─── LOADING FALLBACK ──────────────────────────────────────────────────────────
 function PageLoader() {
+  // Only show the loader if the chunk takes >200ms to load. Most cached
+  // chunks resolve in under 50ms — showing a loader for them just creates
+  // a flash. Slow loads still get visible feedback.
+  const [visible, setVisible] = useState(false)
+  useEffect(() => {
+    const id = setTimeout(() => setVisible(true), 200)
+    return () => clearTimeout(id)
+  }, [])
+  if (!visible) return null
   return (
-    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f1f4f9' }}>
-      <div style={{ textAlign: 'center' }}>
-        <div style={{ fontSize: 28, marginBottom: 10 }}>⚙️</div>
-        <div style={{ fontSize: 13, color: '#9ca3af' }}>Loading…</div>
+    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#faf9f7' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#9a958c', fontSize: 13, fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif" }}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: 'pageLoaderSpin 0.9s linear infinite' }}>
+          <path d="M21 12a9 9 0 11-6.219-8.56" strokeLinecap="round"/>
+        </svg>
+        Loading
       </div>
+      <style>{`@keyframes pageLoaderSpin { to { transform: rotate(360deg) } }`}</style>
     </div>
   )
 }
@@ -345,7 +357,7 @@ function MainApp() {
 
   function ComingSoon({ name }) {
     return (
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f1f4f9' }}>
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#faf9f7' }}>
         <div style={{ textAlign: 'center' }}>
           <div style={{ fontSize: 48, marginBottom: 12 }}>🚧</div>
           <div style={{ fontSize: 16, fontWeight: 600, color: '#374151', marginBottom: 6, textTransform: 'capitalize' }}>{name}</div>
@@ -415,7 +427,7 @@ function MainApp() {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100dvh', minHeight: '100vh', fontFamily: 'system-ui,-apple-system,sans-serif', background: '#f1f4f9', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100dvh', minHeight: '100vh', fontFamily: 'system-ui,-apple-system,sans-serif', background: '#faf9f7', overflow: 'hidden' }}>
             <Topbar
         activeNav={activeNav}
         setActiveNav={setActiveNav}
@@ -469,7 +481,7 @@ function AppWithAuth() {
 
   if (loading) {
     return (
-      <div style={{ minHeight: '100dvh', background: '#f1f4f9', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ minHeight: '100dvh', background: '#faf9f7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ textAlign: 'center' }}>
           <div style={{ fontSize: 32, marginBottom: 12 }}>⚙️</div>
           <div style={{ fontSize: 13, color: '#9ca3af' }}>Loading…</div>

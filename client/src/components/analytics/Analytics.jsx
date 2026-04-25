@@ -1,3 +1,3 @@
 export default function Analytics() {
-  return <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f1f4f9' }}><div style={{ textAlign: 'center' }}><div style={{ fontSize: 36, marginBottom: 10 }}>📊</div><div style={{ fontSize: 14, fontWeight: 500, color: '#6b7280' }}>Analytics</div><div style={{ fontSize: 12, color: '#9ca3af', marginTop: 4 }}>Coming soon</div></div></div>
+  return <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#faf9f7' }}><div style={{ textAlign: 'center' }}><div style={{ fontSize: 36, marginBottom: 10 }}>📊</div><div style={{ fontSize: 14, fontWeight: 500, color: '#6b7280' }}>Analytics</div><div style={{ fontSize: 12, color: '#9ca3af', marginTop: 4 }}>Coming soon</div></div></div>
 }

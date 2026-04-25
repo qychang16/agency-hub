@@ -260,7 +260,8 @@ function MaintenanceModal({ onClose }) {
 function MainApp() {
   const { user, token, isDirector } = useAuth()
   const { maintenance, setMaintenance } = useWorkspace()
-  const [activeNav, setActiveNav] = useState('inbox')
+  const [activeNav, setActiveNav] = useState(() => localStorage.getItem('activeNav') || 'inbox')
+  useEffect(() => { localStorage.setItem('activeNav', activeNav) }, [activeNav])
   const [activeConvoId, setActiveConvoId] = useState(null)
   const [showDrawer, setShowDrawer] = useState(false)
   const [showNewContact, setShowNewContact] = useState(false)

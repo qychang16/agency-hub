@@ -295,6 +295,27 @@ function MainApp() {
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
+  // Preload heavy components during idle time after login.
+  // By the time user clicks Settings/Projects/etc, the JS chunk is already cached.
+  useEffect(() => {
+    const preload = () => {
+      import('./components/projects/Projects')
+      import('./components/scheduled/Scheduled')
+      import('./components/templates/Templates')
+      import('./components/settings/Settings')
+      import('./components/inbox/InboxList')
+      import('./components/inbox/ChatWindow')
+      import('./components/inbox/ContactDrawer')
+    }
+    if ('requestIdleCallback' in window) {
+      const id = requestIdleCallback(preload)
+      return () => cancelIdleCallback(id)
+    } else {
+      const id = setTimeout(preload, 1500)
+      return () => clearTimeout(id)
+    }
+  }, [])
+
   // Load projects once — shared by ChatWindow (header dropdown) and ContactDrawer
   useEffect(() => {
     if (!token) return

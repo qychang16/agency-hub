@@ -2210,18 +2210,83 @@ app.post('/templates', auth, requirePermission('manage_templates'), async (req, 
   try {
     const wsId = await getWorkspaceId(req.user.id)
     const { name, category, body, buttons, subject, type, status } = req.body
-    const r = await pool.query(`INSERT INTO templates (workspace_id, name, category, body, buttons, subject, type, status, created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`, [wsId, name, category, body, JSON.stringify(buttons || []), subject, type || 'whatsapp', status || 'draft', req.user.id])
+    if (!name || !name.trim()) return res.status(400).json({ error: 'Template name is required' })
+    const cleanName = name.trim()
+    // Duplicate name check (Meta WABA enforces uniqueness; fail fast in our DB)
+    const dup = await pool.query(
+      `SELECT id FROM templates WHERE workspace_id=$1 AND LOWER(name)=LOWER($2)`,
+      [wsId, cleanName]
+    )
+    if (dup.rows.length > 0) {
+      return res.status(409).json({ error: `A template named "${cleanName}" already exists in your workspace. Choose a different name.` })
+    }
+    const r = await pool.query(
+      `INSERT INTO templates (workspace_id, name, category, body, buttons, subject, type, status, created_by, source)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'tenant') RETURNING *`,
+      [wsId, cleanName, category, body, JSON.stringify(buttons || []), subject, type || 'whatsapp', status || 'draft', req.user.id]
+    )
     res.json(r.rows[0])
-  } catch (err) { res.status(500).json({ error: err.message }) }
+  } catch (err) {
+    console.error('POST /templates error:', err)
+    res.status(500).json({ error: err.message })
+  }
 })
 
 app.patch('/templates/:id', auth, requirePermission('manage_templates'), async (req, res) => {
   try {
     const wsId = await getWorkspaceId(req.user.id)
     const { name, category, body, buttons, status, subject } = req.body
-    const r = await pool.query(`UPDATE templates SET name=$1, category=$2, body=$3, buttons=$4, status=$5, subject=$6, updated_at=NOW() WHERE id=$7 AND workspace_id=$8 RETURNING *`, [name, category, body, JSON.stringify(buttons || []), status, subject, req.params.id, wsId])
+
+    // Fetch current row to know its source/status before mutating
+    const current = await pool.query(`SELECT id, name, source, status FROM templates WHERE id=$1 AND workspace_id=$2`, [req.params.id, wsId])
+    if (!current.rows.length) return res.status(404).json({ error: 'Template not found' })
+    const tpl = current.rows[0]
+
+    // Lock body/header/buttons edits on Meta-library templates and on approved templates
+    if (tpl.source === 'meta_library' && (body !== undefined || buttons !== undefined)) {
+      return res.status(403).json({ error: 'Body and buttons of Meta library templates cannot be edited.' })
+    }
+    if (tpl.status === 'approved' && (body !== undefined || buttons !== undefined)) {
+      return res.status(403).json({ error: 'Approved templates cannot be edited. Clone for re-approval instead.' })
+    }
+
+    // Duplicate name check on rename (case-insensitive, excluding self)
+    if (name !== undefined && name.trim() && name.trim().toLowerCase() !== (tpl.name || '').toLowerCase()) {
+      const dup = await pool.query(
+        `SELECT id FROM templates WHERE workspace_id=$1 AND LOWER(name)=LOWER($2) AND id != $3`,
+        [wsId, name.trim(), req.params.id]
+      )
+      if (dup.rows.length > 0) {
+        return res.status(409).json({ error: `A template named "${name.trim()}" already exists in your workspace. Choose a different name.` })
+      }
+    }
+
+    const r = await pool.query(
+      `UPDATE templates SET
+         name = COALESCE($1, name),
+         category = COALESCE($2, category),
+         body = COALESCE($3, body),
+         buttons = COALESCE($4, buttons),
+         status = COALESCE($5, status),
+         subject = COALESCE($6, subject),
+         updated_at = NOW()
+       WHERE id=$7 AND workspace_id=$8 RETURNING *`,
+      [
+        name !== undefined ? name.trim() : null,
+        category !== undefined ? category : null,
+        body !== undefined ? body : null,
+        buttons !== undefined ? JSON.stringify(buttons || []) : null,
+        status !== undefined ? status : null,
+        subject !== undefined ? subject : null,
+        req.params.id,
+        wsId
+      ]
+    )
     res.json(r.rows[0])
-  } catch (err) { res.status(500).json({ error: err.message }) }
+  } catch (err) {
+    console.error('PATCH /templates/:id error:', err)
+    res.status(500).json({ error: err.message })
+  }
 })
 
 app.delete('/templates/:id', auth, requirePermission('manage_templates'), async (req, res) => {

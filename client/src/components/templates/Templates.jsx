@@ -21,11 +21,33 @@ const STATUS_STYLES = {
   rejected: { bg: '#fee2e2', color: '#dc2626', label: '✗ Rejected' },
 }
 
-const SOURCE_BADGES = {
-  meta_library: { bg: '#e7f0fd', color: '#1877f2', label: 'Meta' },
-  tel_cloud_library: { bg: '#ede9fe', color: '#5b21b6', label: 'Suggested' },
-  tenant: null,
-}
+// Sections describe each template source with caption and visual accent
+const SECTIONS = [
+  {
+    key: 'meta_library',
+    label: 'Meta Library',
+    caption: 'Pre-approved by Meta. Install instantly, no review wait. Body content is locked.',
+    accentColor: '#1877f2',
+    accentBg: '#e7f0fd',
+    emptyHint: 'Click Meta Library above to browse and install pre-approved utility templates.',
+  },
+  {
+    key: 'tel_cloud_library',
+    label: 'Tel-Cloud Suggested',
+    caption: 'Recruitment-vertical templates curated for you. Customise and submit to Meta for approval.',
+    accentColor: '#5b21b6',
+    accentBg: '#ede9fe',
+    emptyHint: 'Click Suggested above to browse curated recruitment templates.',
+  },
+  {
+    key: 'tenant',
+    label: 'Custom Templates',
+    caption: 'Your own custom-drafted templates. Write from scratch and submit to Meta for approval.',
+    accentColor: '#fff',
+    accentBg: ACCENT,
+    emptyHint: 'Click + Custom Template above to draft from scratch.',
+  },
+]
 
 function TemplateEditor({ template, onClose, onSaved }) {
   const { token, user } = useAuth()
@@ -35,7 +57,27 @@ function TemplateEditor({ template, onClose, onSaved }) {
   const [buttons, setButtons] = useState(template?.buttons || [])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  const isEdit = !!template
+  const isEdit = !!(template && template.id)
+  const [nameWarning, setNameWarning] = useState('')
+
+  // Live duplicate name check (debounced)
+  useEffect(() => {
+    if (!name.trim()) { setNameWarning(''); return }
+    const trimmed = name.trim().toLowerCase()
+    if (template?.name && template.name.toLowerCase() === trimmed) { setNameWarning(''); return }
+    const handle = setTimeout(async () => {
+      try {
+        const r = await fetch(`${API}/templates`, { headers: { Authorization: 'Bearer ' + token } })
+        const all = await r.json()
+        if (Array.isArray(all)) {
+          const conflict = all.find(t => t.name?.toLowerCase() === trimmed && t.id !== template?.id)
+          if (conflict) setNameWarning(`A template named "${name.trim()}" already exists. Approval will be rejected by Meta if you submit a duplicate.`)
+          else setNameWarning('')
+        }
+      } catch { /* ignore */ }
+    }, 400)
+    return () => clearTimeout(handle)
+  }, [name, template?.id, template?.name, token])
 
   function addButton() {
     if (buttons.length >= 3) return
@@ -78,7 +120,7 @@ function TemplateEditor({ template, onClose, onSaved }) {
 
   return (
     <Modal
-      title={isEdit ? `Edit — ${template.name}` : 'New Template'}
+      title={isEdit ? `Edit — ${template.name}` : 'New Custom Template'}
       subtitle="WhatsApp Business template — requires Meta approval before sending"
       onClose={onClose}>
       <div className="grid grid-cols-1 md:grid-cols-[1fr_260px]" style={{ gap: 24 }}>
@@ -94,6 +136,11 @@ function TemplateEditor({ template, onClose, onSaved }) {
                 placeholder="e.g. interview_confirmation"
                 style={{ width: '100%', padding: '9px 12px', border: '0.5px solid #dcd8d0', borderRadius: 8, fontSize: 13, outline: 'none', background: '#fff', color: '#14130f', boxSizing: 'border-box', fontFamily: 'monospace' }} />
               <div style={{ fontSize: 10, color: '#9a958c', marginTop: 4 }}>Lowercase letters and underscores only</div>
+              {nameWarning && (
+                <div style={{ fontSize: 11, color: '#9a6a00', marginTop: 6, padding: '6px 10px', background: '#fef3c7', border: '0.5px solid #fde68a', borderRadius: 6 }}>
+                  ⚠ {nameWarning}
+                </div>
+              )}
             </div>
             <div>
               <label style={{ fontSize: 11, fontWeight: 600, color: '#4a4742', display: 'block', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.4px' }}>
@@ -213,6 +260,109 @@ const FILTER_TABS = [
   { key: 'rejected', label: 'Rejected' },
 ]
 
+// Renders a single template card. Extracted so we can render it inside each section.
+function TemplateCard({ t, canCreate, canApprove, onPreview, onEdit, onDelete, onApprove, onReject }) {
+  const ss = STATUS_STYLES[t.status] || STATUS_STYLES.draft
+  const buttons = Array.isArray(t.buttons) ? t.buttons : []
+  const isLocked = t.source === 'meta_library' || (t.status === 'approved' && t.source !== 'tenant')
+
+  return (
+    <div style={{ background: '#fff', borderRadius: 12, border: '0.5px solid #dcd8d0', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ padding: '14px 16px', borderBottom: '0.5px solid #f5f3ef', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: '#14130f', marginBottom: 5, fontFamily: 'monospace' }}>{t.name}</div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 6, background: ss.bg, color: ss.color, fontWeight: 600 }}>{ss.label}</span>
+            <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 6, background: '#f5f3ef', color: '#6e6a63', textTransform: 'capitalize' }}>{t.category}</span>
+            {buttons.length > 0 && (
+              <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 6, background: '#ede9fe', color: '#5b21b6' }}>
+                {buttons.length} button{buttons.length !== 1 ? 's' : ''}
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+      <div style={{ padding: '12px 16px', flex: 1 }}>
+        <div style={{ fontSize: 12, color: '#4a4742', lineHeight: 1.6, maxHeight: 100, overflow: 'hidden' }}>
+          {t.body?.slice(0, 200)}{t.body?.length > 200 ? '…' : ''}
+        </div>
+      </div>
+      {buttons.length > 0 && (
+        <div style={{ padding: '0 16px 10px' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+            {buttons.map((b, i) => (
+              <span key={i} style={{ fontSize: 10, padding: '3px 9px', borderRadius: 6, background: '#f0fdf4', color: '#16a34a', border: '0.5px solid #86efac', fontWeight: 500 }}>
+                {b.type === 'quick_reply' ? '↩ ' : '↗ '}{b.label || b.text}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+      <div style={{ padding: '10px 16px', borderTop: '0.5px solid #f5f3ef', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        <Btn variant="ghost" size="sm" onClick={() => onPreview(t)}>Preview</Btn>
+        {canCreate && !isLocked && (
+          <Btn variant="ghost" size="sm" onClick={() => onEdit(t)}>Edit</Btn>
+        )}
+        {canApprove && t.status === 'pending' && (
+          <>
+            <Btn variant="success" size="sm" onClick={() => onApprove(t.id)}>✓ Approve</Btn>
+            <Btn variant="danger" size="sm" onClick={() => onReject(t.id)}>✗ Reject</Btn>
+          </>
+        )}
+        {canCreate && (
+          <Btn variant="danger" size="sm" onClick={() => onDelete(t.id)} style={{ marginLeft: 'auto' }}>Delete</Btn>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// Renders one source section with header, caption, count, and either cards or empty state.
+function SourceSection({ section, templates, canCreate, canApprove, handlers }) {
+  const count = templates.length
+  return (
+    <div style={{ marginBottom: 28 }}>
+      <div style={{
+        display: 'flex', alignItems: 'baseline', gap: 12,
+        paddingBottom: 8, marginBottom: 12,
+        borderBottom: `1px solid #dcd8d0`
+      }}>
+        <div style={{
+          fontSize: 11, fontWeight: 700, color: section.accentColor,
+          textTransform: 'uppercase', letterSpacing: '0.8px',
+          background: section.accentBg, padding: '3px 10px', borderRadius: 6
+        }}>
+          {section.label}
+        </div>
+        <div style={{ fontSize: 12, color: '#9a958c' }}>{count} {count === 1 ? 'template' : 'templates'}</div>
+        <div style={{ flex: 1, fontSize: 11, color: '#6e6a63', textAlign: 'right' }}>{section.caption}</div>
+      </div>
+
+      {count === 0 ? (
+        <div style={{
+          padding: '24px 20px', textAlign: 'center',
+          background: '#faf9f7', borderRadius: 10, border: '0.5px dashed #dcd8d0',
+          fontSize: 12, color: '#9a958c'
+        }}>
+          {section.emptyHint}
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: 14 }}>
+          {templates.map(t => (
+            <TemplateCard
+              key={t.id}
+              t={t}
+              canCreate={canCreate}
+              canApprove={canApprove}
+              {...handlers}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function Templates() {
   const { token, user, hasPermission } = useAuth()
   const [templates, setTemplates] = useState([])
@@ -259,11 +409,19 @@ export default function Templates() {
     load()
   }
 
+  // Filter all templates by tab + search first; sectioning happens after.
   const filtered = templates.filter(t => {
     const matchTab = activeTab === 'all' || t.status === activeTab
     const matchSearch = !search || t.name?.toLowerCase().includes(search.toLowerCase()) || t.body?.toLowerCase().includes(search.toLowerCase())
     return matchTab && matchSearch
   })
+
+  // Group filtered templates by source. A template with no source defaults to 'tenant'.
+  const grouped = {
+    meta_library: filtered.filter(t => t.source === 'meta_library'),
+    tel_cloud_library: filtered.filter(t => t.source === 'tel_cloud_library'),
+    tenant: filtered.filter(t => !t.source || t.source === 'tenant')
+  }
 
   const counts = {
     all: templates.length,
@@ -275,6 +433,14 @@ export default function Templates() {
 
   const canApprove = user?.role === 'director'
   const canCreate = hasPermission('manage_templates')
+
+  const cardHandlers = {
+    onPreview: setPreviewTemplate,
+    onEdit: (t) => { setEditingTemplate(t); setShowEditor(true) },
+    onDelete: deleteTemplate,
+    onApprove: approveTemplate,
+    onReject: rejectTemplate,
+  }
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#f5f3ef' }}>
@@ -306,7 +472,7 @@ export default function Templates() {
                 Suggested
               </Btn>
               <Btn onClick={() => { setEditingTemplate(null); setShowEditor(true) }}>
-                + New Template
+                + Custom Template
               </Btn>
             </div>
           )}
@@ -354,78 +520,17 @@ export default function Templates() {
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#9a958c" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: 12 }}><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8"/><path d="M8 11h8"/><path d="M8 15h5"/></svg>
             <div>Loading templates…</div>
           </div>
-        ) : filtered.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '60px 20px' }}>
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#9a958c" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: 16 }}><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8"/><path d="M8 11h8"/><path d="M8 15h5"/></svg>
-            <div style={{ fontSize: 15, fontWeight: 600, color: '#4a4742', marginBottom: 6 }}>No templates found</div>
-            <div style={{ fontSize: 13, color: '#9a958c', marginBottom: 24 }}>
-              {activeTab === 'all' ? 'Create your first WhatsApp template to get started.' : `No ${activeTab} templates.`}
-            </div>
-            {canCreate && activeTab === 'all' && (
-              <Btn onClick={() => { setEditingTemplate(null); setShowEditor(true) }}>+ Create First Template</Btn>
-            )}
-          </div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: 14 }}>
-            {filtered.map(t => {
-              const ss = STATUS_STYLES[t.status] || STATUS_STYLES.draft
-              const sourceBadge = SOURCE_BADGES[t.source] || null
-              const buttons = Array.isArray(t.buttons) ? t.buttons : []
-              const isLocked = t.source === 'meta_library' || (t.status === 'approved' && t.source !== 'tenant')
-              return (
-                <div key={t.id} style={{ background: '#fff', borderRadius: 12, border: '0.5px solid #dcd8d0', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                  <div style={{ padding: '14px 16px', borderBottom: '0.5px solid #f5f3ef', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: '#14130f', marginBottom: 5, fontFamily: 'monospace' }}>{t.name}</div>
-                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                        <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 6, background: ss.bg, color: ss.color, fontWeight: 600 }}>{ss.label}</span>
-                        <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 6, background: '#f5f3ef', color: '#6e6a63', textTransform: 'capitalize' }}>{t.category}</span>
-                        {sourceBadge && (
-                          <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 6, background: sourceBadge.bg, color: sourceBadge.color, fontWeight: 600 }}>{sourceBadge.label}</span>
-                        )}
-                        {buttons.length > 0 && (
-                          <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 6, background: '#ede9fe', color: '#5b21b6' }}>
-                            {buttons.length} button{buttons.length !== 1 ? 's' : ''}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  <div style={{ padding: '12px 16px', flex: 1 }}>
-                    <div style={{ fontSize: 12, color: '#4a4742', lineHeight: 1.6, maxHeight: 100, overflow: 'hidden' }}>
-                      {t.body?.slice(0, 200)}{t.body?.length > 200 ? '…' : ''}
-                    </div>
-                  </div>
-                  {buttons.length > 0 && (
-                    <div style={{ padding: '0 16px 10px' }}>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-                        {buttons.map((b, i) => (
-                          <span key={i} style={{ fontSize: 10, padding: '3px 9px', borderRadius: 6, background: '#f0fdf4', color: '#16a34a', border: '0.5px solid #86efac', fontWeight: 500 }}>
-                            {b.type === 'quick_reply' ? '↩ ' : '↗ '}{b.label || b.text}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  <div style={{ padding: '10px 16px', borderTop: '0.5px solid #f5f3ef', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                    <Btn variant="ghost" size="sm" onClick={() => setPreviewTemplate(t)}>Preview</Btn>
-                    {canCreate && !isLocked && (
-                      <Btn variant="ghost" size="sm" onClick={() => { setEditingTemplate(t); setShowEditor(true) }}>Edit</Btn>
-                    )}
-                    {canApprove && t.status === 'pending' && (
-                      <>
-                        <Btn variant="success" size="sm" onClick={() => approveTemplate(t.id)}>✓ Approve</Btn>
-                        <Btn variant="danger" size="sm" onClick={() => rejectTemplate(t.id)}>✗ Reject</Btn>
-                      </>
-                    )}
-                    {canCreate && (
-                      <Btn variant="danger" size="sm" onClick={() => deleteTemplate(t.id)} style={{ marginLeft: 'auto' }}>Delete</Btn>
-                    )}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
+          SECTIONS.map(section => (
+            <SourceSection
+              key={section.key}
+              section={section}
+              templates={grouped[section.key]}
+              canCreate={canCreate}
+              canApprove={canApprove}
+              handlers={cardHandlers}
+            />
+          ))
         )}
       </div>
 

@@ -301,3 +301,204 @@ test message.
 ---
 
 End of roadmap.
+
+---
+
+## Internal Architecture - SaaS Multi-Tenant Foundation
+
+Added: 30 Apr 2026
+Context: Decisions made during Template Library build, before
+proceeding with Meta submission flow.
+
+This section captures the platform's internal architecture decisions
+that run in parallel with the Tech Provider phases above. The Tech
+Provider work is about Meta-facing approvals; this work is about
+making Tel-Cloud itself a real multi-tenant SaaS rather than a
+single-tenant app dressed up as one.
+
+---
+
+### Architectural decisions
+
+1. **Master / Copy pattern (Pattern A).**
+   Configuration items the platform owns (templates, quick replies,
+   labels, role permissions) live in platform-level master tables.
+   When a tenant signs up, copies are seeded into their workspace
+   tables. Tenants can customise or delete their copies; the master
+   stays clean. Eque is treated as a tenant, not a master.
+
+2. **Eque demoted to normal tenant.**
+   Eque was the prototype workspace used to design the tenant UX.
+   Inspection on 30 Apr 2026 confirmed Eque contains only platform
+   defaults (3 standard teams, 7 standard business hours, 5 standard
+   role permissions) plus 5 phone_numbers and 3 projects which are
+   Eque-specific customer data. Eque has zero customer-facing data
+   (contacts, conversations, candidates) at this point, making the
+   demotion safe and PDPA-clean.
+
+3. **All future curation happens at the platform level.**
+   From 30 Apr 2026 onwards, no new templates, quick replies, or
+   labels are added inside Eque's workspace. New content is added
+   to the master libraries via the super admin UI (to be built),
+   then auto-pushed to all tenants including Eque.
+
+4. **Approved templates are immutable.**
+   Once a tenant submits a template to Meta and Meta approves it,
+   the body, header, footer, and buttons of that template become
+   read-only. The tenant must clone-and-resubmit to make changes.
+   Required by Meta policy: sending content under an approved
+   template name that differs from what was approved is a violation.
+
+5. **Super admin can view/operate inside any tenant workspace.**
+   With explicit guardrails: every action is audit-logged with the
+   super admin's identity (not the impersonated tenant user), and
+   tenants must agree in ToS that platform operators may access
+   their workspace for support purposes. PDPA compliance requires
+   that tenant data is never copied into another tenant's workspace,
+   even temporarily.
+
+---
+
+### Starter pack contents
+
+What gets seeded into a new tenant's workspace on signup:
+
+**Configuration (copied from platform masters):**
+- All active rows from `template_library` -> `templates` (status: draft)
+- All active rows from `quick_reply_library` -> `quick_replies` (TBD: needs creation)
+- All active rows from `label_library` -> `labels` (TBD: needs creation)
+- 5 default rows in `role_permissions` (existing logic, kept)
+- 7 default rows in `business_hours` (existing logic, kept)
+- 3 default rows in `teams` (existing logic, kept)
+- 1 default row in `routing_rules` (existing logic, kept)
+- 1 default row in `security_settings` (existing logic, kept)
+
+**Customer data (never seeded, always tenant-owned):**
+- contacts, conversations, messages, scheduled_messages
+- projects, project_members
+- job_orders, job_applications, placements
+- pdpa_records, calendar_events
+- audit_log, notifications
+- phone_numbers (always tenant's own real numbers)
+- users (always tenant's own staff)
+
+---
+
+### Internal phases (parallel to Tech Provider phases)
+
+#### Phase I1 - Starter pack capture and auto-seed (Week 1)
+- [ ] Create `quick_reply_library` master table
+- [ ] Create `label_library` master table
+- [ ] Curate initial content for both (mirror style of template_library)
+- [ ] Modify `POST /admin/workspaces` to copy from all 3 masters
+      into new tenant on signup
+- [ ] Reseed Eque from masters (since Eque was created before this)
+- [ ] Verify Eque now has 12 starter templates as drafts
+
+#### Phase I2 - Approved template locking (Week 2)
+- [ ] Add status check to `PATCH /templates/:id`: reject any body/
+      header/footer/buttons edit if status='approved'
+- [ ] TemplateEditor UI: disable edit fields when status='approved'
+- [ ] Replace Save button with "Clone for re-approval" when status
+      is approved
+- [ ] Add audit log entry for any approved-template edit attempts
+      (security signal)
+
+#### Phase I3 - Super admin library management UI (Week 3)
+- [ ] Platform Admin > Master Libraries page
+- [ ] CRUD for template_library, quick_reply_library, label_library
+- [ ] Visual diff: "X tenants have a draft copy of this; Y tenants
+      have an approved copy you can't change"
+- [ ] Replace migration-script workflow for adding library content
+
+#### Phase I4 - Super admin tenant view + PDPA controls (Week 4)
+- [ ] "Enter workspace" button next to each tenant in Platform Admin
+- [ ] JWT claim `acting_workspace_id` to override default workspace
+- [ ] Banner in tenant UI when super admin is operating: "Platform
+      Admin viewing this workspace - all actions logged"
+- [ ] Audit log entries clearly attribute super admin identity
+- [ ] Add ToS clause permitting platform operator access for support
+- [ ] Add tenant-facing audit log of when platform staff entered
+      their workspace (PDPA transparency)
+
+#### Phase I5 - Meta submission flow (Week 5)
+- [ ] `POST /templates/:id/submit-to-meta` endpoint
+- [ ] Webhook listener for `message_template_status_update`
+- [ ] "Submit to Meta" button in TemplateEditor when status=draft
+- [ ] Status transitions: draft -> pending -> approved/rejected
+- [ ] Rejection reason displayed to tenant with Meta's feedback
+
+---
+
+### Authentication enhancements (separate workstream)
+
+These are independent of the Tech Provider path but needed before
+broad customer launch.
+
+#### Phase A1 - Google OAuth login
+- [ ] Google Cloud project + OAuth consent screen for Tel-Cloud
+- [ ] `/auth/google` endpoints (initiate, callback)
+- [ ] Link Google identities to existing tenant users by email match
+- [ ] Per-workspace setting: require Google login / allow password
+- [ ] "Sign in with Google" button on login page
+- [ ] Test that existing password users aren't locked out
+
+#### Phase A2 - Verification codes
+Scope to be defined before building. Possibilities:
+- Email verification on signup (recommended for new tenants)
+- 2FA via authenticator app (recommended for super admin)
+- 2FA via email code (alternative for tenant users)
+- Password reset codes (must-have)
+
+Decision needed: which subset to ship first, and via what channel
+(email via Google Workspace SMTP? SendGrid? Postmark?)
+
+---
+
+### PDPA compliance principles
+
+These rules apply to every architectural decision going forward:
+
+1. **No cross-tenant data ever.** A tenant's customer data
+   (contacts, conversations, messages, candidates) cannot be visible
+   to or accessible by any other tenant under any circumstance.
+
+2. **Super admin access is logged and disclosed.** When platform
+   staff enter a tenant workspace, the action is audit-logged on
+   both sides (platform audit log AND tenant-visible audit feed).
+   Tenants can see when their data was accessed by platform staff.
+
+3. **Master library content is non-personal.** Templates in the
+   master library use placeholder variables, not real names, real
+   phone numbers, or real client identifiers. This is enforced by
+   review before any item is added to a master library.
+
+4. **Starter pack copies have no inherited customer data.** Even
+   if the master library somehow contained a real name (it
+   shouldn't), the auto-seed process only copies template structure
+   to new tenants. No contacts, no message history, no PII.
+
+5. **Right to erasure honoured at tenant level.** When a tenant
+   asks to delete a contact, that contact is hard-deleted from the
+   tenant's workspace. Master library is unaffected.
+
+---
+
+### Sequencing relative to Tech Provider phases
+
+These internal phases (I1-I5, A1-A2) can run in parallel with the
+external Tech Provider phases (1-5 above). However:
+
+- I1 (starter pack auto-seed) should complete before any second
+  tenant signs up, otherwise that tenant gets an empty starter pack.
+- I2 (approved template locking) must complete before I5 (Meta
+  submission), otherwise tenants could send modified content under
+  an approved template name and trigger Meta violations.
+- I4 (super admin tenant view) should complete before second tenant
+  signs up, otherwise support requests will be unworkable.
+- A1 (Google OAuth) can ship anytime after Phase 1 of the external
+  roadmap (after tel-cloud.sg domain and email are live).
+
+---
+
+End of internal architecture addendum.

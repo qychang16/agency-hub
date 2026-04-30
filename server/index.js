@@ -368,6 +368,7 @@ async function setupDatabase() {
     await runPlatformCleanupMigration()
     await runChunk5Migration()
     await runChunk5bMigration()
+    await runTemplateLibrarySeedsMigration()
   } catch (err) {
     await client.query('ROLLBACK')
     console.error('�?DB setup error:', err.message)
@@ -622,6 +623,177 @@ async function runChunk5bMigration() {
     }
   } catch (err) {
     console.error(`�?Migration ${MIGRATION_ID} FAILED:`, err.message)
+    throw err
+  }
+}
+
+// ─── CHUNK 6: Template Library Seeds ────────────────────────────────────────
+async function runTemplateLibrarySeedsMigration() {
+  const MIGRATION_ID = 'template_library_seeds_v1'
+  try {
+    const applied = await pool.query('SELECT id FROM _migrations WHERE id=$1', [MIGRATION_ID])
+    if (applied.rows.length > 0) {
+      console.log(`Migration ${MIGRATION_ID} already applied, skipping`)
+      return
+    }
+    console.log(`Running migration ${MIGRATION_ID}...`)
+
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+
+      const templates = [
+        // GENERAL (6)
+        { category: 'application', industry: 'general', template_key: 'application_received',
+          display_name: 'Application Received',
+          description: 'Auto-acknowledgement when a candidate submits an application.',
+          header: 'Application Received',
+          body: 'Hi {{1}}, thank you for applying for the {{2}} position at {{3}}. We have received your application and our team will review it within {{4}} working days. We will be in touch shortly.',
+          footer: 'Sent by {{3}} via Tel-Cloud',
+          buttons: [],
+          variables: { '1': 'candidate_name', '2': 'job_title', '3': 'company_name', '4': 'review_days' },
+          is_featured: true },
+
+        { category: 'interview', industry: 'general', template_key: 'interview_invitation',
+          display_name: 'Interview Invitation',
+          description: 'Invite a shortlisted candidate to an interview with date, time, and location.',
+          header: 'Interview Invitation',
+          body: 'Hi {{1}}, you have been shortlisted for the {{2}} role at {{3}}. We would like to invite you for an interview on {{4}} at {{5}}. Location: {{6}}. Please confirm your attendance by replying YES.',
+          footer: 'Reply STOP to opt out',
+          buttons: [{ type: 'QUICK_REPLY', text: 'Confirm' }, { type: 'QUICK_REPLY', text: 'Reschedule' }],
+          variables: { '1': 'candidate_name', '2': 'job_title', '3': 'company_name', '4': 'interview_date', '5': 'interview_time', '6': 'location' },
+          is_featured: true },
+
+        { category: 'interview', industry: 'general', template_key: 'interview_reminder',
+          display_name: 'Interview Reminder',
+          description: 'Sent 24 hours before a scheduled interview.',
+          header: 'Reminder: Interview Tomorrow',
+          body: 'Hi {{1}}, this is a friendly reminder of your interview for the {{2}} role tomorrow, {{3}} at {{4}}. Location: {{5}}. Please bring a copy of your NRIC and resume. See you soon.',
+          footer: null,
+          buttons: [],
+          variables: { '1': 'candidate_name', '2': 'job_title', '3': 'interview_date', '4': 'interview_time', '5': 'location' },
+          is_featured: false },
+
+        { category: 'interview', industry: 'general', template_key: 'interview_reschedule',
+          display_name: 'Interview Reschedule',
+          description: 'Notify candidate that an interview has been moved to a new slot.',
+          header: 'Interview Rescheduled',
+          body: 'Hi {{1}}, we need to reschedule your interview for the {{2}} role. The new date is {{3}} at {{4}}. Location remains {{5}}. Please reply YES to confirm or contact us if this does not work for you.',
+          footer: null,
+          buttons: [{ type: 'QUICK_REPLY', text: 'Confirm new slot' }, { type: 'QUICK_REPLY', text: 'Suggest another time' }],
+          variables: { '1': 'candidate_name', '2': 'job_title', '3': 'new_date', '4': 'new_time', '5': 'location' },
+          is_featured: false },
+
+        { category: 'offer', industry: 'general', template_key: 'offer_letter',
+          display_name: 'Offer Letter Notification',
+          description: 'Notify a candidate that an offer letter has been issued.',
+          header: 'Congratulations',
+          body: 'Hi {{1}}, congratulations. We are pleased to offer you the position of {{2}} at {{3}}, with a start date of {{4}}. Your offer letter has been sent to {{5}}. Please review and respond by {{6}}.',
+          footer: 'Sent by {{3}} via Tel-Cloud',
+          buttons: [{ type: 'QUICK_REPLY', text: 'Accept' }, { type: 'QUICK_REPLY', text: 'I have questions' }],
+          variables: { '1': 'candidate_name', '2': 'job_title', '3': 'company_name', '4': 'start_date', '5': 'email', '6': 'response_deadline' },
+          is_featured: true },
+
+        { category: 'onboarding', industry: 'general', template_key: 'document_request',
+          display_name: 'Document Submission Request',
+          description: 'Request onboarding documents from a successful candidate.',
+          header: 'Documents Required',
+          body: 'Hi {{1}}, to proceed with your onboarding for the {{2}} role, please send us the following: {{3}}. Kindly submit them by {{4}}. You can reply directly to this message with the files attached.',
+          footer: null,
+          buttons: [],
+          variables: { '1': 'candidate_name', '2': 'job_title', '3': 'document_list', '4': 'submission_deadline' },
+          is_featured: false },
+
+        // EQUE-FLAVOURED (6)
+        { category: 'compliance', industry: 'security_fnb_cleaning', template_key: 'security_license_check',
+          display_name: 'Security License Verification',
+          description: 'Request PLRD security license details from a security officer applicant.',
+          header: 'License Verification',
+          body: 'Hi {{1}}, thank you for applying for the Security Officer role with {{2}}. Please reply with: (1) your PLRD license number, (2) license grade, and (3) expiry date. We need this to proceed with your application.',
+          footer: 'Required by MOM and PLRD regulations',
+          buttons: [],
+          variables: { '1': 'candidate_name', '2': 'company_name' },
+          is_featured: true },
+
+        { category: 'shift_assignment', industry: 'security_fnb_cleaning', template_key: 'cleaning_shift_offer',
+          display_name: 'Cleaning Shift Offer',
+          description: 'Offer a cleaning shift to a registered cleaner with site, hours, and pay rate.',
+          header: 'Shift Available',
+          body: 'Hi {{1}}, a cleaning shift is available: {{2}} on {{3}}, {{4}} to {{5}}. Pay: ${{6}}/hour. Reply YES to accept or NO to decline within 30 minutes.',
+          footer: null,
+          buttons: [{ type: 'QUICK_REPLY', text: 'Accept shift' }, { type: 'QUICK_REPLY', text: 'Decline' }],
+          variables: { '1': 'candidate_name', '2': 'site_address', '3': 'shift_date', '4': 'start_time', '5': 'end_time', '6': 'hourly_rate' },
+          is_featured: true },
+
+        { category: 'trial', industry: 'security_fnb_cleaning', template_key: 'fnb_trial_shift',
+          display_name: 'F&B Trial Shift Invitation',
+          description: 'Invite an F&B candidate to a paid trial shift before formal hiring.',
+          header: 'Trial Shift Confirmed',
+          body: 'Hi {{1}}, your trial shift at {{2}} is confirmed for {{3}} from {{4}} to {{5}}. Dress code: black top, black pants, covered shoes. Report to {{6}} on arrival. Trial pay: ${{7}}.',
+          footer: null,
+          buttons: [],
+          variables: { '1': 'candidate_name', '2': 'outlet_name', '3': 'trial_date', '4': 'start_time', '5': 'end_time', '6': 'manager_name', '7': 'trial_pay' },
+          is_featured: false },
+
+        { category: 'onboarding', industry: 'security_fnb_cleaning', template_key: 'uniform_collection',
+          display_name: 'Uniform Collection Notice',
+          description: 'Inform a new hire when and where to collect their uniform.',
+          header: 'Uniform Collection',
+          body: 'Hi {{1}}, please collect your uniform from our office at {{2}} on {{3}} between {{4}} and {{5}}. Bring your IC for verification. Sizes available: S, M, L, XL.',
+          footer: null,
+          buttons: [],
+          variables: { '1': 'candidate_name', '2': 'office_address', '3': 'collection_date', '4': 'start_time', '5': 'end_time' },
+          is_featured: false },
+
+        { category: 'onboarding', industry: 'security_fnb_cleaning', template_key: 'first_day_reporting',
+          display_name: 'First Day Reporting Instructions',
+          description: 'Send first-day reporting details: time, address, supervisor, and what to bring.',
+          header: 'Welcome to the Team',
+          body: 'Hi {{1}}, welcome aboard. Your first day is {{2}}. Report to {{3}} at {{4}} by {{5}}. Bring your IC, bank details, and the uniform issued. Your supervisor on site is {{6}} ({{7}}).',
+          footer: 'See you on site',
+          buttons: [],
+          variables: { '1': 'candidate_name', '2': 'start_date', '3': 'site_name', '4': 'site_address', '5': 'report_time', '6': 'supervisor_name', '7': 'supervisor_phone' },
+          is_featured: true },
+
+        { category: 'onboarding', industry: 'security_fnb_cleaning', template_key: 'payroll_setup_request',
+          display_name: 'Payroll and Bank Details Request',
+          description: 'Collect bank account details for payroll setup before first payday.',
+          header: 'Payroll Setup',
+          body: 'Hi {{1}}, to set up your payroll, please reply with: (1) full name as per bank, (2) bank name, (3) account number. Salary will be credited on the {{2}} of each month. All details are kept confidential.',
+          footer: 'Compliant with PDPA Singapore',
+          buttons: [],
+          variables: { '1': 'candidate_name', '2': 'payroll_day' },
+          is_featured: false }
+      ]
+
+      let inserted = 0
+      for (const t of templates) {
+        const r = await client.query(
+          `INSERT INTO template_library
+             (category, industry, template_key, display_name, description,
+              header, body, footer, buttons, variables, is_active, is_featured)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,true,$11)
+           ON CONFLICT (template_key) DO NOTHING`,
+          [t.category, t.industry, t.template_key, t.display_name, t.description,
+           t.header, t.body, t.footer,
+           JSON.stringify(t.buttons), JSON.stringify(t.variables),
+           t.is_featured]
+        )
+        if (r.rowCount > 0) inserted++
+      }
+      console.log(`   inserted ${inserted} of ${templates.length} library templates`)
+
+      await client.query(`INSERT INTO _migrations (id) VALUES ($1)`, [MIGRATION_ID])
+      await client.query('COMMIT')
+      console.log(`Migration ${MIGRATION_ID} complete`)
+    } catch (err) {
+      await client.query('ROLLBACK')
+      throw err
+    } finally {
+      client.release()
+    }
+  } catch (err) {
+    console.error(`Migration ${MIGRATION_ID} FAILED:`, err.message)
     throw err
   }
 }
@@ -1435,6 +1607,59 @@ app.delete('/templates/:id', auth, requirePermission('manage_templates'), async 
     await pool.query('DELETE FROM templates WHERE id=$1 AND workspace_id=$2', [req.params.id, wsId])
     res.json({ success: true })
   } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+// ─── TEMPLATE LIBRARY (read-only catalog of pre-built starter templates) ──
+app.get('/template-library', auth, async (req, res) => {
+  try {
+    const { category, industry, featured } = req.query
+    const conditions = ['is_active = true']
+    const params = []
+    if (category) { params.push(category); conditions.push(`category = $${params.length}`) }
+    if (industry) { params.push(industry); conditions.push(`industry = $${params.length}`) }
+    if (featured === 'true') { conditions.push('is_featured = true') }
+    const sql = `SELECT id, category, industry, template_key, display_name, description,
+                        header, body, footer, buttons, variables, is_featured, created_at
+                 FROM template_library
+                 WHERE ${conditions.join(' AND ')}
+                 ORDER BY is_featured DESC, category ASC, display_name ASC`
+    const r = await pool.query(sql, params)
+    res.json({ count: r.rowCount, templates: r.rows })
+  } catch (err) {
+    console.error('GET /template-library error:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+app.get('/template-library/meta/categories', auth, async (req, res) => {
+  try {
+    const cats = await pool.query(`SELECT DISTINCT category FROM template_library WHERE is_active=true ORDER BY category`)
+    const inds = await pool.query(`SELECT DISTINCT industry FROM template_library WHERE is_active=true ORDER BY industry`)
+    res.json({
+      categories: cats.rows.map(r => r.category),
+      industries: inds.rows.map(r => r.industry)
+    })
+  } catch (err) {
+    console.error('GET /template-library/meta/categories error:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+app.get('/template-library/:template_key', auth, async (req, res) => {
+  try {
+    const r = await pool.query(
+      `SELECT id, category, industry, template_key, display_name, description,
+              header, body, footer, buttons, variables, is_featured, created_at
+       FROM template_library
+       WHERE template_key=$1 AND is_active=true`,
+      [req.params.template_key]
+    )
+    if (!r.rows.length) return res.status(404).json({ error: 'Template not found' })
+    res.json(r.rows[0])
+  } catch (err) {
+    console.error('GET /template-library/:template_key error:', err)
+    res.status(500).json({ error: err.message })
+  }
 })
 
 // ─── SCHEDULED MESSAGES ────────────────────────────────────────────────────────

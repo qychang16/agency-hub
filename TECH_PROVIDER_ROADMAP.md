@@ -502,3 +502,243 @@ external Tech Provider phases (1-5 above). However:
 ---
 
 End of internal architecture addendum.
+
+---
+
+## Internal Architecture v2 - Three Surfaces Model
+
+Added: 30 Apr 2026
+Status: Supersedes the v1 addendum above for any conflicting details.
+The v1 addendum stays in place as historical record of decisions made.
+
+This section captures the architectural overhaul made after we
+researched Meta's WhatsApp Cloud API capabilities directly and
+realised the earlier "auto-submit at signup" plan was based on an
+incomplete understanding of what Meta allows.
+
+---
+
+### Key insight from Meta documentation
+
+Meta's official Template Library is exposed programmatically via:
+
+- `GET /message_template_library` - browse Meta's catalogue
+- `POST /<WABAID>/message_templates` with `library_template_name`
+  field - create from library on a specific WABA, returns
+  status: APPROVED immediately, no 24-hour wait
+
+This means there are TWO distinct fast-approval paths for templates:
+
+1. Meta's own library (instant approval, but Meta-curated content)
+2. Custom templates (tenant submits and waits 24h on their WABA)
+
+Meta's library is currently limited to UTILITY and AUTHENTICATION
+categories. Available industries: E_COMMERCE, FINANCIAL_SERVICES.
+No recruitment-specific templates exist in Meta's library and Tel-
+Cloud cannot contribute to Meta's library (it is Meta-curated, not
+user-extensible).
+
+This means Tel-Cloud's value is the recruitment-vertical content
+gap: 34 curated templates covering interview, offer, placement,
+client coordination - which Meta's library does not address.
+
+---
+
+### The three-surfaces model
+
+Every tenant's Templates page exposes three distinct content sources:
+
+#### Surface 1: Meta Library (powered by Meta's API)
+
+- Live data, fetched on-demand from `GET /message_template_library`
+- Displayed in a dedicated UI section labelled "Meta Library"
+- Filter by topic, use case, industry, language
+- Tenant clicks "Add to my workspace" -> Tel-Cloud calls
+  `POST /<tenant-WABA>/message_templates` with library_template_name
+- Meta returns status APPROVED immediately
+- Template appears in tenant's templates list with source='meta_library'
+- Body is fixed (Meta-locked); only buttons and certain parameters
+  customisable per Meta's allowed inputs (add_contact_number,
+  add_security_recommendation, code_expiration_minutes, etc.)
+- Practical use: utility templates (payment confirmations, delivery
+  updates, account verification) that recruitment agencies might
+  send alongside their recruitment communications
+
+#### Surface 2: Tel-Cloud Suggested Templates (master library)
+
+- Stored in Tel-Cloud's `template_library` table (already exists with
+  34 templates)
+- Curated by Tel-Cloud super admin, recruitment-vertical content
+- Tenant clicks "Use this template" -> copies into tenant's
+  `templates` table with source='tel_cloud_library', status='draft'
+- Tenant edits if needed (Meta requires content match approved version,
+  so editing post-approval is forbidden but pre-submission is fine)
+- Tenant clicks "Submit to Meta" -> Tel-Cloud calls
+  `POST /<tenant-WABA>/message_templates` with custom body
+- Standard 24-hour Meta approval applies (per tenant's own WABA)
+- Once approved, locked from edits (compliance with Meta policy)
+- Practical use: the recruitment-specific templates we've drafted
+  (interview invitation, offer letter, placement confirmation, etc.)
+
+#### Surface 3: My Templates (tenant-owned)
+
+- Stored in tenant's `templates` table with source='tenant'
+- Tenant drafts entirely from scratch
+- Same submit-to-Meta flow as Surface 2
+- Standard 24-hour approval, locked once approved
+- Practical use: tenant-specific custom wording, brand voice
+  variations, edge cases not covered by Tel-Cloud's library
+
+---
+
+### Schema changes required
+
+Add to `templates` table:
+
+- `source VARCHAR(20) NOT NULL DEFAULT 'tenant'`
+  Values: 'meta_library' | 'tel_cloud_library' | 'tenant'
+
+- `library_template_name VARCHAR(100)`
+  For source='meta_library': Meta's library_template_name string
+  For source='tel_cloud_library': references template_library.template_key
+
+- `meta_template_id VARCHAR(255)`
+  Already exists. Stores Meta's returned template ID after submission.
+
+- `submitted_at TIMESTAMP`
+  When the tenant submitted to Meta.
+
+- `approved_at TIMESTAMP`
+  Already exists.
+
+- `meta_status VARCHAR(20)`
+  Mirrors Meta's status: APPROVED | PENDING | REJECTED | PAUSED |
+  DISABLED. Updated via webhook.
+
+Add `template_library` already has audience VARCHAR(20) from earlier
+work. No further changes needed.
+
+---
+
+### Reset before phase work begins
+
+Eque's `templates` table currently has 34 rows from the v1 auto-seed
+that we now realise was premature (it copied templates as drafts
+without a path to submission). These need to be wiped before
+implementing the new model:
+
+- Delete all rows from Eque's templates table where source IS NULL
+  or source='tel_cloud_library' AND status='draft' (the auto-seeded
+  ones). This restores Eque to a clean tenant state.
+- The `template_library` master with 34 rows stays untouched.
+- After wipe, Eque will browse Tel-Cloud Suggested via UI like any
+  other tenant and explicitly choose which templates to copy in.
+
+This wipe runs as a new migration: chunk_8_template_reset_v1.
+
+---
+
+### Internal phases (revised, supersedes v1's I1-I5)
+
+#### Phase II1 - Reset and schema prep
+- [ ] Wipe Eque's auto-seeded templates (chunk_8_template_reset_v1)
+- [ ] Add `source`, `library_template_name`, `submitted_at`,
+      `meta_status` columns to `templates` table
+- [ ] Update existing endpoints to populate `source='tenant'` for
+      backward compatibility on any new template created
+
+#### Phase II2 - Meta Library integration (Surface 1)
+- [ ] Backend: `GET /api/meta-library` proxy to
+      `GET /message_template_library` with filter passthrough
+- [ ] Backend: `POST /api/meta-library/install` calls
+      `POST /<WABAID>/message_templates` with library_template_name
+- [ ] Frontend: "Meta Library" tab/button on Templates page
+- [ ] Frontend: Filter UI matching Meta's topic/usecase/industry
+- [ ] Frontend: Preview pane shows Meta library template details
+- [ ] On install: row created in `templates` with source='meta_library',
+      status='approved', meta_template_id populated
+- [ ] Cache Meta library results per language for 24h to reduce API
+      load
+
+#### Phase II3 - Tel-Cloud Suggested submit-to-Meta flow (Surface 2)
+- [ ] Backend: `POST /api/templates/:id/submit-to-meta` endpoint
+- [ ] Calls `POST /<tenant-WABA>/message_templates` with custom body
+- [ ] Stores meta_template_id and updates status to 'pending'
+- [ ] Webhook listener for `message_template_status_update` and
+      `message_template_components_update`
+- [ ] On webhook: update meta_status, status, approved_at, etc.
+- [ ] Frontend: "Submit to Meta" button on draft templates from Tel-
+      Cloud Suggested
+- [ ] Frontend: pending/approved/rejected status badges
+- [ ] Frontend: rejection reason displayed with Meta's feedback
+
+#### Phase II4 - My Templates submit-to-Meta flow (Surface 3)
+- [ ] Same submit-to-Meta endpoint reused for source='tenant'
+- [ ] No additional UI work beyond what Phase II3 delivers - the
+      "Submit to Meta" button just appears for tenant-source drafts
+      too
+- [ ] Validate template body against Meta's content rules client-
+      side before submission to reduce rejection rate
+
+#### Phase II5 - Approved template locking
+- [ ] In `PATCH /templates/:id`: reject body/header/footer/buttons
+      edits if status='approved' (regardless of source)
+- [ ] Frontend: TemplateEditor disables edit fields when approved
+- [ ] Frontend: "Clone for re-approval" creates a new draft from an
+      approved template, leaving original intact
+- [ ] Audit log entries for any approved-template edit attempts
+
+#### Phase II6 - Templates page UI restructure
+- [ ] Single Templates page with three sections clearly labelled:
+      Meta Library, Tel-Cloud Suggested, My Templates
+- [ ] Visual differentiation per source (icon + colour)
+- [ ] Filter by status (draft, pending, approved, rejected)
+- [ ] Status badges using existing design tokens
+- [ ] Empty states per section with onboarding hints
+
+---
+
+### Phases dropped from v1 addendum
+
+The following from the v1 addendum are dropped or absorbed:
+
+- **I1 (auto-seed at signup)**: dropped. Replaced by tenants
+  explicitly browsing each surface and choosing what to install. No
+  surprises, tenant agency preserved.
+- **I3 (super admin library management UI)**: deferred. We can
+  manage `template_library` via migrations for now. Build a UI later
+  when content updates become frequent.
+- **I4 (super admin tenant view + PDPA controls)**: deferred to a
+  separate workstream. Not blocked by template work.
+- **I5 (Meta submission flow)**: replaced and expanded as Phases II3
+  and II4 above.
+
+---
+
+### Phase ordering and dependencies
+
+II1 must precede everything (schema prep is foundational).
+II2, II3, II4 can run in parallel after II1.
+II5 must precede tenants relying on approved-template locking; can
+ship before II3/II4 to harden the existing draft endpoints first.
+II6 ties it all together visually; ship last.
+
+Estimated total: 2-3 weeks for II1 through II6 if focused.
+Realistic: 4-5 weeks given other commitments and PDPA review.
+
+---
+
+### What this addendum does NOT cover
+
+Authentication enhancements (Google OAuth, verification codes,
+super admin tenant view) remain as separate workstreams from the v1
+addendum, untouched by this overhaul.
+
+The starter pack concept itself is dropped. Tenants no longer get
+auto-seeded content. Instead they browse the three surfaces on
+first login and install what they want. This is more honest about
+where content comes from and respects tenant agency.
+
+---
+
+End of v2 addendum. Implementation begins with Phase II1.

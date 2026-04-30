@@ -3,6 +3,13 @@ import { ink, accent, semantic, textSize, textWeight, microLabel, radius, border
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000'
 
+function prettify(value) {
+  if (!value) return ''
+  return value
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, c => c.toUpperCase())
+}
+
 function Btn({ onClick, children, variant = 'primary', size = 'md', disabled, style: extra }) {
   const sizes = { sm: { padding: '5px 10px', fontSize: 11 }, md: { padding: '8px 14px', fontSize: 12 } }
   const variants = {
@@ -22,9 +29,9 @@ function Btn({ onClick, children, variant = 'primary', size = 'md', disabled, st
 export default function TemplateLibraryModal({ isOpen, onClose, onSelect }) {
   const [templates, setTemplates] = useState([])
   const [categories, setCategories] = useState([])
-  const [industries, setIndustries] = useState([])
+  const [audiences, setAudiences] = useState([])
   const [activeCategory, setActiveCategory] = useState('all')
-  const [activeIndustry, setActiveIndustry] = useState('all')
+  const [activeAudience, setActiveAudience] = useState('all')
   const [search, setSearch] = useState('')
   const [selectedKey, setSelectedKey] = useState(null)
   const [loading, setLoading] = useState(false)
@@ -50,7 +57,7 @@ export default function TemplateLibraryModal({ isOpen, onClose, onSelect }) {
         if (cancelled) return
         setTemplates(listData.templates || [])
         setCategories(metaData.categories || [])
-        setIndustries(metaData.industries || [])
+        setAudiences(metaData.audiences || [])
         if (listData.templates && listData.templates.length > 0) {
           setSelectedKey(listData.templates[0].template_key)
         }
@@ -68,7 +75,7 @@ export default function TemplateLibraryModal({ isOpen, onClose, onSelect }) {
   const filtered = useMemo(() => {
     return templates.filter(t => {
       if (activeCategory !== 'all' && t.category !== activeCategory) return false
-      if (activeIndustry !== 'all' && t.industry !== activeIndustry) return false
+      if (activeAudience !== 'all' && t.audience !== activeAudience) return false
       if (search.trim()) {
         const q = search.toLowerCase()
         const hay = `${t.display_name} ${t.description} ${t.body}`.toLowerCase()
@@ -76,7 +83,7 @@ export default function TemplateLibraryModal({ isOpen, onClose, onSelect }) {
       }
       return true
     })
-  }, [templates, activeCategory, activeIndustry, search])
+  }, [templates, activeCategory, activeAudience, search])
 
   const selected = filtered.find(t => t.template_key === selectedKey)
     || templates.find(t => t.template_key === selectedKey)
@@ -162,11 +169,11 @@ export default function TemplateLibraryModal({ isOpen, onClose, onSelect }) {
           </div>
           <select value={activeCategory} onChange={(e) => setActiveCategory(e.target.value)} style={inputStyle}>
             <option value="all">All categories</option>
-            {categories.map(c => <option key={c} value={c}>{c}</option>)}
+            {categories.map(c => <option key={c} value={c}>{prettify(c)}</option>)}
           </select>
-          <select value={activeIndustry} onChange={(e) => setActiveIndustry(e.target.value)} style={inputStyle}>
-            <option value="all">All industries</option>
-            {industries.map(i => <option key={i} value={i}>{i}</option>)}
+          <select value={activeAudience} onChange={(e) => setActiveAudience(e.target.value)} style={inputStyle}>
+            <option value="all">All audiences</option>
+            {audiences.map(a => <option key={a} value={a}>{prettify(a)}</option>)}
           </select>
         </div>
 
@@ -205,7 +212,7 @@ export default function TemplateLibraryModal({ isOpen, onClose, onSelect }) {
                     )}
                   </div>
                   <div style={{ fontSize: textSize.xs, color: ink[600], marginTop: 3 }}>
-                    {t.category} <span style={{ color: ink[400] }}>{'\u00b7'}</span> {t.industry}
+                    {prettify(t.category)} <span style={{ color: ink[400] }}>{'\u00b7'}</span> {prettify(t.audience)}
                   </div>
                 </div>
               )
@@ -217,8 +224,8 @@ export default function TemplateLibraryModal({ isOpen, onClose, onSelect }) {
             {selected ? (
               <>
                 <div style={{ ...microLabel, marginBottom: 6 }}>
-                  {selected.category} <span style={{ color: ink[400] }}>{'\u00b7'}</span> {selected.industry}
-                </div>
+                    {prettify(selected.category)} <span style={{ color: ink[400] }}>{'\u00b7'}</span> {prettify(selected.audience)}
+                  </div>
                 <div style={{ fontSize: textSize.lg, fontWeight: textWeight.semibold, color: ink[800], marginBottom: 4 }}>
                   {selected.display_name}
                 </div>

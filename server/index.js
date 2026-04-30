@@ -369,6 +369,8 @@ async function setupDatabase() {
     await runChunk5Migration()
     await runChunk5bMigration()
     await runTemplateLibrarySeedsMigration()
+    await runTemplateLibraryV2Migration()
+    await runPhaseII1Migration()
   } catch (err) {
     await client.query('ROLLBACK')
     console.error('�?DB setup error:', err.message)
@@ -782,6 +784,510 @@ async function runTemplateLibrarySeedsMigration() {
         if (r.rowCount > 0) inserted++
       }
       console.log(`   inserted ${inserted} of ${templates.length} library templates`)
+
+      await client.query(`INSERT INTO _migrations (id) VALUES ($1)`, [MIGRATION_ID])
+      await client.query('COMMIT')
+      console.log(`Migration ${MIGRATION_ID} complete`)
+    } catch (err) {
+      await client.query('ROLLBACK')
+      throw err
+    } finally {
+      client.release()
+    }
+  } catch (err) {
+    console.error(`Migration ${MIGRATION_ID} FAILED:`, err.message)
+    throw err
+  }
+}
+
+// ─── CHUNK 7: Template Library v2 Overhaul ──────────────────────────────────
+// Replaces the v1 12 placeholder templates with 34 finalised templates
+// (18 candidate-side + 16 client-side). Adds 'audience' column, drops 'industry'.
+// Also reseeds Eque (workspace_id=2) since Eque currently has 0 templates.
+async function runTemplateLibraryV2Migration() {
+  const MIGRATION_ID = 'template_library_v2_overhaul'
+  try {
+    const applied = await pool.query('SELECT id FROM _migrations WHERE id=$1', [MIGRATION_ID])
+    if (applied.rows.length > 0) {
+      console.log(`Migration ${MIGRATION_ID} already applied, skipping`)
+      return
+    }
+    console.log(`Running migration ${MIGRATION_ID}...`)
+
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+
+      // 1. Schema change: replace 'industry' column with 'audience'
+      await client.query(`ALTER TABLE template_library ADD COLUMN IF NOT EXISTS audience VARCHAR(20)`)
+      // We will drop 'industry' after data migration completes (next migration), to avoid
+      // breaking any in-flight queries. For now, keep both columns.
+
+      // 2. Wipe old v1 content
+      const wiped = await client.query(`DELETE FROM template_library`)
+      console.log(`   wiped ${wiped.rowCount} v1 templates`)
+
+      // 3. Insert 34 finalised templates
+      const templates = [
+        // ============== CANDIDATE-SIDE (18) ==============
+        {
+          category: 'application', audience: 'candidate', template_key: 'application_received',
+          display_name: 'Application Received',
+          description: 'Auto-acknowledgement when a candidate submits an application.',
+          header: 'Application Received',
+          body: 'Dear {{1}},\n\nThank you for your application for the position of {{2}} at {{3}}.\n\nWe have received your submission and our team will revert within {{4}} working days.\n\nWe appreciate your interest.\n\nBest regards,\n{{5}}',
+          footer: null,
+          buttons: [],
+          variables: { '1': 'candidate_name', '2': 'job_title', '3': 'company_name', '4': 'review_days', '5': 'consultant_name' },
+          is_featured: true
+        },
+        {
+          category: 'application', audience: 'candidate', template_key: 'application_status_update',
+          display_name: 'Application Status Update',
+          description: 'Mid-process check-in to update candidate on application progress.',
+          header: 'Application Update',
+          body: 'Dear {{1}},\n\nWe are writing to update you on your application for the position of {{2}} at {{3}}.\n\nYour application is currently {{4}}. We anticipate the next update will be by {{5}}.\n\nWe appreciate your continued patience.\n\nBest regards,\n{{6}}',
+          footer: null,
+          buttons: [],
+          variables: { '1': 'candidate_name', '2': 'job_title', '3': 'company_name', '4': 'current_stage', '5': 'next_update_date', '6': 'consultant_name' },
+          is_featured: false
+        },
+        {
+          category: 'application', audience: 'candidate', template_key: 'application_not_selected',
+          display_name: 'Application Not Selected',
+          description: 'Polite rejection at application stage (pre-interview).',
+          header: 'Application Outcome',
+          body: 'Dear {{1}},\n\nThank you for your interest in the position of {{2}} at {{3}}.\n\nAfter careful consideration, we regret to inform you that your application has not been successful on this occasion.\n\nWe will retain your details on file and will be in touch should a more suitable opportunity arise.\n\nWe wish you every success in your career.\n\nBest regards,\n{{4}}',
+          footer: null,
+          buttons: [],
+          variables: { '1': 'candidate_name', '2': 'job_title', '3': 'company_name', '4': 'consultant_name' },
+          is_featured: false
+        },
+        {
+          category: 'screening', audience: 'candidate', template_key: 'screening_call_request',
+          display_name: 'Screening Call Request',
+          description: 'Pre-interview phone screen invitation.',
+          header: 'Screening Call Request',
+          body: 'Dear {{1}},\n\nThank you for your application for the position of {{2}} at {{3}}.\n\nWe would like to arrange a brief screening call with you to discuss your background and the role in further detail.\n\nPlease indicate your availability for a 15-minute call within the next {{4}}.\n\nBest regards,\n{{5}}',
+          footer: null,
+          buttons: [{ type: 'QUICK_REPLY', text: 'Share My Availability' }, { type: 'QUICK_REPLY', text: 'Request to Reschedule' }],
+          variables: { '1': 'candidate_name', '2': 'job_title', '3': 'company_name', '4': 'availability_window', '5': 'consultant_name' },
+          is_featured: false
+        },
+        {
+          category: 'interview', audience: 'candidate', template_key: 'interview_invitation',
+          display_name: 'Interview Invitation',
+          description: 'Formal interview invitation with date, time, location, and interviewer.',
+          header: 'Interview Invitation',
+          body: 'Dear {{1}},\n\nWe are pleased to invite you to an interview for the position of {{2}} at {{3}}.\n\nDate: {{4}}\nTime: {{5}}\nLocation: {{6}}\nInterviewer: {{7}}\n\nKindly confirm your attendance using the buttons below.\n\nBest regards,\n{{8}}',
+          footer: null,
+          buttons: [{ type: 'QUICK_REPLY', text: 'Confirm Attendance' }, { type: 'QUICK_REPLY', text: 'Request to Reschedule' }],
+          variables: { '1': 'candidate_name', '2': 'job_title', '3': 'company_name', '4': 'interview_date', '5': 'interview_time', '6': 'location', '7': 'interviewer_name', '8': 'consultant_name' },
+          is_featured: true
+        },
+        {
+          category: 'interview', audience: 'candidate', template_key: 'interview_reminder',
+          display_name: 'Interview Reminder',
+          description: 'Sent 24 hours before a scheduled interview.',
+          header: 'Interview Reminder',
+          body: 'Dear {{1}},\n\nThis is a courtesy reminder of your scheduled interview for the position of {{2}} tomorrow.\n\nDate: {{3}}\nTime: {{4}}\nLocation: {{5}}\n\nKindly bring along your NRIC and a copy of your resume.\n\nWe look forward to meeting you.\n\nBest regards,\n{{6}}',
+          footer: null,
+          buttons: [{ type: 'QUICK_REPLY', text: 'Reschedule' }],
+          variables: { '1': 'candidate_name', '2': 'job_title', '3': 'interview_date', '4': 'interview_time', '5': 'location', '6': 'consultant_name' },
+          is_featured: false
+        },
+        {
+          category: 'interview', audience: 'candidate', template_key: 'interview_reschedule',
+          display_name: 'Interview Reschedule',
+          description: 'Notify candidate of rescheduled interview.',
+          header: 'Interview Rescheduled',
+          body: 'Dear {{1}},\n\nWe regret to inform you that we need to reschedule your interview for the position of {{2}}.\n\nThe interview has been moved to:\nDate: {{3}}\nTime: {{4}}\nLocation: {{5}}\n\nKindly confirm whether the new schedule is convenient for you. We apologise for any inconvenience caused.\n\nBest regards,\n{{6}}',
+          footer: null,
+          buttons: [{ type: 'QUICK_REPLY', text: 'Confirm New Slot' }, { type: 'QUICK_REPLY', text: 'Suggest Another Time' }],
+          variables: { '1': 'candidate_name', '2': 'job_title', '3': 'new_date', '4': 'new_time', '5': 'location', '6': 'consultant_name' },
+          is_featured: false
+        },
+        {
+          category: 'interview', audience: 'candidate', template_key: 'interview_outcome_next_round',
+          display_name: 'Interview Outcome (Next Round)',
+          description: 'Notify candidate they have been shortlisted for the next stage.',
+          header: 'Interview Outcome',
+          body: 'Dear {{1}},\n\nThank you for attending the interview for the position of {{2}} at {{3}}.\n\nWe are pleased to inform you that you have been shortlisted for the next round of interviews. Our team will be in touch shortly with the details.\n\nWe look forward to the next stage of the process.\n\nBest regards,\n{{4}}',
+          footer: null,
+          buttons: [],
+          variables: { '1': 'candidate_name', '2': 'job_title', '3': 'company_name', '4': 'consultant_name' },
+          is_featured: false
+        },
+        {
+          category: 'interview', audience: 'candidate', template_key: 'interview_outcome_not_selected',
+          display_name: 'Interview Outcome (Not Selected)',
+          description: 'Polite rejection post-interview, warmer than application-stage rejection.',
+          header: 'Interview Outcome',
+          body: 'Dear {{1}},\n\nThank you for attending the interview for the position of {{2}} at {{3}}, and for the time you invested in the process.\n\nAfter careful consideration, we regret to inform you that you have not been selected for the role on this occasion.\n\nThe decision was a difficult one given the strength of the candidates considered. We will retain your details on file for future opportunities.\n\nWe wish you every success in your career.\n\nBest regards,\n{{4}}',
+          footer: null,
+          buttons: [],
+          variables: { '1': 'candidate_name', '2': 'job_title', '3': 'company_name', '4': 'consultant_name' },
+          is_featured: false
+        },
+        {
+          category: 'reference', audience: 'candidate', template_key: 'reference_check_request',
+          display_name: 'Reference Check Request',
+          description: 'Request candidate to provide professional references.',
+          header: 'Reference Check',
+          body: 'Dear {{1}},\n\nAs part of our standard process for the position of {{2}} at {{3}}, we would like to conduct a reference check.\n\nKindly provide the contact details of two professional references, ideally former supervisors or managers. Required information:\n\n1. Full name\n2. Job title\n3. Company\n4. Email address and contact number\n\nYou may reply directly to this message with the details. Thank you for your cooperation.\n\nBest regards,\n{{4}}',
+          footer: null,
+          buttons: [],
+          variables: { '1': 'candidate_name', '2': 'job_title', '3': 'company_name', '4': 'consultant_name' },
+          is_featured: false
+        },
+        {
+          category: 'offer', audience: 'candidate', template_key: 'offer_letter_notification',
+          display_name: 'Offer Letter Notification',
+          description: 'Notify candidate that an offer letter has been issued.',
+          header: 'Offer Letter Issued',
+          body: 'Dear {{1}},\n\nWe are pleased to inform you that we are extending an offer for the position of {{2}} at {{3}}, with a proposed commencement date of {{4}}.\n\nYour offer letter has been sent to {{5}} for your review.\n\nKindly indicate your acceptance by {{6}}. Should you have any queries, please do not hesitate to contact us.\n\nWe look forward to your favourable response.\n\nBest regards,\n{{7}}',
+          footer: null,
+          buttons: [{ type: 'QUICK_REPLY', text: 'Accept Offer' }, { type: 'QUICK_REPLY', text: 'Request Clarification' }],
+          variables: { '1': 'candidate_name', '2': 'job_title', '3': 'company_name', '4': 'start_date', '5': 'email', '6': 'response_deadline', '7': 'consultant_name' },
+          is_featured: true
+        },
+        {
+          category: 'offer', audience: 'candidate', template_key: 'offer_acceptance_confirmation',
+          display_name: 'Offer Acceptance Confirmation',
+          description: 'Acknowledge candidate accepting an offer.',
+          header: 'Offer Accepted',
+          body: 'Dear {{1}},\n\nThank you for accepting our offer for the position of {{2}} at {{3}}. We are delighted to welcome you to the team.\n\nYour confirmed commencement date is {{4}}. We will be in touch shortly with the next steps for your onboarding.\n\nOnce again, congratulations.\n\nBest regards,\n{{5}}',
+          footer: null,
+          buttons: [],
+          variables: { '1': 'candidate_name', '2': 'job_title', '3': 'company_name', '4': 'start_date', '5': 'consultant_name' },
+          is_featured: true
+        },
+        {
+          category: 'onboarding', audience: 'candidate', template_key: 'document_submission_request',
+          display_name: 'Document Submission Request',
+          description: 'Request onboarding documents from a successful candidate.',
+          header: 'Documents Required',
+          body: 'Dear {{1}},\n\nTo proceed with your onboarding for the position of {{2}}, kindly submit the following documents:\n\n{{3}}\n\nPlease ensure all documents are submitted by {{4}}. You may reply directly to this message with the files attached.\n\nThank you for your cooperation.\n\nBest regards,\n{{5}}',
+          footer: null,
+          buttons: [],
+          variables: { '1': 'candidate_name', '2': 'job_title', '3': 'document_list', '4': 'submission_deadline', '5': 'consultant_name' },
+          is_featured: false
+        },
+        {
+          category: 'onboarding', audience: 'candidate', template_key: 'document_submission_reminder',
+          display_name: 'Document Submission Reminder',
+          description: 'Follow-up if onboarding documents not received.',
+          header: 'Document Reminder',
+          body: 'Dear {{1}},\n\nThis is a gentle reminder regarding the documents requested for your onboarding for the position of {{2}}.\n\nOutstanding documents: {{3}}\n\nThe submission deadline is {{4}}. Kindly attend to this at your earliest convenience to avoid any delay in your onboarding.\n\nThank you.\n\nBest regards,\n{{5}}',
+          footer: null,
+          buttons: [],
+          variables: { '1': 'candidate_name', '2': 'job_title', '3': 'outstanding_list', '4': 'submission_deadline', '5': 'consultant_name' },
+          is_featured: false
+        },
+        {
+          category: 'onboarding', audience: 'candidate', template_key: 'pre_employment_medical',
+          display_name: 'Pre-Employment Medical',
+          description: 'Schedule pre-employment medical check-up.',
+          header: 'Medical Check-Up',
+          body: 'Dear {{1}},\n\nAs part of your onboarding for the position of {{2}}, a pre-employment medical check-up is required.\n\nThe check-up has been scheduled at:\nClinic: {{3}}\nAddress: {{4}}\nDate: {{5}}\nTime: {{6}}\n\nKindly fast for at least eight hours prior to the appointment, and bring your NRIC for registration.\n\nBest regards,\n{{7}}',
+          footer: null,
+          buttons: [{ type: 'QUICK_REPLY', text: 'Confirm Attendance' }, { type: 'QUICK_REPLY', text: 'Request to Reschedule' }],
+          variables: { '1': 'candidate_name', '2': 'job_title', '3': 'clinic_name', '4': 'clinic_address', '5': 'appointment_date', '6': 'appointment_time', '7': 'consultant_name' },
+          is_featured: false
+        },
+        {
+          category: 'onboarding', audience: 'candidate', template_key: 'first_day_reporting',
+          display_name: 'First Day Reporting Instructions',
+          description: 'Pre-Day-1 logistics: site, address, reporting time, supervisor contact.',
+          header: 'First Day Reporting',
+          body: 'Dear {{1}},\n\nWe are pleased to welcome you to the team. Your first day of work will be on {{2}}.\n\nReporting details:\nSite: {{3}}\nAddress: {{4}}\nReporting time: {{5}}\n\nPlease bring along your NRIC and any documents previously requested.\n\nYour point of contact on site is {{6}}, contactable at {{7}}.\n\nWe wish you every success in your new role.\n\nBest regards,\n{{8}}',
+          footer: null,
+          buttons: [],
+          variables: { '1': 'candidate_name', '2': 'start_date', '3': 'site_name', '4': 'site_address', '5': 'report_time', '6': 'supervisor_name', '7': 'supervisor_phone', '8': 'consultant_name' },
+          is_featured: true
+        },
+        {
+          category: 'post_placement', audience: 'candidate', template_key: 'probation_check_in',
+          display_name: 'Probation Check-In',
+          description: 'Mid-probation wellness check with the placed candidate.',
+          header: 'Probation Check-In',
+          body: 'Dear {{1}},\n\nIt has been {{2}} weeks since you commenced your role at {{3}}. We hope you are settling in well.\n\nWe would like to check in on how you are finding the role and the team. Should you have any concerns or feedback, please feel free to share them with us.\n\nWe are here to support you throughout your probation period.\n\nBest regards,\n{{4}}',
+          footer: null,
+          buttons: [{ type: 'QUICK_REPLY', text: 'All Going Well' }, { type: 'QUICK_REPLY', text: 'I Have Some Concerns' }],
+          variables: { '1': 'candidate_name', '2': 'weeks_since_start', '3': 'company_name', '4': 'consultant_name' },
+          is_featured: false
+        },
+        {
+          category: 'post_placement', audience: 'candidate', template_key: 'probation_completed',
+          display_name: 'Probation Successfully Completed',
+          description: 'Congratulate candidate on completing probation, soft referral ask.',
+          header: 'Probation Successfully Completed',
+          body: 'Dear {{1}},\n\nCongratulations on successfully completing your probation period at {{2}}. This reflects the strong contribution you have made in your role as {{3}}.\n\nWe are delighted to have been part of your career journey, and we look forward to staying in touch.\n\nShould you know of others in your network who may benefit from our services, your referral would be greatly appreciated.\n\nOnce again, congratulations on this milestone.\n\nBest regards,\n{{4}}',
+          footer: null,
+          buttons: [],
+          variables: { '1': 'candidate_name', '2': 'company_name', '3': 'job_title', '4': 'consultant_name' },
+          is_featured: false
+        },
+
+        // ============== CLIENT-SIDE (16) ==============
+        {
+          category: 'job_order', audience: 'client', template_key: 'job_order_acknowledgement',
+          display_name: 'Job Order Acknowledgement',
+          description: 'Confirm receipt of new job requisition from client.',
+          header: 'Job Order Received',
+          body: 'Dear {{1}},\n\nThank you for the opportunity to assist {{2}} with the recruitment for the position of {{3}}.\n\nWe confirm receipt of the job order and have begun sourcing suitable candidates. We anticipate sharing an initial shortlist within {{4}} working days.\n\nPlease feel free to share any additional context or specific requirements at any time.\n\nBest regards,\n{{5}}',
+          footer: null,
+          buttons: [],
+          variables: { '1': 'contact_name', '2': 'client_company', '3': 'job_title', '4': 'shortlist_timeline', '5': 'consultant_name' },
+          is_featured: true
+        },
+        {
+          category: 'job_order', audience: 'client', template_key: 'job_brief_clarification',
+          display_name: 'Job Brief Clarification',
+          description: 'Request client to clarify role requirements.',
+          header: 'Job Brief Clarification',
+          body: 'Dear {{1}},\n\nThank you for the brief on the position of {{2}}.\n\nTo ensure we identify the most suitable candidates, we would appreciate your clarification on the following:\n\n{{3}}\n\nA brief response at your earliest convenience would be greatly appreciated.\n\nBest regards,\n{{4}}',
+          footer: null,
+          buttons: [],
+          variables: { '1': 'contact_name', '2': 'job_title', '3': 'clarification_points', '4': 'consultant_name' },
+          is_featured: false
+        },
+        {
+          category: 'submission', audience: 'client', template_key: 'cv_submission',
+          display_name: 'CV Submission',
+          description: 'Submit a single candidate profile to client for consideration.',
+          header: 'Candidate Profile Submitted',
+          body: 'Dear {{1}},\n\nPlease find attached the profile of {{2}} for your consideration for the position of {{3}}.\n\nSummary:\nCurrent role: {{4}}\nYears of experience: {{5}}\nNotice period: {{6}}\nExpected salary: {{7}}\n\nWe believe the candidate\'s background aligns well with your requirements. Should you wish to proceed with an interview or require further information, please let us know.\n\nBest regards,\n{{8}}',
+          footer: null,
+          buttons: [{ type: 'QUICK_REPLY', text: 'Schedule Interview' }, { type: 'QUICK_REPLY', text: 'Request More Info' }],
+          variables: { '1': 'contact_name', '2': 'candidate_name', '3': 'job_title', '4': 'current_role', '5': 'years_experience', '6': 'notice_period', '7': 'expected_salary', '8': 'consultant_name' },
+          is_featured: true
+        },
+        {
+          category: 'submission', audience: 'client', template_key: 'multiple_cv_submission',
+          display_name: 'Multiple CV Submissions',
+          description: 'Submit a shortlist of candidates to client for consideration.',
+          header: 'Shortlist Submitted',
+          body: 'Dear {{1}},\n\nFollowing our search for the position of {{2}}, we are pleased to submit a shortlist of {{3}} candidates for your consideration.\n\nProfiles attached:\n{{4}}\n\nEach profile includes a summary of relevant experience, current notice period, and expected salary. Should you wish to proceed with any of the candidates, kindly let us know who you would like to interview.\n\nBest regards,\n{{5}}',
+          footer: null,
+          buttons: [],
+          variables: { '1': 'contact_name', '2': 'job_title', '3': 'candidate_count', '4': 'candidate_summary_list', '5': 'consultant_name' },
+          is_featured: false
+        },
+        {
+          category: 'interview_coordination', audience: 'client', template_key: 'interview_slot_request',
+          display_name: 'Interview Slot Request',
+          description: 'Request client availability to conduct an interview.',
+          header: 'Interview Slot Request',
+          body: 'Dear {{1}},\n\nWe are pleased to inform you that {{2}} has expressed strong interest in the position of {{3}} at {{4}}.\n\nKindly indicate your availability to conduct an interview within the following window:\n\n{{5}}\n\nWe will coordinate with the candidate accordingly upon receiving your preferred slots.\n\nBest regards,\n{{6}}',
+          footer: null,
+          buttons: [{ type: 'QUICK_REPLY', text: 'Share My Availability' }, { type: 'QUICK_REPLY', text: 'Suggest Other Dates' }],
+          variables: { '1': 'contact_name', '2': 'candidate_name', '3': 'job_title', '4': 'client_company', '5': 'availability_window', '6': 'consultant_name' },
+          is_featured: true
+        },
+        {
+          category: 'interview_coordination', audience: 'client', template_key: 'interview_confirmed_to_client',
+          display_name: 'Interview Confirmed (to Client)',
+          description: 'Confirm interview scheduled with candidate.',
+          header: 'Interview Confirmed',
+          body: 'Dear {{1}},\n\nThis is to confirm the interview details for {{2}} for the position of {{3}}:\n\nDate: {{4}}\nTime: {{5}}\nLocation: {{6}}\n\nThe candidate has been briefed and confirmed attendance. Should there be any last-minute changes, please notify us as early as possible.\n\nBest regards,\n{{7}}',
+          footer: null,
+          buttons: [],
+          variables: { '1': 'contact_name', '2': 'candidate_name', '3': 'job_title', '4': 'interview_date', '5': 'interview_time', '6': 'location', '7': 'consultant_name' },
+          is_featured: false
+        },
+        {
+          category: 'interview_coordination', audience: 'client', template_key: 'candidate_withdrew',
+          display_name: 'Candidate Withdrew',
+          description: 'Notify client that submitted candidate is no longer available.',
+          header: 'Candidate Withdrawn',
+          body: 'Dear {{1}},\n\nWe regret to inform you that {{2}}, previously submitted for the position of {{3}}, has withdrawn from the process.\n\nReason cited: {{4}}\n\nWe will continue our search for suitable candidates and will share updated profiles as soon as possible. We apologise for any inconvenience caused.\n\nBest regards,\n{{5}}',
+          footer: null,
+          buttons: [],
+          variables: { '1': 'contact_name', '2': 'candidate_name', '3': 'job_title', '4': 'withdrawal_reason', '5': 'consultant_name' },
+          is_featured: false
+        },
+        {
+          category: 'feedback', audience: 'client', template_key: 'feedback_request',
+          display_name: 'Feedback Request (Post-Interview)',
+          description: 'Request client feedback after interview.',
+          header: 'Interview Feedback Request',
+          body: 'Dear {{1}},\n\nThank you for taking the time to interview {{2}} for the position of {{3}} on {{4}}.\n\nWe would appreciate your feedback at your earliest convenience to inform our next steps. In particular:\n\n1. Overall assessment of the candidate\n2. Whether you wish to proceed to the next stage\n3. Any specific feedback we may share with the candidate\n\nYour input would be greatly appreciated.\n\nBest regards,\n{{5}}',
+          footer: null,
+          buttons: [{ type: 'QUICK_REPLY', text: 'Proceed to Next Stage' }, { type: 'QUICK_REPLY', text: 'Not Proceeding' }],
+          variables: { '1': 'contact_name', '2': 'candidate_name', '3': 'job_title', '4': 'interview_date', '5': 'consultant_name' },
+          is_featured: true
+        },
+        {
+          category: 'feedback', audience: 'client', template_key: 'feedback_reminder',
+          display_name: 'Feedback Reminder',
+          description: 'Follow up with client if no feedback received post-interview.',
+          header: 'Feedback Reminder',
+          body: 'Dear {{1}},\n\nWe hope this message finds you well.\n\nWe are following up regarding the interview with {{2}} for the position of {{3}}, conducted on {{4}}.\n\nThe candidate is keen to know the outcome, and we would appreciate your feedback whenever convenient.\n\nBest regards,\n{{5}}',
+          footer: null,
+          buttons: [],
+          variables: { '1': 'contact_name', '2': 'candidate_name', '3': 'job_title', '4': 'interview_date', '5': 'consultant_name' },
+          is_featured: false
+        },
+        {
+          category: 'offer', audience: 'client', template_key: 'offer_recommendation',
+          display_name: 'Offer Recommendation',
+          description: 'Recommend client extends an offer to a candidate.',
+          header: 'Offer Recommendation',
+          body: 'Dear {{1}},\n\nFollowing the interviews conducted, we recommend extending an offer to {{2}} for the position of {{3}}.\n\nRecommended offer terms:\nSalary: {{4}}\nCommencement date: {{5}}\nNotice period to serve: {{6}}\n\nThe candidate has indicated strong interest and is awaiting confirmation. Should you wish to proceed, kindly confirm so we may communicate the offer.\n\nBest regards,\n{{7}}',
+          footer: null,
+          buttons: [{ type: 'QUICK_REPLY', text: 'Proceed with Offer' }, { type: 'QUICK_REPLY', text: 'Discuss Further' }],
+          variables: { '1': 'contact_name', '2': 'candidate_name', '3': 'job_title', '4': 'recommended_salary', '5': 'proposed_start_date', '6': 'notice_period', '7': 'consultant_name' },
+          is_featured: true
+        },
+        {
+          category: 'offer', audience: 'client', template_key: 'offer_status_check',
+          display_name: 'Offer Status Check',
+          description: 'Ask client about offer status when candidate is awaiting confirmation.',
+          header: 'Offer Status',
+          body: 'Dear {{1}},\n\nWe are following up on the offer extended to {{2}} for the position of {{3}}.\n\nThe candidate is awaiting confirmation. Kindly let us know the current status, or whether any further information is required from our side to facilitate the process.\n\nBest regards,\n{{4}}',
+          footer: null,
+          buttons: [],
+          variables: { '1': 'contact_name', '2': 'candidate_name', '3': 'job_title', '4': 'consultant_name' },
+          is_featured: false
+        },
+        {
+          category: 'placement', audience: 'client', template_key: 'placement_confirmation_to_client',
+          display_name: 'Placement Confirmation',
+          description: 'Confirm successful placement to client.',
+          header: 'Placement Confirmed',
+          body: 'Dear {{1}},\n\nWe are pleased to confirm the successful placement of {{2}} in the position of {{3}} at {{4}}.\n\nConfirmed commencement date: {{5}}\n\nThe candidate has been briefed on the onboarding process. Our invoice for the placement fee will follow under separate cover.\n\nThank you for your trust in working with us.\n\nBest regards,\n{{6}}',
+          footer: null,
+          buttons: [],
+          variables: { '1': 'contact_name', '2': 'candidate_name', '3': 'job_title', '4': 'client_company', '5': 'start_date', '6': 'consultant_name' },
+          is_featured: true
+        },
+        {
+          category: 'commercial', audience: 'client', template_key: 'invoice_issued',
+          display_name: 'Invoice Issued',
+          description: 'Notify client of placement fee invoice.',
+          header: 'Invoice Issued',
+          body: 'Dear {{1}},\n\nPlease find attached our invoice {{2}} for the placement of {{3}} in the position of {{4}}.\n\nInvoice details:\nAmount: {{5}}\nPayment terms: {{6}}\nDue date: {{7}}\n\nShould you have any queries regarding the invoice, please feel free to contact us.\n\nBest regards,\n{{8}}',
+          footer: null,
+          buttons: [],
+          variables: { '1': 'contact_name', '2': 'invoice_number', '3': 'candidate_name', '4': 'job_title', '5': 'invoice_amount', '6': 'payment_terms', '7': 'due_date', '8': 'consultant_name' },
+          is_featured: true
+        },
+        {
+          category: 'commercial', audience: 'client', template_key: 'replacement_candidate_notice',
+          display_name: 'Replacement Candidate Notice',
+          description: 'Activate replacement guarantee period for client.',
+          header: 'Replacement Search Activated',
+          body: 'Dear {{1}},\n\nWe refer to the placement of {{2}} for the position of {{3}}, who departed on {{4}}.\n\nIn accordance with the replacement guarantee terms of our engagement, we will activate a replacement search at no additional fee. We anticipate sharing initial profiles within {{5}} working days.\n\nWe appreciate your understanding and remain committed to securing a suitable replacement.\n\nBest regards,\n{{6}}',
+          footer: null,
+          buttons: [],
+          variables: { '1': 'contact_name', '2': 'candidate_name', '3': 'job_title', '4': 'departure_date', '5': 'replacement_timeline', '6': 'consultant_name' },
+          is_featured: false
+        },
+        {
+          category: 'post_placement', audience: 'client', template_key: 'probation_outcome_update',
+          display_name: 'Probation Outcome Update',
+          description: 'Report on candidate\'s probation status to client.',
+          header: 'Probation Outcome',
+          body: 'Dear {{1}},\n\nWe are writing to confirm that {{2}}, placed in the position of {{3}}, has {{4}} their probation period.\n\n{{5}}\n\nShould you require any further information or wish to discuss the candidate\'s progress, please feel free to reach out.\n\nBest regards,\n{{6}}',
+          footer: null,
+          buttons: [],
+          variables: { '1': 'contact_name', '2': 'candidate_name', '3': 'job_title', '4': 'probation_outcome', '5': 'outcome_notes', '6': 'consultant_name' },
+          is_featured: false
+        },
+        {
+          category: 'post_placement', audience: 'client', template_key: 'relationship_check_in',
+          display_name: 'Relationship Check-In',
+          description: 'Periodic touch-base with client, no specific transaction.',
+          header: 'Touching Base',
+          body: 'Dear {{1}},\n\nWe hope this message finds you well.\n\nIt has been some time since our last engagement with {{2}}. We wanted to reach out to enquire if there are any current or upcoming hiring needs we may assist with.\n\nWe would also welcome the opportunity to update you on the talent landscape in your sector, should that be of interest.\n\nBest regards,\n{{3}}',
+          footer: null,
+          buttons: [{ type: 'QUICK_REPLY', text: 'We Have Hiring Needs' }, { type: 'QUICK_REPLY', text: 'Not at the Moment' }],
+          variables: { '1': 'contact_name', '2': 'client_company', '3': 'consultant_name' },
+          is_featured: false
+        }
+      ]
+
+      let inserted = 0
+      for (const t of templates) {
+        await client.query(
+          `INSERT INTO template_library
+             (category, audience, template_key, display_name, description,
+              header, body, footer, buttons, variables, is_active, is_featured)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,true,$11)`,
+          [t.category, t.audience, t.template_key, t.display_name, t.description,
+           t.header, t.body, t.footer,
+           JSON.stringify(t.buttons), JSON.stringify(t.variables),
+           t.is_featured]
+        )
+        inserted++
+      }
+      console.log(`   inserted ${inserted} v2 templates (${templates.filter(t => t.audience === 'candidate').length} candidate, ${templates.filter(t => t.audience === 'client').length} client)`)
+
+      // 4. Reseed Eque (workspace_id=2) with all templates as drafts
+      const equeCheck = await client.query(`SELECT id FROM workspaces WHERE id=2`)
+      if (equeCheck.rows.length > 0) {
+        const equeSeeded = await client.query(
+          `INSERT INTO templates (workspace_id, name, category, body, buttons, status, type, created_by)
+           SELECT 2, template_key, category, body, buttons, 'draft', 'whatsapp', NULL
+           FROM template_library
+           WHERE is_active = true
+           ON CONFLICT DO NOTHING`,
+        )
+        console.log(`   seeded ${equeSeeded.rowCount} templates into Eque (workspace_id=2) as drafts`)
+      } else {
+        console.log(`   skipped Eque reseed (workspace not found)`)
+      }
+
+      await client.query(`INSERT INTO _migrations (id) VALUES ($1)`, [MIGRATION_ID])
+      await client.query('COMMIT')
+      console.log(`Migration ${MIGRATION_ID} complete`)
+    } catch (err) {
+      await client.query('ROLLBACK')
+      throw err
+    } finally {
+      client.release()
+    }
+  } catch (err) {
+    console.error(`Migration ${MIGRATION_ID} FAILED:`, err.message)
+    throw err
+  }
+}
+
+// ─── CHUNK 8: Phase II1 - Reset Eque, add source/library/meta columns ───────
+// Phase II1 from TECH_PROVIDER_ROADMAP.md v2 addendum.
+// 1. Wipe Eque's premature auto-seeded templates (the 34 from v2 migration).
+// 2. Add new columns to templates table for the three-surfaces model.
+// 3. Existing endpoints will be updated to populate source='tenant' separately.
+async function runPhaseII1Migration() {
+  const MIGRATION_ID = 'chunk_8_phase_ii1_reset_and_schema'
+  try {
+    const applied = await pool.query('SELECT id FROM _migrations WHERE id=$1', [MIGRATION_ID])
+    if (applied.rows.length > 0) {
+      console.log(`Migration ${MIGRATION_ID} already applied, skipping`)
+      return
+    }
+    console.log(`Running migration ${MIGRATION_ID}...`)
+
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+
+      // 1. Add new columns to templates table
+      await client.query(`ALTER TABLE templates ADD COLUMN IF NOT EXISTS source VARCHAR(20) NOT NULL DEFAULT 'tenant'`)
+      await client.query(`ALTER TABLE templates ADD COLUMN IF NOT EXISTS library_template_name VARCHAR(100)`)
+      await client.query(`ALTER TABLE templates ADD COLUMN IF NOT EXISTS submitted_at TIMESTAMP`)
+      await client.query(`ALTER TABLE templates ADD COLUMN IF NOT EXISTS meta_status VARCHAR(20)`)
+      console.log(`   added source, library_template_name, submitted_at, meta_status columns to templates`)
+
+      // 2. Wipe Eque's auto-seeded templates
+      // The v2 migration seeded 34 templates into Eque (workspace_id=2).
+      // These were status='draft' with no source set (now defaults to 'tenant').
+      // We delete them so Eque starts clean and uses the three-surfaces model.
+      const wipe = await client.query(
+        `DELETE FROM templates WHERE workspace_id = 2 AND status = 'draft'`
+      )
+      console.log(`   wiped ${wipe.rowCount} auto-seeded draft templates from Eque (workspace_id=2)`)
 
       await client.query(`INSERT INTO _migrations (id) VALUES ($1)`, [MIGRATION_ID])
       await client.query('COMMIT')
@@ -1612,11 +2118,11 @@ app.delete('/templates/:id', auth, requirePermission('manage_templates'), async 
 // ─── TEMPLATE LIBRARY (read-only catalog of pre-built starter templates) ──
 app.get('/template-library', auth, async (req, res) => {
   try {
-    const { category, industry, featured } = req.query
+    const { category, audience, featured } = req.query
     const conditions = ['is_active = true']
     const params = []
     if (category) { params.push(category); conditions.push(`category = $${params.length}`) }
-    if (industry) { params.push(industry); conditions.push(`industry = $${params.length}`) }
+    if (audience) { params.push(audience); conditions.push(`audience = $${params.length}`) }
     if (featured === 'true') { conditions.push('is_featured = true') }
     const sql = `SELECT id, category, industry, template_key, display_name, description,
                         header, body, footer, buttons, variables, is_featured, created_at
@@ -1634,10 +2140,10 @@ app.get('/template-library', auth, async (req, res) => {
 app.get('/template-library/meta/categories', auth, async (req, res) => {
   try {
     const cats = await pool.query(`SELECT DISTINCT category FROM template_library WHERE is_active=true ORDER BY category`)
-    const inds = await pool.query(`SELECT DISTINCT industry FROM template_library WHERE is_active=true ORDER BY industry`)
+    const auds = await pool.query(`SELECT DISTINCT audience FROM template_library WHERE is_active=true AND audience IS NOT NULL ORDER BY audience`)
     res.json({
       categories: cats.rows.map(r => r.category),
-      industries: inds.rows.map(r => r.industry)
+      audiences: auds.rows.map(r => r.audience)
     })
   } catch (err) {
     console.error('GET /template-library/meta/categories error:', err)

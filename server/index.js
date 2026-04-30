@@ -5,6 +5,7 @@ const { Server } = require('socket.io')
 const { Pool } = require('pg')
 const bcrypt = require('bcrypt')
 const jwt = require('jsonwebtoken')
+const metaLibraryMock = require('./metaLibraryMock')
 
 const app = express()
 const httpServer = createServer(app)
@@ -371,6 +372,8 @@ async function setupDatabase() {
     await runTemplateLibrarySeedsMigration()
     await runTemplateLibraryV2Migration()
     await runPhaseII1Migration()
+    await runChunk9HeaderFooterMigration()
+    await runChunk10BackfillAudienceMigration()
   } catch (err) {
     await client.query('ROLLBACK')
     console.error('�?DB setup error:', err.message)
@@ -1304,6 +1307,120 @@ async function runPhaseII1Migration() {
   }
 }
 
+// ─── CHUNK 9: Add header/footer columns to templates ───────────────────────
+// Phase II2 prep. Aligns templates table with template_library and Meta's
+// actual template structure (which has separate header, body, footer).
+async function runChunk9HeaderFooterMigration() {
+  const MIGRATION_ID = 'chunk_9_templates_header_footer'
+  try {
+    const applied = await pool.query('SELECT id FROM _migrations WHERE id=$1', [MIGRATION_ID])
+    if (applied.rows.length > 0) {
+      console.log(`Migration ${MIGRATION_ID} already applied, skipping`)
+      return
+    }
+    console.log(`Running migration ${MIGRATION_ID}...`)
+
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+
+      await client.query(`ALTER TABLE templates ADD COLUMN IF NOT EXISTS header TEXT`)
+      await client.query(`ALTER TABLE templates ADD COLUMN IF NOT EXISTS footer TEXT`)
+      console.log(`   added header, footer columns to templates`)
+
+      await client.query(`INSERT INTO _migrations (id) VALUES ($1)`, [MIGRATION_ID])
+      await client.query('COMMIT')
+      console.log(`Migration ${MIGRATION_ID} complete`)
+    } catch (err) {
+      await client.query('ROLLBACK')
+      throw err
+    } finally {
+      client.release()
+    }
+  } catch (err) {
+    console.error(`Migration ${MIGRATION_ID} FAILED:`, err.message)
+    throw err
+  }
+}
+
+// ─── CHUNK 10: Backfill audience column on template_library ────────────────
+// The v2 overhaul migration was supposed to set audience for all 34 rows but
+// ran against an earlier version of the seed data missing audience values.
+// This migration backfills audience based on template_key.
+async function runChunk10BackfillAudienceMigration() {
+  const MIGRATION_ID = 'chunk_10_backfill_audience'
+  try {
+    const applied = await pool.query('SELECT id FROM _migrations WHERE id=$1', [MIGRATION_ID])
+    if (applied.rows.length > 0) {
+      console.log(`Migration ${MIGRATION_ID} already applied, skipping`)
+      return
+    }
+    console.log(`Running migration ${MIGRATION_ID}...`)
+
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+
+      // Candidate-side templates (18)
+      const candidateKeys = [
+        'application_received', 'application_status_update', 'application_not_selected',
+        'screening_call_request',
+        'interview_invitation', 'interview_reminder', 'interview_reschedule',
+        'interview_outcome_next_round', 'interview_outcome_not_selected',
+        'reference_check_request',
+        'offer_letter_notification', 'offer_acceptance_confirmation',
+        'document_submission_request', 'document_submission_reminder',
+        'pre_employment_medical', 'first_day_reporting',
+        'probation_check_in', 'probation_completed'
+      ]
+
+      // Client-side templates (16)
+      const clientKeys = [
+        'job_order_acknowledgement', 'job_brief_clarification',
+        'cv_submission', 'multiple_cv_submission',
+        'interview_slot_request', 'interview_confirmed_to_client', 'candidate_withdrew',
+        'feedback_request', 'feedback_reminder',
+        'offer_recommendation', 'offer_acceptance_to_client', 'offer_decline_to_client',
+        'placement_confirmation', 'probation_outcome_update',
+        'invoice_issued', 'business_development_followup'
+      ]
+
+      const cRes = await client.query(
+        `UPDATE template_library SET audience = 'candidate' WHERE template_key = ANY($1::text[])`,
+        [candidateKeys]
+      )
+      console.log(`   set audience='candidate' for ${cRes.rowCount} templates`)
+
+      const clRes = await client.query(
+        `UPDATE template_library SET audience = 'client' WHERE template_key = ANY($1::text[])`,
+        [clientKeys]
+      )
+      console.log(`   set audience='client' for ${clRes.rowCount} templates`)
+
+      // Diagnostic: any rows still NULL?
+      const stillNull = await client.query(
+        `SELECT template_key FROM template_library WHERE audience IS NULL`
+      )
+      if (stillNull.rows.length > 0) {
+        console.log(`   WARNING: ${stillNull.rows.length} templates still have NULL audience:`)
+        stillNull.rows.forEach(r => console.log(`     - ${r.template_key}`))
+      }
+
+      await client.query(`INSERT INTO _migrations (id) VALUES ($1)`, [MIGRATION_ID])
+      await client.query('COMMIT')
+      console.log(`Migration ${MIGRATION_ID} complete`)
+    } catch (err) {
+      await client.query('ROLLBACK')
+      throw err
+    } finally {
+      client.release()
+    }
+  } catch (err) {
+    console.error(`Migration ${MIGRATION_ID} FAILED:`, err.message)
+    throw err
+  }
+}
+
 // ─── AUTH ──────────────────────────────────────────────────────────────────────
 app.post('/login', async (req, res) => {
   try {
@@ -2124,9 +2241,9 @@ app.get('/template-library', auth, async (req, res) => {
     if (category) { params.push(category); conditions.push(`category = $${params.length}`) }
     if (audience) { params.push(audience); conditions.push(`audience = $${params.length}`) }
     if (featured === 'true') { conditions.push('is_featured = true') }
-    const sql = `SELECT id, category, industry, template_key, display_name, description,
-                        header, body, footer, buttons, variables, is_featured, created_at
-                 FROM template_library
+    const sql = `SELECT id, category, audience, template_key, display_name, description,
+                            header, body, footer, buttons, variables, is_featured, created_at
+                     FROM template_library
                  WHERE ${conditions.join(' AND ')}
                  ORDER BY is_featured DESC, category ASC, display_name ASC`
     const r = await pool.query(sql, params)
@@ -2154,7 +2271,7 @@ app.get('/template-library/meta/categories', auth, async (req, res) => {
 app.get('/template-library/:template_key', auth, async (req, res) => {
   try {
     const r = await pool.query(
-      `SELECT id, category, industry, template_key, display_name, description,
+      `SELECT id, category, audience, template_key, display_name, description,
               header, body, footer, buttons, variables, is_featured, created_at
        FROM template_library
        WHERE template_key=$1 AND is_active=true`,
@@ -2164,6 +2281,123 @@ app.get('/template-library/:template_key', auth, async (req, res) => {
     res.json(r.rows[0])
   } catch (err) {
     console.error('GET /template-library/:template_key error:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// ─── Meta Library endpoints (Phase II2) ────────────────────────────────────
+// In mock mode (default), returns hardcoded sample data matching Meta's API
+// shape. When credentials are sorted, set META_MOCK_MODE=false and these
+// endpoints will proxy to Meta's real /message_template_library endpoint.
+
+const META_MOCK_MODE = process.env.META_MOCK_MODE !== 'false'
+
+// Browse Meta's library catalogue with optional filters
+app.get('/api/meta-library', auth, async (req, res) => {
+  try {
+    const { search, topic, usecase, industry, language, name } = req.query
+
+    if (META_MOCK_MODE) {
+      const templates = metaLibraryMock.filterTemplates({ search, topic, usecase, industry, language, name })
+      return res.json({
+        templates,
+        filters: metaLibraryMock.AVAILABLE_FILTERS,
+        mock: true
+      })
+    }
+
+    // Real Meta call (not yet implemented - awaiting credentials)
+    return res.status(501).json({
+      error: 'Real Meta API mode not yet implemented. Set META_MOCK_MODE=true.'
+    })
+  } catch (err) {
+    console.error('GET /api/meta-library error:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// Install a Meta library template into tenant's workspace
+// In mock mode: just inserts a row with status='approved'.
+// In real mode: would call POST /<WABAID>/message_templates with library_template_name
+app.post('/api/meta-library/install', auth, async (req, res) => {
+  try {
+    const { library_template_name, custom_name, language, button_inputs, body_inputs } = req.body
+    const wsId = req.user.workspace_id
+
+    if (!library_template_name || !custom_name) {
+      return res.status(400).json({ error: 'library_template_name and custom_name are required' })
+    }
+
+    // Check if template name already exists in this workspace
+    const existing = await pool.query(
+      `SELECT id FROM templates WHERE workspace_id = $1 AND name = $2`,
+      [wsId, custom_name]
+    )
+    if (existing.rows.length > 0) {
+      return res.status(409).json({ error: 'A template with this name already exists in your workspace' })
+    }
+
+    if (META_MOCK_MODE) {
+      // Look up the template in the mock library
+      const sourceTpl = metaLibraryMock.SAMPLE_TEMPLATES.find(t => t.name === library_template_name)
+      if (!sourceTpl) {
+        return res.status(404).json({ error: 'Template not found in Meta library' })
+      }
+
+      // Generate a fake meta_template_id
+      const fakeMetaId = `mock_${Date.now()}_${Math.floor(Math.random() * 10000)}`
+      const now = new Date()
+
+      // Build the buttons array (use button_inputs from request if provided, else from source template)
+      const buttons = button_inputs || sourceTpl.buttons || []
+
+      // Build variables map from body_params
+      const variables = {}
+      if (Array.isArray(sourceTpl.body_params)) {
+        sourceTpl.body_params.forEach((sample, idx) => {
+          variables[String(idx + 1)] = sample
+        })
+      }
+
+      const insert = await pool.query(
+        `INSERT INTO templates (
+          workspace_id, name, category, language, header, body, footer,
+          buttons, variables, status, source, library_template_name,
+          meta_template_id, meta_status, submitted_at, approved_at, created_at, updated_at
+        ) VALUES (
+          $1, $2, $3, $4, $5, $6, $7,
+          $8, $9, 'approved', 'meta_library', $10,
+          $11, 'APPROVED', $12, $12, $12, $12
+        ) RETURNING id, name, status, source, meta_template_id, meta_status, created_at`,
+        [
+          wsId,
+          custom_name,
+          sourceTpl.category.toLowerCase(),
+          language || sourceTpl.language || 'en_US',
+          sourceTpl.header || null,
+          sourceTpl.body,
+          null,
+          JSON.stringify(buttons),
+          JSON.stringify(variables),
+          library_template_name,
+          fakeMetaId,
+          now
+        ]
+      )
+
+      return res.json({
+        ...insert.rows[0],
+        mock: true,
+        message: 'Template installed from Meta library (mock mode). Status: APPROVED, ready to send.'
+      })
+    }
+
+    // Real Meta call (not yet implemented)
+    return res.status(501).json({
+      error: 'Real Meta API mode not yet implemented. Set META_MOCK_MODE=true.'
+    })
+  } catch (err) {
+    console.error('POST /api/meta-library/install error:', err)
     res.status(500).json({ error: err.message })
   }
 })

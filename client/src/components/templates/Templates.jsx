@@ -3,42 +3,10 @@ import { useAuth } from '../../context/AuthContext'
 import { API } from '../../utils/constants'
 import { ACCENT, ACCENT_LIGHT, NAVY } from '../../utils/designTokens'
 import TemplateLibraryModal from '../TemplateLibraryModal'
+import MetaLibraryModal from '../MetaLibraryModal'
 import IPhonePreview from '../IPhonePreview'
-
-function Btn({ onClick, children, variant = 'primary', size = 'md', disabled, style: extra }) {
-  const sizes = { sm: { padding: '5px 10px', fontSize: 11 }, md: { padding: '8px 14px', fontSize: 12 } }
-  const variants = {
-    primary: { background: ACCENT, color: '#fff', border: 'none' },
-    ghost: { background: 'transparent', color: '#6e6a63', border: '0.5px solid #dcd8d0' },
-    danger: { background: '#fee2e2', color: '#dc2626', border: '0.5px solid #fca5a5' },
-    dark: { background: NAVY, color: '#fff', border: 'none' },
-    success: { background: '#dcfce7', color: '#16a34a', border: '0.5px solid #86efac' },
-  }
-  return (
-    <button onClick={!disabled ? onClick : undefined}
-      style={{ ...sizes[size], ...variants[variant], borderRadius: 8, cursor: disabled ? 'default' : 'pointer', fontWeight: 500, opacity: disabled ? 0.6 : 1, display: 'inline-flex', alignItems: 'center', gap: 6, ...extra }}>
-      {children}
-    </button>
-  )
-}
-
-function Modal({ title, subtitle, onClose, children, width = 860 }) {
-  return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16 }}
-      onClick={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: width, maxHeight: '92vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <div style={{ padding: '18px 24px', borderBottom: '0.5px solid #f5f3ef', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
-          <div>
-            <div style={{ fontSize: 14, fontWeight: 600, color: '#14130f' }}>{title}</div>
-            {subtitle && <div style={{ fontSize: 11, color: '#9a958c', marginTop: 2 }}>{subtitle}</div>}
-          </div>
-          <button onClick={onClose} style={{ width: 28, height: 28, borderRadius: 7, border: '0.5px solid #dcd8d0', background: '#faf9f7', cursor: 'pointer', fontSize: 14, color: '#6e6a63', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
-        </div>
-        <div style={{ flex: 1, overflowY: 'auto', padding: 24 }}>{children}</div>
-      </div>
-    </div>
-  )
-}
+import Btn from '../ui/Btn'
+import Modal from '../ui/Modal'
 
 const CATEGORIES = [
   { value: 'utility', label: 'Utility', desc: 'Transactional — confirmations, reminders, updates' },
@@ -51,6 +19,12 @@ const STATUS_STYLES = {
   pending: { bg: '#fef3c7', color: '#92400e', label: '⏳ Pending' },
   draft: { bg: '#f5f3ef', color: '#6e6a63', label: '✏ Draft' },
   rejected: { bg: '#fee2e2', color: '#dc2626', label: '✗ Rejected' },
+}
+
+const SOURCE_BADGES = {
+  meta_library: { bg: '#e7f0fd', color: '#1877f2', label: 'Meta' },
+  tel_cloud_library: { bg: '#ede9fe', color: '#5b21b6', label: 'Suggested' },
+  tenant: null,
 }
 
 function TemplateEditor({ template, onClose, onSaved }) {
@@ -249,6 +223,7 @@ export default function Templates() {
   const [editingTemplate, setEditingTemplate] = useState(null)
   const [previewTemplate, setPreviewTemplate] = useState(null)
   const [showLibrary, setShowLibrary] = useState(false)
+  const [showMetaLibrary, setShowMetaLibrary] = useState(false)
 
   useEffect(() => { if (!token) return; load() }, [token])
 
@@ -312,20 +287,28 @@ export default function Templates() {
             </div>
           </div>
           {canCreate && (
-            <>
-            <Btn variant="ghost" onClick={() => setShowLibrary(true)} style={{ marginRight: 8 }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="7" y="6" width="14" height="15" rx="2" />
-                <path d="M3 18V4a1 1 0 0 1 1-1h11" />
-                <path d="M11 11h6" />
-                <path d="M11 15h6" />
-              </svg>
-              Browse Library
-            </Btn>
-            <Btn onClick={() => { setEditingTemplate(null); setShowEditor(true) }}>
-              + New Template
-            </Btn>
-            </>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <Btn variant="meta" onClick={() => setShowMetaLibrary(true)}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 2 2 7l10 5 10-5-10-5Z" />
+                  <path d="m2 17 10 5 10-5" />
+                  <path d="m2 12 10 5 10-5" />
+                </svg>
+                Meta Library
+              </Btn>
+              <Btn variant="suggested" onClick={() => setShowLibrary(true)}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="7" y="6" width="14" height="15" rx="2" />
+                  <path d="M3 18V4a1 1 0 0 1 1-1h11" />
+                  <path d="M11 11h6" />
+                  <path d="M11 15h6" />
+                </svg>
+                Suggested
+              </Btn>
+              <Btn onClick={() => { setEditingTemplate(null); setShowEditor(true) }}>
+                + New Template
+              </Btn>
+            </div>
           )}
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
@@ -386,7 +369,9 @@ export default function Templates() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: 14 }}>
             {filtered.map(t => {
               const ss = STATUS_STYLES[t.status] || STATUS_STYLES.draft
+              const sourceBadge = SOURCE_BADGES[t.source] || null
               const buttons = Array.isArray(t.buttons) ? t.buttons : []
+              const isLocked = t.source === 'meta_library' || (t.status === 'approved' && t.source !== 'tenant')
               return (
                 <div key={t.id} style={{ background: '#fff', borderRadius: 12, border: '0.5px solid #dcd8d0', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
                   <div style={{ padding: '14px 16px', borderBottom: '0.5px solid #f5f3ef', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -395,6 +380,9 @@ export default function Templates() {
                       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                         <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 6, background: ss.bg, color: ss.color, fontWeight: 600 }}>{ss.label}</span>
                         <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 6, background: '#f5f3ef', color: '#6e6a63', textTransform: 'capitalize' }}>{t.category}</span>
+                        {sourceBadge && (
+                          <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 6, background: sourceBadge.bg, color: sourceBadge.color, fontWeight: 600 }}>{sourceBadge.label}</span>
+                        )}
                         {buttons.length > 0 && (
                           <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 6, background: '#ede9fe', color: '#5b21b6' }}>
                             {buttons.length} button{buttons.length !== 1 ? 's' : ''}
@@ -413,7 +401,7 @@ export default function Templates() {
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
                         {buttons.map((b, i) => (
                           <span key={i} style={{ fontSize: 10, padding: '3px 9px', borderRadius: 6, background: '#f0fdf4', color: '#16a34a', border: '0.5px solid #86efac', fontWeight: 500 }}>
-                            {b.type === 'quick_reply' ? '↩ ' : '↗ '}{b.label}
+                            {b.type === 'quick_reply' ? '↩ ' : '↗ '}{b.label || b.text}
                           </span>
                         ))}
                       </div>
@@ -421,7 +409,7 @@ export default function Templates() {
                   )}
                   <div style={{ padding: '10px 16px', borderTop: '0.5px solid #f5f3ef', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                     <Btn variant="ghost" size="sm" onClick={() => setPreviewTemplate(t)}>Preview</Btn>
-                    {canCreate && (
+                    {canCreate && !isLocked && (
                       <Btn variant="ghost" size="sm" onClick={() => { setEditingTemplate(t); setShowEditor(true) }}>Edit</Btn>
                     )}
                     {canApprove && t.status === 'pending' && (
@@ -449,25 +437,31 @@ export default function Templates() {
       )}
 
       {showLibrary && (
-          <TemplateLibraryModal
-            isOpen={showLibrary}
-            onClose={() => setShowLibrary(false)}
-            onSelect={(libraryTpl) => {
-              setShowLibrary(false)
-              setEditingTemplate({
-                name: libraryTpl.template_key,
-                category: libraryTpl.category === 'marketing' ? 'marketing' : 'utility',
-                body: libraryTpl.body,
-                buttons: (libraryTpl.buttons || []).map(b => ({
-                  type: 'quick_reply',
-                  label: b.text || b.label || ''
-                })),
-                status: 'draft'
-              })
-              setShowEditor(true)
-            }}
-          />
-        )}
+        <TemplateLibraryModal
+          isOpen={showLibrary}
+          onClose={() => setShowLibrary(false)}
+          onSelect={(libraryTpl) => {
+            setShowLibrary(false)
+            setEditingTemplate({
+              name: libraryTpl.template_key,
+              category: libraryTpl.category === 'marketing' ? 'marketing' : 'utility',
+              body: libraryTpl.body,
+              buttons: (libraryTpl.buttons || []).map(b => ({
+                type: 'quick_reply',
+                label: b.text || b.label || ''
+              })),
+              status: 'draft'
+            })
+            setShowEditor(true)
+          }}
+        />
+      )}
+
+      <MetaLibraryModal
+        open={showMetaLibrary}
+        onClose={() => setShowMetaLibrary(false)}
+        onInstalled={() => { setShowMetaLibrary(false); load() }}
+      />
 
       {previewTemplate && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16 }}

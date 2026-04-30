@@ -1,76 +1,45 @@
-import { useState, useEffect, useMemo } from 'react'
-import { ink, accent, semantic, textSize, textWeight, microLabel, radius, border, shadow } from '../utils/designTokens'
-
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000'
+import { useEffect, useMemo, useState } from 'react'
+import { useAuth } from '../context/AuthContext'
+import { API } from '../utils/constants'
+import Modal from './ui/Modal'
+import Btn from './ui/Btn'
+import IPhonePreview from './IPhonePreview'
 
 function prettify(value) {
   if (!value) return ''
-  return value
-    .replace(/_/g, ' ')
-    .replace(/\b\w/g, c => c.toUpperCase())
-}
-
-function Btn({ onClick, children, variant = 'primary', size = 'md', disabled, style: extra }) {
-  const sizes = { sm: { padding: '5px 10px', fontSize: 11 }, md: { padding: '8px 14px', fontSize: 12 } }
-  const variants = {
-    primary: { background: accent.DEFAULT, color: '#fff', border: 'none' },
-    ghost:   { background: 'transparent', color: ink[600], border: border.subtle },
-  }
-  return (
-    <button onClick={!disabled ? onClick : undefined}
-      style={{ ...sizes[size], ...variants[variant], borderRadius: 8, cursor: disabled ? 'default' : 'pointer',
-               fontWeight: textWeight.medium, opacity: disabled ? 0.6 : 1,
-               display: 'inline-flex', alignItems: 'center', gap: 6, ...extra }}>
-      {children}
-    </button>
-  )
+  return value.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
 }
 
 export default function TemplateLibraryModal({ isOpen, onClose, onSelect }) {
+  const { token } = useAuth()
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
   const [templates, setTemplates] = useState([])
   const [categories, setCategories] = useState([])
   const [audiences, setAudiences] = useState([])
+  const [selectedKey, setSelectedKey] = useState(null)
+  const [search, setSearch] = useState('')
   const [activeCategory, setActiveCategory] = useState('all')
   const [activeAudience, setActiveAudience] = useState('all')
-  const [search, setSearch] = useState('')
-  const [selectedKey, setSelectedKey] = useState(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState(null)
 
   useEffect(() => {
     if (!isOpen) return
-    let cancelled = false
-
-    async function load() {
-      setLoading(true)
-      setError(null)
-      try {
-        const token = localStorage.getItem('token')
-        const headers = { 'Authorization': `Bearer ${token}` }
-        const [listRes, metaRes] = await Promise.all([
-          fetch(`${API_BASE}/template-library`, { headers }),
-          fetch(`${API_BASE}/template-library/meta/categories`, { headers })
-        ])
-        if (!listRes.ok || !metaRes.ok) throw new Error('Fetch failed')
-        const listData = await listRes.json()
-        const metaData = await metaRes.json()
-        if (cancelled) return
-        setTemplates(listData.templates || [])
-        setCategories(metaData.categories || [])
-        setAudiences(metaData.audiences || [])
-        if (listData.templates && listData.templates.length > 0) {
-          setSelectedKey(listData.templates[0].template_key)
-        }
-      } catch (err) {
-        if (!cancelled) setError('Could not load templates. Please try again.')
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
-    }
-
-    load()
-    return () => { cancelled = true }
-  }, [isOpen])
+    setLoading(true)
+    setError('')
+    Promise.all([
+      fetch(`${API}/template-library`, { headers: { Authorization: 'Bearer ' + token } }).then(r => r.json()),
+      fetch(`${API}/template-library/meta/categories`, { headers: { Authorization: 'Bearer ' + token } }).then(r => r.json())
+    ])
+      .then(([tpls, meta]) => {
+        const list = Array.isArray(tpls) ? tpls : (tpls?.templates || [])
+        setTemplates(list)
+        setCategories(meta.categories || [])
+        setAudiences(meta.audiences || [])
+        if (list.length > 0) setSelectedKey(list[0].template_key)
+      })
+      .catch(err => setError(err.message || 'Failed to load library'))
+      .finally(() => setLoading(false))
+  }, [isOpen, token])
 
   const filtered = useMemo(() => {
     return templates.filter(t => {
@@ -78,7 +47,7 @@ export default function TemplateLibraryModal({ isOpen, onClose, onSelect }) {
       if (activeAudience !== 'all' && t.audience !== activeAudience) return false
       if (search.trim()) {
         const q = search.toLowerCase()
-        const hay = `${t.display_name} ${t.description} ${t.body}`.toLowerCase()
+        const hay = `${t.display_name || ''} ${t.description || ''} ${t.body || ''}`.toLowerCase()
         if (!hay.includes(q)) return false
       }
       return true
@@ -102,194 +71,255 @@ export default function TemplateLibraryModal({ isOpen, onClose, onSelect }) {
 
   if (!isOpen) return null
 
-  const inputStyle = {
-    padding: '7px 10px', border: border.subtle, borderRadius: 8,
-    fontSize: textSize.sm, outline: 'none', background: ink[50], color: ink[800], boxSizing: 'border-box'
-  }
-
   return (
-    <div
-      style={{
-        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16
-      }}
-      onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
+    <Modal
+      title="Tel-Cloud Suggested Templates"
+      subtitle="Recruitment-vertical templates curated for you. Pick one to customise and submit for Meta approval."
+      onClose={onClose}
+      width={1100}
     >
+      {/* Filters */}
       <div style={{
-        background: '#fff', borderRadius: 16, width: '100%', maxWidth: 980,
-        height: '85vh', display: 'flex', flexDirection: 'column', overflow: 'hidden',
-        boxShadow: shadow.overlay
+        display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap',
+        marginBottom: 16
       }}>
-        {/* Header */}
-        <div style={{
-          padding: '18px 24px', borderBottom: `0.5px solid ${ink[100]}`,
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0
-        }}>
-          <div>
-            <div style={{ fontSize: 14, fontWeight: textWeight.semibold, color: ink[800] }}>Template Library</div>
-            <div style={{ fontSize: 11, color: ink[500], marginTop: 2 }}>
-              Choose a starting point. Selected templates open in the editor for customisation.
-            </div>
-          </div>
-          <button
-            onClick={onClose}
+        <div style={{ position: 'relative', flex: 1, minWidth: 220 }}>
+          <svg style={{
+            position: 'absolute', left: 10, top: '50%',
+            transform: 'translateY(-50%)', width: 13, height: 13,
+            color: '#9a958c', pointerEvents: 'none'
+          }} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <circle cx="7" cy="7" r="4" />
+            <path d="M10.5 10.5l3 3" strokeLinecap="round" />
+          </svg>
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search templates..."
             style={{
-              width: 28, height: 28, borderRadius: 7, border: border.subtle,
-              background: ink[50], cursor: 'pointer', color: ink[600],
-              display: 'flex', alignItems: 'center', justifyContent: 'center'
+              width: '100%', padding: '8px 10px 8px 30px',
+              border: '0.5px solid #dcd8d0', borderRadius: 8, fontSize: 12,
+              outline: 'none', background: '#faf9f7', color: '#14130f',
+              boxSizing: 'border-box'
             }}
-            aria-label="Close"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                 strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M18 6L6 18M6 6l12 12" />
-            </svg>
-          </button>
+          />
         </div>
+        <select
+          value={activeCategory}
+          onChange={e => setActiveCategory(e.target.value)}
+          style={selectStyle}
+        >
+          <option value="all">All categories</option>
+          {categories.map(c => <option key={c} value={c}>{prettify(c)}</option>)}
+        </select>
+        <select
+          value={activeAudience}
+          onChange={e => setActiveAudience(e.target.value)}
+          style={selectStyle}
+        >
+          <option value="all">All audiences</option>
+          {audiences.map(a => <option key={a} value={a}>{prettify(a)}</option>)}
+        </select>
+      </div>
 
-        {/* Filter bar */}
+      {error && (
         <div style={{
-          padding: '12px 24px', borderBottom: `0.5px solid ${ink[100]}`,
-          display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', flexShrink: 0
+          padding: '10px 12px', background: '#fef2f2',
+          border: '0.5px solid #fecaca', borderRadius: 8,
+          fontSize: 12, color: '#dc2626', marginBottom: 12
         }}>
-          <div style={{ flex: '1 1 220px', position: 'relative' }}>
-            <svg style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)',
-                          width: 12, height: 12, color: ink[500], pointerEvents: 'none' }}
-                 viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-              <circle cx="7" cy="7" r="4"/>
-              <path d="M10.5 10.5l3 3" strokeLinecap="round"/>
-            </svg>
-            <input
-              type="text"
-              placeholder="Search templates..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              style={{ ...inputStyle, width: '100%', paddingLeft: 26 }}
-            />
-          </div>
-          <select value={activeCategory} onChange={(e) => setActiveCategory(e.target.value)} style={inputStyle}>
-            <option value="all">All categories</option>
-            {categories.map(c => <option key={c} value={c}>{prettify(c)}</option>)}
-          </select>
-          <select value={activeAudience} onChange={(e) => setActiveAudience(e.target.value)} style={inputStyle}>
-            <option value="all">All audiences</option>
-            {audiences.map(a => <option key={a} value={a}>{prettify(a)}</option>)}
-          </select>
+          ⚠ {error}
         </div>
+      )}
 
-        {/* Body: list + preview */}
-        <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0 }}>
-          {/* List */}
-          <div style={{ width: 320, borderRight: `0.5px solid ${ink[100]}`, overflowY: 'auto', background: ink[50] }}>
-            {loading && <div style={{ padding: 20, color: ink[500], fontSize: textSize.sm }}>Loading...</div>}
-            {error && <div style={{ padding: 20, color: semantic.danger, fontSize: textSize.sm }}>{error}</div>}
-            {!loading && !error && filtered.length === 0 && (
-              <div style={{ padding: 20, color: ink[500], fontSize: textSize.sm }}>No templates match.</div>
-            )}
-            {filtered.map(t => {
-              const isSelected = selectedKey === t.template_key
-              return (
-                <div
-                  key={t.template_key}
-                  onClick={() => setSelectedKey(t.template_key)}
-                  style={{
-                    padding: '12px 16px', cursor: 'pointer',
-                    borderBottom: `0.5px solid ${ink[100]}`,
-                    background: isSelected ? '#fff' : 'transparent',
-                    borderLeft: isSelected ? `2px solid ${accent.DEFAULT}` : '2px solid transparent'
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
-                    <span style={{ fontWeight: textWeight.medium, fontSize: textSize.md, color: ink[800] }}>
-                      {t.display_name}
-                    </span>
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: 60, color: '#9a958c', fontSize: 12 }}>
+          Loading suggested templates...
+        </div>
+      ) : (
+        <div style={{
+          display: 'grid', gridTemplateColumns: '280px 1fr',
+          gap: 16, alignItems: 'start'
+        }}>
+          {/* Left list */}
+          <div style={{
+            border: '0.5px solid #dcd8d0', borderRadius: 10,
+            background: '#faf9f7', maxHeight: '60vh', overflowY: 'auto'
+          }}>
+            {filtered.length === 0 ? (
+              <div style={{ padding: 24, color: '#9a958c', fontSize: 12, textAlign: 'center' }}>
+                No templates match your filters.
+              </div>
+            ) : (
+              filtered.map(t => {
+                const isSelected = t.template_key === selectedKey
+                return (
+                  <div
+                    key={t.template_key}
+                    onClick={() => setSelectedKey(t.template_key)}
+                    style={{
+                      padding: '12px 14px', cursor: 'pointer',
+                      background: isSelected ? '#fff' : 'transparent',
+                      borderLeft: `3px solid ${isSelected ? '#5b21b6' : 'transparent'}`,
+                      borderBottom: '0.5px solid #f5f3ef',
+                      display: 'flex', justifyContent: 'space-between',
+                      alignItems: 'flex-start', gap: 10
+                    }}
+                  >
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{
+                        fontSize: 12, fontWeight: 600, color: '#14130f',
+                        marginBottom: 3
+                      }}>
+                        {t.display_name || prettify(t.template_key)}
+                      </div>
+                      <div style={{ fontSize: 10, color: '#6e6a63' }}>
+                        {prettify(t.category)}
+                        {t.audience && (
+                          <>
+                            {' '}<span style={{ color: '#9a958c' }}>{'\u00b7'}</span>{' '}
+                            {prettify(t.audience)}
+                          </>
+                        )}
+                      </div>
+                    </div>
                     {t.is_featured && (
                       <span style={{
-                        ...microLabel, fontSize: 9, letterSpacing: '0.8px',
-                        padding: '2px 6px', borderRadius: radius.sm,
-                        background: accent.soft, color: accent.DEFAULT
-                      }}>FEATURED</span>
+                        fontSize: 9, fontWeight: 700, color: '#5b21b6',
+                        background: '#ede9fe', padding: '2px 6px',
+                        borderRadius: 5, letterSpacing: '0.4px',
+                        textTransform: 'uppercase', flexShrink: 0
+                      }}>
+                        Featured
+                      </span>
                     )}
                   </div>
-                  <div style={{ fontSize: textSize.xs, color: ink[600], marginTop: 3 }}>
-                    {prettify(t.category)} <span style={{ color: ink[400] }}>{'\u00b7'}</span> {prettify(t.audience)}
-                  </div>
-                </div>
-              )
-            })}
+                )
+              })
+            )}
           </div>
 
-          {/* Preview */}
-          <div style={{ flex: 1, padding: 24, overflowY: 'auto', background: '#fff' }}>
+          {/* Right preview + action */}
+          <div>
             {selected ? (
-              <>
-                <div style={{ ...microLabel, marginBottom: 6 }}>
-                    {prettify(selected.category)} <span style={{ color: ink[400] }}>{'\u00b7'}</span> {prettify(selected.audience)}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'minmax(0, 1fr) 280px',
+                gap: 20, alignItems: 'start'
+              }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={microLabel}>
+                    {prettify(selected.category)}
+                    {selected.audience && (
+                      <>
+                        {' '}<span style={{ color: '#9a958c' }}>{'\u00b7'}</span>{' '}
+                        {prettify(selected.audience)}
+                      </>
+                    )}
                   </div>
-                <div style={{ fontSize: textSize.lg, fontWeight: textWeight.semibold, color: ink[800], marginBottom: 4 }}>
-                  {selected.display_name}
-                </div>
-                <div style={{ fontSize: textSize.sm, color: ink[600], marginBottom: 18, lineHeight: 1.5 }}>
-                  {selected.description}
-                </div>
-
-                <div style={{
-                  border: border.subtle, borderRadius: 8, padding: 16,
-                  background: ink[50], marginBottom: 16
-                }}>
-                  {selected.header && (
-                    <div style={{ fontWeight: textWeight.semibold, fontSize: textSize.md,
-                                  color: ink[800], marginBottom: 8 }}>
-                      {selected.header}
-                    </div>
-                  )}
-                  <div style={{ whiteSpace: 'pre-wrap', fontSize: textSize.md, lineHeight: 1.6, color: ink[800] }}>
-                    {renderPreview(selected)}
+                  <div style={{
+                    fontSize: 16, fontWeight: 700, color: '#14130f',
+                    marginTop: 4, marginBottom: 6
+                  }}>
+                    {selected.display_name || prettify(selected.template_key)}
                   </div>
-                  {selected.footer && (
-                    <div style={{ marginTop: 12, fontSize: textSize.xs, color: ink[500],
-                                  paddingTop: 10, borderTop: `0.5px solid ${ink[200]}` }}>
-                      {selected.footer}
+                  {selected.description && (
+                    <div style={{ fontSize: 12, color: '#6e6a63', marginBottom: 14 }}>
+                      {selected.description}
                     </div>
                   )}
-                  {Array.isArray(selected.buttons) && selected.buttons.length > 0 && (
-                    <div style={{ display: 'flex', gap: 6, marginTop: 12, flexWrap: 'wrap' }}>
-                      {selected.buttons.map((b, idx) => (
-                        <span key={idx} style={{
-                          fontSize: textSize.xs, padding: '4px 10px',
-                          border: border.subtle, borderRadius: radius.sm, background: '#fff',
-                          color: accent.DEFAULT, fontWeight: textWeight.medium
-                        }}>
-                          {b.text || b.label}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
 
-                <div style={{ ...microLabel, marginBottom: 6 }}>Variables</div>
-                <div style={{ fontSize: textSize.xs, color: ink[600], marginBottom: 24, lineHeight: 1.7 }}>
-                  {Object.entries(selected.variables || {}).map(([pos, name]) => (
-                    <span key={pos} style={{
-                      display: 'inline-block', marginRight: 6, marginBottom: 4,
-                      padding: '2px 6px', background: ink[100], borderRadius: radius.sm,
-                      fontFamily: 'monospace', fontSize: 11
+                  <div style={{
+                    background: '#faf9f7', border: '0.5px solid #dcd8d0',
+                    borderRadius: 10, padding: 14, marginBottom: 14
+                  }}>
+                    {selected.header && (
+                      <div style={{
+                        fontSize: 13, fontWeight: 700, color: '#14130f',
+                        marginBottom: 8
+                      }}>
+                        {selected.header}
+                      </div>
+                    )}
+                    <div style={{
+                      fontSize: 12, color: '#4a4742',
+                      whiteSpace: 'pre-wrap', lineHeight: 1.6
                     }}>
-                      {`{{${pos}}}`} = {name}
-                    </span>
-                  )) || <span>None</span>}
+                      {selected.body}
+                    </div>
+                    {selected.footer && (
+                      <div style={{
+                        fontSize: 11, color: '#9a958c', marginTop: 10,
+                        paddingTop: 8, borderTop: '0.5px solid #f5f3ef'
+                      }}>
+                        {selected.footer}
+                      </div>
+                    )}
+                  </div>
+
+                  {selected.variables && Object.keys(selected.variables).length > 0 && (
+                    <div style={{ marginBottom: 14 }}>
+                      <div style={microLabel}>Variables</div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 6 }}>
+                        {Object.entries(selected.variables).map(([pos, name]) => (
+                          <span key={pos} style={{
+                            fontSize: 10, color: '#4a4742',
+                            background: '#f5f3ef', borderRadius: 5,
+                            padding: '3px 7px', fontFamily: 'monospace'
+                          }}>
+                            {`{{${pos}}}`} = {name}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div style={{
+                    paddingTop: 14, borderTop: '0.5px solid #f5f3ef',
+                    display: 'flex', gap: 8, justifyContent: 'flex-end'
+                  }}>
+                    <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
+                    <Btn
+                      variant="suggested"
+                      onClick={() => onSelect && onSelect(selected)}
+                    >
+                      Use this template
+                    </Btn>
+                  </div>
                 </div>
 
-                <Btn onClick={() => onSelect && onSelect(selected)}>
-                  Use this template
-                </Btn>
-              </>
+                <div style={{ position: 'sticky', top: 0 }}>
+                  <div style={microLabel}>Preview</div>
+                  <div style={{ marginTop: 8 }}>
+                    <IPhonePreview
+                      body={renderPreview(selected)}
+                      buttons={selected.buttons || []}
+                    />
+                  </div>
+                </div>
+              </div>
             ) : (
-              <div style={{ color: ink[500], fontSize: textSize.sm }}>Select a template to preview.</div>
+              <div style={{
+                padding: 40, color: '#9a958c', fontSize: 12,
+                textAlign: 'center'
+              }}>
+                Select a template to preview.
+              </div>
             )}
           </div>
         </div>
-      </div>
-    </div>
+      )}
+    </Modal>
   )
+}
+
+const selectStyle = {
+  padding: '8px 10px', border: '0.5px solid #dcd8d0', borderRadius: 8,
+  fontSize: 12, outline: 'none', background: '#fff', color: '#14130f',
+  cursor: 'pointer'
+}
+
+const microLabel = {
+  fontSize: 10, fontWeight: 600, color: '#6e6a63',
+  textTransform: 'uppercase', letterSpacing: '0.6px'
 }

@@ -4,6 +4,7 @@ import { API, EMOJIS, DEFAULT_TEMPLATES } from '../../utils/constants'
 import { ink, accent, semantic, fonts, textSize, textWeight, space, radius, border, shadow, microLabel } from '../../utils/designTokens'
 import { fmtSGT } from '../../utils/dates'
 import { io } from 'socket.io-client'
+import SendTemplate from './SendTemplate'
 
 const scrollMemory = new Map()
 
@@ -50,6 +51,7 @@ export default function ChatWindow({ activeConvoId, active, setActive, projects,
   const canSend = hasPermission('send_messages')
   const canManageConvos = hasPermission('manage_conversations')
   const [input, setInput] = useState('')
+  const [showSendTemplate, setShowSendTemplate] = useState(false)
   const [compMode, setCompMode] = useState('text')
   const [showEmoji, setShowEmoji] = useState(false)
   const [showReassign, setShowReassign] = useState(false)
@@ -501,9 +503,9 @@ export default function ChatWindow({ activeConvoId, active, setActive, projects,
                     fontSize: textSize.sm,
                     lineHeight: 1.55,
                     wordBreak: 'break-word', whiteSpace: 'pre-wrap',
-                    background: m.direction === 'out' ? accent.DEFAULT : '#fff',
-                    color: m.direction === 'out' ? '#fff' : ink[800],
-                    border: m.direction === 'out' ? 'none' : border.subtle,
+                    background: m.direction === 'out' ? '#ede9fe' : '#fff',
+                    color: m.direction === 'out' ? ink[800] : ink[800],
+                    border: m.direction === 'out' ? '0.5px solid #d4ccf4' : border.subtle,
                     borderTopRightRadius: m.direction === 'out' ? 2 : radius.md,
                     borderTopLeftRadius: m.direction === 'in' ? 2 : radius.md,
                     position: 'relative',
@@ -640,21 +642,27 @@ export default function ChatWindow({ activeConvoId, active, setActive, projects,
           </button>
         </div>
         {compMode === 'template' && (
-          <select onChange={e => { const t = DEFAULT_TEMPLATES.find(t => t.id === parseInt(e.target.value)); if (t) setInput(t.body) }}
-            style={{
-              width: '100%', padding: `${space[1] + 1}px ${space[2]}px`,
-              border: `0.5px solid ${ink[300]}`,
-              borderRadius: radius.md,
-              fontSize: textSize.xs,
-              background: ink[100],
-              color: ink[800],
-              marginBottom: space[2],
-              outline: 'none',
-              fontFamily: fonts.body,
-            }}>
-            <option value="">Select a template...</option>
-            {DEFAULT_TEMPLATES.filter(t => t.status === 'approved').map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-          </select>
+          <div style={{ marginBottom: space[2] }}>
+            <button
+              onClick={() => setShowSendTemplate(true)}
+              style={{
+                width: '100%', padding: `${space[2]}px ${space[3]}px`,
+                border: `0.5px solid ${ink[300]}`,
+                borderRadius: radius.md,
+                fontSize: textSize.xs,
+                background: ink[100],
+                color: ink[800],
+                cursor: 'pointer',
+                fontFamily: fonts.body,
+                textAlign: 'left',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between'
+              }}>
+              <span>Pick a template, fill variables, and send</span>
+              <span style={{ fontSize: 10, color: ink[600] }}>Open picker</span>
+            </button>
+          </div>
         )}
         {showEmoji && (
           <div style={{
@@ -711,6 +719,13 @@ export default function ChatWindow({ activeConvoId, active, setActive, projects,
           )}
         </div>
       </div>
+      )}
+      {showSendTemplate && (
+        <SendTemplate
+          conversationId={activeConvoId}
+          onClose={() => setShowSendTemplate(false)}
+          onSent={() => { setShowSendTemplate(false) }}
+        />
       )}
     </div>
   )

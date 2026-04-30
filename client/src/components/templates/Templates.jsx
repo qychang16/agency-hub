@@ -21,6 +21,26 @@ const STATUS_STYLES = {
   rejected: { bg: '#fee2e2', color: '#dc2626', label: '✗ Rejected' },
 }
 
+// Smart name suggestion for cloning. Detects existing siblings of pattern
+// "{base}_v{n}" and proposes the next available v-number. Falls back to _v2 if
+// no siblings exist.
+function suggestCloneName(originalName, existingTemplates) {
+  if (!originalName) return ''
+  const base = originalName.replace(/_v\d+$/, '')
+  const siblings = existingTemplates
+    .map(t => (t.name || '').toLowerCase())
+    .filter(n => n === base.toLowerCase() || n.startsWith(base.toLowerCase() + '_v'))
+  let maxV = 1
+  for (const n of siblings) {
+    const m = n.match(/_v(\d+)$/)
+    if (m) {
+      const v = parseInt(m[1])
+      if (v > maxV) maxV = v
+    }
+  }
+  return `${base}_v${maxV + 1}`
+}
+
 // Sections describe each template source with caption and visual accent
 const SECTIONS = [
   {
@@ -58,13 +78,15 @@ function TemplateEditor({ template, onClose, onSaved }) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const isEdit = !!(template && template.id)
+  const isClone = !!template?._clonedFrom
   const [nameWarning, setNameWarning] = useState('')
 
   // Variables state: { ordered: [name1, name2], defaults: { name1: 'val1', name2: 'val2' } }
   // Source affects behaviour:
   //   - meta_library: ordered list locked, only defaults editable
   //   - tenant + template_library (Suggested): everything editable
-  const isMetaLibrary = template?.source === 'meta_library'
+  //   - clone: treated as fresh tenant draft, all locks lifted
+  const isMetaLibrary = template?.source === 'meta_library' && !isClone
   const initialVariables = (() => {
     const v = template?.variables
     if (v && v.ordered && Array.isArray(v.ordered)) return v
@@ -72,7 +94,8 @@ function TemplateEditor({ template, onClose, onSaved }) {
   })()
   const [varOrdered, setVarOrdered] = useState(initialVariables.ordered)
   const [varDefaults, setVarDefaults] = useState(initialVariables.defaults)
-  const [varLabels] = useState(initialVariables.labels || {})
+  // Clones drop labels (clones are fresh tenant templates; labels are Meta-library metadata)
+  const [varLabels] = useState(isClone ? {} : (initialVariables.labels || {}))
   const [varErrors, setVarErrors] = useState({})
 
   // Validates variable name: lowercase, starts with letter, only letters/digits/underscores
@@ -82,7 +105,6 @@ function TemplateEditor({ template, onClose, onSaved }) {
 
   function addVariable() {
     if (isMetaLibrary) return
-    // Auto-generate a name like field_1, field_2, etc.
     let i = 1
     while (varOrdered.includes(`field_${i}`)) i++
     const newName = `field_${i}`
@@ -103,16 +125,13 @@ function TemplateEditor({ template, onClose, onSaved }) {
       return
     }
     if (trimmed === oldName) return
-    // Update ordered list
     setVarOrdered(p => p.map(n => n === oldName ? trimmed : n))
-    // Update defaults map
     setVarDefaults(p => {
       const next = { ...p }
       next[trimmed] = next[oldName] || ''
       delete next[oldName]
       return next
     })
-    // Update body: replace {{oldName}} with {{trimmed}}
     setBody(p => p.replace(new RegExp(`\\{\\{\\s*${oldName}\\s*\\}\\}`, 'g'), `{{${trimmed}}}`))
   }
 
@@ -136,43 +155,25 @@ function TemplateEditor({ template, onClose, onSaved }) {
     })
   }
 
-  // Live duplicate name check (debounced)
+  // Live duplicate name check (debounced).
+  // For clones, never exclude by id (clones have no id yet) so the check works correctly.
   useEffect(() => {
     if (!name.trim()) { setNameWarning(''); return }
     const trimmed = name.trim().toLowerCase()
-    if (template?.name && template.name.toLowerCase() === trimmed) { setNameWarning(''); return }
+    if (template?.name && template.name.toLowerCase() === trimmed && !isClone) { setNameWarning(''); return }
     const handle = setTimeout(async () => {
       try {
         const r = await fetch(`${API}/templates`, { headers: { Authorization: 'Bearer ' + token } })
         const all = await r.json()
         if (Array.isArray(all)) {
-          const conflict = all.find(t => t.name?.toLowerCase() === trimmed && t.id !== template?.id)
+          const conflict = all.find(t => t.name?.toLowerCase() === trimmed && (isClone || t.id !== template?.id))
           if (conflict) setNameWarning(`A template named "${name.trim()}" already exists. Approval will be rejected by Meta if you submit a duplicate.`)
           else setNameWarning('')
         }
       } catch { /* ignore */ }
     }, 400)
     return () => clearTimeout(handle)
-  }, [name, template?.id, template?.name, token])
-
-  // Live duplicate name check (debounced)
-  useEffect(() => {
-    if (!name.trim()) { setNameWarning(''); return }
-    const trimmed = name.trim().toLowerCase()
-    if (template?.name && template.name.toLowerCase() === trimmed) { setNameWarning(''); return }
-    const handle = setTimeout(async () => {
-      try {
-        const r = await fetch(`${API}/templates`, { headers: { Authorization: 'Bearer ' + token } })
-        const all = await r.json()
-        if (Array.isArray(all)) {
-          const conflict = all.find(t => t.name?.toLowerCase() === trimmed && t.id !== template?.id)
-          if (conflict) setNameWarning(`A template named "${name.trim()}" already exists. Approval will be rejected by Meta if you submit a duplicate.`)
-          else setNameWarning('')
-        }
-      } catch { /* ignore */ }
-    }, 400)
-    return () => clearTimeout(handle)
-  }, [name, template?.id, template?.name, token])
+  }, [name, template?.id, template?.name, token, isClone])
 
   function addButton() {
     if (buttons.length >= 3) return
@@ -195,13 +196,13 @@ function TemplateEditor({ template, onClose, onSaved }) {
     setError('')
     if (!name.trim()) { setError('Template name is required'); return }
     if (!body.trim()) { setError('Message body is required'); return }
-    // Check for any unresolved variable name errors
     const errored = Object.entries(varErrors).find(([, v]) => v)
     if (errored) { setError(`Fix variable name issues before saving: ${errored[0]}`); return }
     setSaving(true)
     try {
-      const url = isEdit ? `${API}/templates/${template.id}` : `${API}/templates`
-      const method = isEdit ? 'PATCH' : 'POST'
+      // Clones are always POSTs (new template), never PATCHes - even though template object exists.
+      const url = (isEdit && !isClone) ? `${API}/templates/${template.id}` : `${API}/templates`
+      const method = (isEdit && !isClone) ? 'PATCH' : 'POST'
       const variables = {
         ordered: varOrdered,
         defaults: varDefaults,
@@ -212,7 +213,7 @@ function TemplateEditor({ template, onClose, onSaved }) {
         headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
         body: JSON.stringify({
           name, category, body, buttons,
-          status: status || (isEdit ? template.status : 'draft'),
+          status: status || (isEdit && !isClone ? template.status : 'draft'),
           type: 'whatsapp',
           variables
         })
@@ -226,11 +227,34 @@ function TemplateEditor({ template, onClose, onSaved }) {
 
   const QUICK_VARS = ['name', 'role', 'company', 'date', 'time', 'venue', 'salary', 'deadline', 'start_date', 'hr_name', 'candidate']
 
+  // Modal title reflects mode: edit, clone, customise (defaults), or new.
+  const modalTitle = (() => {
+    if (isClone) return `Clone — new template from ${template._clonedFrom}`
+    if (isEdit) return `Edit — ${template.name}`
+    if (template?.name) return `Customise — ${template.name}`
+    return 'New Custom Template'
+  })()
+
   return (
     <Modal
-      title={isEdit ? `Edit — ${template.name}` : (template?.name ? `Customise — ${template.name}` : 'New Custom Template')}
+      title={modalTitle}
       subtitle="WhatsApp Business template — requires Meta approval before sending"
       onClose={onClose}>
+
+      {isClone && (
+        <div style={{ marginBottom: 16, padding: '10px 14px', background: '#ede9fe', border: '0.5px solid #d4ccf4', borderRadius: 8, display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: 14 }}>↻</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 12, color: '#14130f', fontWeight: 500 }}>
+              Cloned from <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>{template._clonedFrom}</span>
+            </div>
+            <div style={{ fontSize: 10, color: '#6e6a63', marginTop: 2 }}>
+              Edit freely, then save and submit to Meta for re-approval. Your original template remains untouched.
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-[1fr_260px]" style={{ gap: 24 }}>
         <div>
           <div className="grid grid-cols-1 sm:grid-cols-2" style={{ gap: 12, marginBottom: 16 }}>
@@ -272,7 +296,6 @@ function TemplateEditor({ template, onClose, onSaved }) {
               value={body}
               onChange={e => setBody(e.target.value)}
               onBlur={() => {
-                // Auto-extract any {{varName}} in the body that's missing from the variables panel
                 const matches = body.match(/\{\{\s*([a-z][a-z0-9_]{0,29})\s*\}\}/g) || []
                 const inBody = []
                 const seen = new Set()
@@ -438,7 +461,7 @@ function TemplateEditor({ template, onClose, onSaved }) {
             <Btn variant="ghost" onClick={() => save('draft')} disabled={saving} style={{ flex: 1 }}>Save as Draft</Btn>
             {(user?.role === 'director' || user?.role === 'manager') ? (
               <Btn onClick={() => save('approved')} disabled={saving} style={{ flex: 2 }}>
-                {saving ? 'Saving…' : isEdit ? 'Save & Approve' : 'Create & Approve'}
+                {saving ? 'Saving…' : (isEdit && !isClone) ? 'Save & Approve' : 'Create & Approve'}
               </Btn>
             ) : (
               <Btn onClick={() => save('pending')} disabled={saving} style={{ flex: 2 }}>
@@ -469,7 +492,7 @@ const FILTER_TABS = [
 ]
 
 // Renders a single template card. Extracted so we can render it inside each section.
-function TemplateCard({ t, canCreate, canApprove, onPreview, onEdit, onDelete, onApprove, onReject }) {
+function TemplateCard({ t, canCreate, canApprove, onPreview, onEdit, onDelete, onApprove, onReject, onCopy }) {
   const ss = STATUS_STYLES[t.status] || STATUS_STYLES.draft
   const buttons = Array.isArray(t.buttons) ? t.buttons : []
   const isLocked = t.source === 'meta_library' || (t.status === 'approved' && t.source !== 'tenant')
@@ -512,6 +535,9 @@ function TemplateCard({ t, canCreate, canApprove, onPreview, onEdit, onDelete, o
           <Btn variant="ghost" size="sm" onClick={() => onEdit(t)}>
             {isLocked ? 'Defaults' : 'Edit'}
           </Btn>
+        )}
+        {canCreate && isLocked && (
+          <Btn variant="ghost" size="sm" onClick={() => onCopy(t)}>Copy</Btn>
         )}
         {canApprove && t.status === 'pending' && (
           <>
@@ -647,6 +673,24 @@ export default function Templates() {
   const cardHandlers = {
     onPreview: setPreviewTemplate,
     onEdit: (t) => { setEditingTemplate(t); setShowEditor(true) },
+    onCopy: (t) => {
+      // Build a cloned template object: stripped of id and Meta-specific metadata,
+      // forced to source='tenant' status='draft', name auto-suggested with smart _v{n} pattern.
+      const cloned = {
+        name: suggestCloneName(t.name, templates),
+        category: t.category,
+        body: t.body,
+        header: t.header,
+        footer: t.footer,
+        buttons: t.buttons || [],
+        variables: t.variables || { ordered: [], defaults: {} },
+        status: 'draft',
+        source: 'tenant',
+        _clonedFrom: t.name
+      }
+      setEditingTemplate(cloned)
+      setShowEditor(true)
+    },
     onDelete: deleteTemplate,
     onApprove: approveTemplate,
     onReject: rejectTemplate,
@@ -757,20 +801,15 @@ export default function Templates() {
           onClose={() => setShowLibrary(false)}
           onSelect={(libraryTpl) => {
             setShowLibrary(false)
-            // Convert positional placeholders {{1}} {{2}} to named {{candidate_name}} {{job_title}}
-            // using the variables map from the library (which maps "1" -> "candidate_name", etc.)
             const vmap = libraryTpl.variables || {}
             let convertedBody = libraryTpl.body || ''
             const ordered = []
             const defaults = {}
-            // Sort keys numerically to handle {{1}}, {{2}}, ..., {{10}} correctly
             const positions = Object.keys(vmap).filter(k => /^\d+$/.test(k)).sort((a, b) => parseInt(a) - parseInt(b))
             for (const pos of positions) {
               const name = vmap[pos]
               if (typeof name !== 'string' || !name) continue
-              // Sanitise name: lowercase, only letters/digits/underscores, must start with letter
               const cleanName = name.toLowerCase().replace(/[^a-z0-9_]/g, '_').replace(/^[^a-z]/, 'v')
-              // Replace {{N}} with {{cleanName}} in the body
               const re = new RegExp(`\\{\\{\\s*${pos}\\s*\\}\\}`, 'g')
               convertedBody = convertedBody.replace(re, `{{${cleanName}}}`)
               if (!ordered.includes(cleanName)) {

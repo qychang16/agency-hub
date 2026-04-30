@@ -68,10 +68,11 @@ function TemplateEditor({ template, onClose, onSaved }) {
   const initialVariables = (() => {
     const v = template?.variables
     if (v && v.ordered && Array.isArray(v.ordered)) return v
-    return { ordered: [], defaults: {} }
+    return { ordered: [], defaults: {}, labels: {} }
   })()
   const [varOrdered, setVarOrdered] = useState(initialVariables.ordered)
   const [varDefaults, setVarDefaults] = useState(initialVariables.defaults)
+  const [varLabels] = useState(initialVariables.labels || {})
   const [varErrors, setVarErrors] = useState({})
 
   // Validates variable name: lowercase, starts with letter, only letters/digits/underscores
@@ -201,7 +202,11 @@ function TemplateEditor({ template, onClose, onSaved }) {
     try {
       const url = isEdit ? `${API}/templates/${template.id}` : `${API}/templates`
       const method = isEdit ? 'PATCH' : 'POST'
-      const variables = { ordered: varOrdered, defaults: varDefaults }
+      const variables = {
+        ordered: varOrdered,
+        defaults: varDefaults,
+        ...(Object.keys(varLabels).length > 0 ? { labels: varLabels } : {})
+      }
       const r = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
@@ -318,18 +323,30 @@ function TemplateEditor({ template, onClose, onSaved }) {
                       <div style={{ fontSize: 10, color: '#9a958c', width: 24, textAlign: 'right', fontFamily: 'monospace' }}>
                         {`{{${idx + 1}}}`}
                       </div>
-                      <input
-                        defaultValue={vname}
-                        onBlur={e => renameVariable(vname, e.target.value)}
-                        onKeyDown={e => { if (e.key === 'Enter') e.target.blur() }}
-                        disabled={isMetaLibrary}
-                        placeholder="variable_name"
-                        style={{
-                          width: 160, padding: '7px 10px', border: '0.5px solid #dcd8d0', borderRadius: 6,
-                          fontSize: 12, outline: 'none', background: isMetaLibrary ? '#f5f3ef' : '#fff',
-                          color: '#14130f', fontFamily: 'monospace',
-                          cursor: isMetaLibrary ? 'not-allowed' : 'text'
-                        }} />
+                      {isMetaLibrary && varLabels[vname] ? (
+                        <div style={{
+                          width: 160, padding: '7px 10px', borderRadius: 6,
+                          fontSize: 12, color: '#4a4742', background: '#f5f3ef',
+                          border: '0.5px solid #dcd8d0', display: 'flex', alignItems: 'center',
+                          fontWeight: 500
+                        }}
+                          title={vname}>
+                          {varLabels[vname]}
+                        </div>
+                      ) : (
+                        <input
+                          defaultValue={vname}
+                          onBlur={e => renameVariable(vname, e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter') e.target.blur() }}
+                          disabled={isMetaLibrary}
+                          placeholder="variable_name"
+                          style={{
+                            width: 160, padding: '7px 10px', border: '0.5px solid #dcd8d0', borderRadius: 6,
+                            fontSize: 12, outline: 'none', background: isMetaLibrary ? '#f5f3ef' : '#fff',
+                            color: '#14130f', fontFamily: 'monospace',
+                            cursor: isMetaLibrary ? 'not-allowed' : 'text'
+                          }} />
+                      )}
                       <input
                         value={varDefaults[vname] || ''}
                         onChange={e => updateVariableDefault(vname, e.target.value)}

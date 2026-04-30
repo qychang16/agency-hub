@@ -16,6 +16,7 @@ const SAMPLE_TEMPLATES = [
     header: 'Your account balance is low',
     body: 'Hi {{1}},\nThis is to notify you that your {{2}} in your {{3}} account, ending in {{4}} is below your pre-set {{5}} of {{6}}.\nClick the button to deposit more {{7}}.\n{{8}}',
     body_params: ['Jim', 'available funds', 'CS Mutual checking plus', '1234', 'limit', '$75.00', 'funds', 'CS Mutual'],
+    param_labels: ['Customer name', 'Account type', 'Account designation', 'Last 4 digits', 'Limit type', 'Limit amount', 'Resource type', 'Bank name'],
     buttons: [
       { type: 'URL', text: 'Make a deposit', url: 'https://www.example.com/' },
       { type: 'PHONE_NUMBER', text: 'Call us', phone_number: '+18005551234' }
@@ -32,6 +33,7 @@ const SAMPLE_TEMPLATES = [
     header: 'Delivery update',
     body: 'Hi {{1}}, your order {{2}} is on the way and will arrive on {{3}}. You can track it using the link below.',
     body_params: ['Jim', '#12345', 'Friday'],
+    param_labels: ['Customer name', 'Order number', 'Delivery day'],
     buttons: [{ type: 'URL', text: 'Track order', url: 'https://www.example.com/track/{{1}}' }],
     id: '7147013345418928'
   },
@@ -45,6 +47,7 @@ const SAMPLE_TEMPLATES = [
     header: 'Order confirmed',
     body: 'Hi {{1}}, thank you for your order. We have received your order {{2}} for {{3}} and it is being processed.',
     body_params: ['Jim', '#12345', 'a 12 pack of paper towels'],
+    param_labels: ['Customer name', 'Order number', 'Item description'],
     buttons: [{ type: 'URL', text: 'View order', url: 'https://www.example.com/order/{{1}}' }],
     id: '7147013345418929'
   },
@@ -58,6 +61,7 @@ const SAMPLE_TEMPLATES = [
     header: 'Appointment reminder',
     body: 'Hi {{1}}, this is a reminder of your upcoming appointment with {{2}} on {{3}} at {{4}}.',
     body_params: ['Jim', 'CS Mutual', '2024-04-19', '3:00 PM'],
+    param_labels: ['Customer name', 'Provider name', 'Appointment date', 'Appointment time'],
     buttons: [],
     id: '7147013345418930'
   },
@@ -71,6 +75,7 @@ const SAMPLE_TEMPLATES = [
     header: 'Payment confirmed',
     body: 'Hi {{1}}, your payment of {{2}} to {{3}} has been confirmed. Reference: {{4}}.',
     body_params: ['Jim', 'USD $375.32', 'CS Mutual', 'TXN-892341'],
+    param_labels: ['Customer name', 'Payment amount', 'Recipient', 'Transaction reference'],
     buttons: [],
     id: '7147013345418931'
   },
@@ -84,6 +89,7 @@ const SAMPLE_TEMPLATES = [
     header: 'Shipment confirmed',
     body: 'Hi {{1}}, your order {{2}} has been shipped and is on its way to you. Estimated delivery: {{3}}.',
     body_params: ['Jim', '#12345', '2024-04-22'],
+    param_labels: ['Customer name', 'Order number', 'Estimated delivery date'],
     buttons: [{ type: 'URL', text: 'Track shipment', url: 'https://www.example.com/track/{{1}}' }],
     id: '7147013345418932'
   },
@@ -97,6 +103,7 @@ const SAMPLE_TEMPLATES = [
     header: 'How did we do?',
     body: 'Hi {{1}}, thank you for your recent purchase. We would love to hear your feedback. Could you take a moment to rate your experience?',
     body_params: ['Jim'],
+    param_labels: ['Customer name'],
     buttons: [{ type: 'URL', text: 'Rate us', url: 'https://www.example.com/feedback/{{1}}' }],
     id: '7147013345418933'
   },
@@ -110,6 +117,7 @@ const SAMPLE_TEMPLATES = [
     header: 'Suspicious activity detected',
     body: 'Hi {{1}}, we detected unusual activity on your {{2}} account ending in {{3}}. If this was you, please confirm. If not, please contact us immediately.',
     body_params: ['Jim', 'savings', '4321'],
+    param_labels: ['Customer name', 'Account type', 'Last 4 digits'],
     buttons: [
       { type: 'QUICK_REPLY', text: 'Confirm it was me' },
       { type: 'PHONE_NUMBER', text: 'Call us', phone_number: '+18005551234' }

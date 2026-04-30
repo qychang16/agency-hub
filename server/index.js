@@ -375,6 +375,7 @@ async function setupDatabase() {
     await runChunk9HeaderFooterMigration()
     await runChunk10BackfillAudienceMigration()
     await runChunk11VariablesShapeMigration()
+    await runChunk12MetaLibraryLabelsMigration()
   } catch (err) {
     await client.query('ROLLBACK')
     console.error('�?DB setup error:', err.message)
@@ -1524,6 +1525,70 @@ async function runChunk11VariablesShapeMigration() {
   }
 }
 
+// ─── CHUNK 12: Backfill labels on existing Meta Library template installs ───
+// Templates installed via Meta Library before chunk 12 don't have variables.labels.
+// This migration looks up the original library template's param_labels in the mock
+// and merges them into the stored variables JSONB.
+async function runChunk12MetaLibraryLabelsMigration() {
+  const MIGRATION_ID = 'chunk_12_meta_library_labels_v1'
+  try {
+    const applied = await pool.query('SELECT id FROM _migrations WHERE id=$1', [MIGRATION_ID])
+    if (applied.rows.length > 0) {
+      console.log(`Migration ${MIGRATION_ID} already applied, skipping`)
+      return
+    }
+    console.log(`Running migration ${MIGRATION_ID}...`)
+
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+
+      const rows = await client.query(
+        `SELECT id, library_template_name, variables FROM templates WHERE source='meta_library'`
+      )
+      let backfilled = 0
+      let skipped = 0
+
+      for (const row of rows.rows) {
+        const v = row.variables
+        if (!v || !v.ordered) { skipped++; continue }
+        if (v.labels && Object.keys(v.labels).length > 0) { skipped++; continue }
+        const sourceTpl = metaLibraryMock.SAMPLE_TEMPLATES.find(t => t.name === row.library_template_name)
+        if (!sourceTpl || !Array.isArray(sourceTpl.param_labels)) { skipped++; continue }
+
+        const labels = {}
+        sourceTpl.param_labels.forEach((label, idx) => {
+          const name = `param_${idx + 1}`
+          if (v.ordered.includes(name) && label) {
+            labels[name] = String(label)
+          }
+        })
+
+        const newVariables = { ordered: v.ordered, defaults: v.defaults || {}, labels }
+        await client.query(
+          `UPDATE templates SET variables=$1 WHERE id=$2`,
+          [JSON.stringify(newVariables), row.id]
+        )
+        backfilled++
+      }
+
+      console.log(`   backfilled labels on ${backfilled} Meta Library templates, skipped ${skipped}`)
+
+      await client.query(`INSERT INTO _migrations (id) VALUES ($1)`, [MIGRATION_ID])
+      await client.query('COMMIT')
+      console.log(`Migration ${MIGRATION_ID} complete`)
+    } catch (err) {
+      await client.query('ROLLBACK')
+      throw err
+    } finally {
+      client.release()
+    }
+  } catch (err) {
+    console.error(`Migration ${MIGRATION_ID} FAILED:`, err.message)
+    throw err
+  }
+}
+
 // ─── Variables helpers ─────────────────────────────────────────────────────
 // Validates a variable name. Returns true if valid.
 // Rules: starts with letter, contains only lowercase letters/digits/underscores, max 30 chars.
@@ -1557,8 +1622,10 @@ function normaliseVariables(input) {
   if (typeof input !== 'object') return { ordered: [], defaults: {} }
   const ordered = Array.isArray(input.ordered) ? input.ordered : []
   const defaults = (input.defaults && typeof input.defaults === 'object') ? input.defaults : {}
+  const labels = (input.labels && typeof input.labels === 'object') ? input.labels : null
   const cleanOrdered = []
   const cleanDefaults = {}
+  const cleanLabels = {}
   const seen = new Set()
   for (const raw of ordered) {
     const name = String(raw || '').trim()
@@ -1567,8 +1634,13 @@ function normaliseVariables(input) {
     seen.add(name)
     cleanOrdered.push(name)
     cleanDefaults[name] = (defaults[name] !== undefined && defaults[name] !== null) ? String(defaults[name]) : ''
+    if (labels && typeof labels[name] === 'string' && labels[name].trim()) {
+      cleanLabels[name] = labels[name]
+    }
   }
-  return { ordered: cleanOrdered, defaults: cleanDefaults }
+  const result = { ordered: cleanOrdered, defaults: cleanDefaults }
+  if (Object.keys(cleanLabels).length > 0) result.labels = cleanLabels
+  return result
 }
 
 // Reconciles variables with body content.
@@ -2615,19 +2687,23 @@ app.post('/api/meta-library/install', auth, async (req, res) => {
       // Build the buttons array (use button_inputs from request if provided, else from source template)
       const buttons = button_inputs || sourceTpl.buttons || []
 
-      // Build variables map from body_params (NEW SHAPE: ordered + defaults)
-      // Meta library uses positional {{1}} {{2}}; we name them param_1, param_2 etc.
-      // and store the sample values as default values.
+      // Build variables map from body_params (NEW SHAPE: ordered + defaults + labels)
+      // Meta library uses positional {{1}} {{2}}; we name them param_1, param_2 etc.,
+      // store sample values as defaults, and friendly labels for display in editor.
       const ordered = []
       const defaults = {}
+      const labels = {}
       if (Array.isArray(sourceTpl.body_params)) {
         sourceTpl.body_params.forEach((sample, idx) => {
           const name = `param_${idx + 1}`
           ordered.push(name)
           defaults[name] = String(sample || '')
+          if (Array.isArray(sourceTpl.param_labels) && sourceTpl.param_labels[idx]) {
+            labels[name] = String(sourceTpl.param_labels[idx])
+          }
         })
       }
-      const variables = { ordered, defaults }
+      const variables = { ordered, defaults, labels }
 
       const insert = await pool.query(
         `INSERT INTO templates (

@@ -60,6 +60,100 @@ function TemplateEditor({ template, onClose, onSaved }) {
   const isEdit = !!(template && template.id)
   const [nameWarning, setNameWarning] = useState('')
 
+  // Variables state: { ordered: [name1, name2], defaults: { name1: 'val1', name2: 'val2' } }
+  // Source affects behaviour:
+  //   - meta_library: ordered list locked, only defaults editable
+  //   - tenant + template_library (Suggested): everything editable
+  const isMetaLibrary = template?.source === 'meta_library'
+  const initialVariables = (() => {
+    const v = template?.variables
+    if (v && v.ordered && Array.isArray(v.ordered)) return v
+    return { ordered: [], defaults: {} }
+  })()
+  const [varOrdered, setVarOrdered] = useState(initialVariables.ordered)
+  const [varDefaults, setVarDefaults] = useState(initialVariables.defaults)
+  const [varErrors, setVarErrors] = useState({})
+
+  // Validates variable name: lowercase, starts with letter, only letters/digits/underscores
+  function isValidVarName(n) {
+    return /^[a-z][a-z0-9_]{0,29}$/.test(n)
+  }
+
+  function addVariable() {
+    if (isMetaLibrary) return
+    // Auto-generate a name like field_1, field_2, etc.
+    let i = 1
+    while (varOrdered.includes(`field_${i}`)) i++
+    const newName = `field_${i}`
+    setVarOrdered(p => [...p, newName])
+    setVarDefaults(p => ({ ...p, [newName]: '' }))
+  }
+
+  function renameVariable(oldName, newName) {
+    if (isMetaLibrary) return
+    const trimmed = newName.toLowerCase().trim()
+    setVarErrors(p => ({ ...p, [oldName]: '' }))
+    if (!isValidVarName(trimmed)) {
+      setVarErrors(p => ({ ...p, [oldName]: 'Use letters, digits, underscores. Start with a letter.' }))
+      return
+    }
+    if (trimmed !== oldName && varOrdered.includes(trimmed)) {
+      setVarErrors(p => ({ ...p, [oldName]: 'Already used' }))
+      return
+    }
+    if (trimmed === oldName) return
+    // Update ordered list
+    setVarOrdered(p => p.map(n => n === oldName ? trimmed : n))
+    // Update defaults map
+    setVarDefaults(p => {
+      const next = { ...p }
+      next[trimmed] = next[oldName] || ''
+      delete next[oldName]
+      return next
+    })
+    // Update body: replace {{oldName}} with {{trimmed}}
+    setBody(p => p.replace(new RegExp(`\\{\\{\\s*${oldName}\\s*\\}\\}`, 'g'), `{{${trimmed}}}`))
+  }
+
+  function updateVariableDefault(name, value) {
+    setVarDefaults(p => ({ ...p, [name]: value }))
+  }
+
+  function deleteVariable(name) {
+    if (isMetaLibrary) return
+    if (!confirm(`Delete variable "${name}"? Any {{${name}}} references in the body will remain as plain text.`)) return
+    setVarOrdered(p => p.filter(n => n !== name))
+    setVarDefaults(p => {
+      const next = { ...p }
+      delete next[name]
+      return next
+    })
+    setVarErrors(p => {
+      const next = { ...p }
+      delete next[name]
+      return next
+    })
+  }
+
+  // Live duplicate name check (debounced)
+  useEffect(() => {
+    if (!name.trim()) { setNameWarning(''); return }
+    const trimmed = name.trim().toLowerCase()
+    if (template?.name && template.name.toLowerCase() === trimmed) { setNameWarning(''); return }
+    const handle = setTimeout(async () => {
+      try {
+        const r = await fetch(`${API}/templates`, { headers: { Authorization: 'Bearer ' + token } })
+        const all = await r.json()
+        if (Array.isArray(all)) {
+          const conflict = all.find(t => t.name?.toLowerCase() === trimmed && t.id !== template?.id)
+          if (conflict) setNameWarning(`A template named "${name.trim()}" already exists. Approval will be rejected by Meta if you submit a duplicate.`)
+          else setNameWarning('')
+        }
+      } catch { /* ignore */ }
+    }, 400)
+    return () => clearTimeout(handle)
+  }, [name, template?.id, template?.name, token])
+
   // Live duplicate name check (debounced)
   useEffect(() => {
     if (!name.trim()) { setNameWarning(''); return }
@@ -100,14 +194,23 @@ function TemplateEditor({ template, onClose, onSaved }) {
     setError('')
     if (!name.trim()) { setError('Template name is required'); return }
     if (!body.trim()) { setError('Message body is required'); return }
+    // Check for any unresolved variable name errors
+    const errored = Object.entries(varErrors).find(([, v]) => v)
+    if (errored) { setError(`Fix variable name issues before saving: ${errored[0]}`); return }
     setSaving(true)
     try {
       const url = isEdit ? `${API}/templates/${template.id}` : `${API}/templates`
       const method = isEdit ? 'PATCH' : 'POST'
+      const variables = { ordered: varOrdered, defaults: varDefaults }
       const r = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-        body: JSON.stringify({ name, category, body, buttons, status: status || (isEdit ? template.status : 'draft'), type: 'whatsapp' })
+        body: JSON.stringify({
+          name, category, body, buttons,
+          status: status || (isEdit ? template.status : 'draft'),
+          type: 'whatsapp',
+          variables
+        })
       })
       if (!r.ok) { const d = await r.json(); setError(d.error || 'Failed to save'); return }
       onSaved()
@@ -120,7 +223,7 @@ function TemplateEditor({ template, onClose, onSaved }) {
 
   return (
     <Modal
-      title={isEdit ? `Edit — ${template.name}` : 'New Custom Template'}
+      title={isEdit ? `Edit — ${template.name}` : (template?.name ? `Customise — ${template.name}` : 'New Custom Template')}
       subtitle="WhatsApp Business template — requires Meta approval before sending"
       onClose={onClose}>
       <div className="grid grid-cols-1 md:grid-cols-[1fr_260px]" style={{ gap: 24 }}>
@@ -163,21 +266,94 @@ function TemplateEditor({ template, onClose, onSaved }) {
             <textarea
               value={body}
               onChange={e => setBody(e.target.value)}
+              onBlur={() => {
+                // Auto-extract any {{varName}} in the body that's missing from the variables panel
+                const matches = body.match(/\{\{\s*([a-z][a-z0-9_]{0,29})\s*\}\}/g) || []
+                const inBody = []
+                const seen = new Set()
+                for (const m of matches) {
+                  const n = m.replace(/[{}\s]/g, '')
+                  if (!seen.has(n)) { seen.add(n); inBody.push(n) }
+                }
+                const missing = inBody.filter(n => !varOrdered.includes(n))
+                if (missing.length > 0 && !isMetaLibrary) {
+                  setVarOrdered(p => [...p, ...missing])
+                  setVarDefaults(p => {
+                    const next = { ...p }
+                    for (const n of missing) next[n] = ''
+                    return next
+                  })
+                }
+              }}
               rows={10}
               placeholder={'Dear {{name}},\n\nWe are pleased to confirm your interview for the position of {{role}} at {{company}}.\n\nDate: {{date}}\nTime: {{time}}\nVenue: {{venue}}\n\nWe look forward to meeting you.'}
               style={{ width: '100%', padding: '10px 12px', border: '0.5px solid #dcd8d0', borderRadius: 8, fontSize: 12, outline: 'none', background: '#fff', color: '#14130f', resize: 'vertical', fontFamily: 'inherit', boxSizing: 'border-box', lineHeight: 1.6 }} />
           </div>
 
-          <div style={{ marginBottom: 16 }}>
-            <div style={{ fontSize: 11, color: '#9a958c', marginBottom: 6 }}>Quick insert variable:</div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-              {QUICK_VARS.map(v => (
-                <button key={v} onClick={() => insertVariable(v)}
-                  style={{ padding: '3px 9px', borderRadius: 6, border: '0.5px solid #dcd8d0', fontSize: 11, background: '#faf9f7', color: '#4a4742', cursor: 'pointer', fontFamily: 'monospace' }}>
-                  {`{{${v}}}`}
-                </button>
-              ))}
+          <div style={{ marginBottom: 16, padding: '12px 14px', background: '#faf9f7', borderRadius: 8, border: '0.5px solid #dcd8d0' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: '#4a4742', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                Variables {varOrdered.length > 0 && <span style={{ color: '#9a958c', fontWeight: 400 }}>({varOrdered.length})</span>}
+              </div>
+              {!isMetaLibrary && (
+                <Btn variant="ghost" size="sm" onClick={addVariable}>+ Add Variable</Btn>
+              )}
             </div>
+
+            {isMetaLibrary && (
+              <div style={{ fontSize: 11, color: '#6e6a63', marginBottom: 10, padding: '6px 10px', background: '#e7f0fd', borderRadius: 6, border: '0.5px solid #cfe0fb' }}>
+                Meta Library template. Variable names and positions are locked. You may only edit default values below.
+              </div>
+            )}
+
+            {varOrdered.length === 0 ? (
+              <div style={{ fontSize: 11, color: '#9a958c', textAlign: 'center', padding: '12px 0', fontStyle: 'italic' }}>
+                {isMetaLibrary ? 'No variables in this template.' : 'No variables yet. Click "+ Add Variable" or type {{name}} in the message body.'}
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {varOrdered.map((vname, idx) => (
+                  <div key={`${vname}_${idx}`}>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <div style={{ fontSize: 10, color: '#9a958c', width: 24, textAlign: 'right', fontFamily: 'monospace' }}>
+                        {`{{${idx + 1}}}`}
+                      </div>
+                      <input
+                        defaultValue={vname}
+                        onBlur={e => renameVariable(vname, e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') e.target.blur() }}
+                        disabled={isMetaLibrary}
+                        placeholder="variable_name"
+                        style={{
+                          width: 160, padding: '7px 10px', border: '0.5px solid #dcd8d0', borderRadius: 6,
+                          fontSize: 12, outline: 'none', background: isMetaLibrary ? '#f5f3ef' : '#fff',
+                          color: '#14130f', fontFamily: 'monospace',
+                          cursor: isMetaLibrary ? 'not-allowed' : 'text'
+                        }} />
+                      <input
+                        value={varDefaults[vname] || ''}
+                        onChange={e => updateVariableDefault(vname, e.target.value)}
+                        placeholder="Default value (used if not overridden when sending)"
+                        style={{
+                          flex: 1, padding: '7px 10px', border: '0.5px solid #dcd8d0', borderRadius: 6,
+                          fontSize: 12, outline: 'none', background: '#fff', color: '#14130f'
+                        }} />
+                      {!isMetaLibrary && (
+                        <button onClick={() => deleteVariable(vname)}
+                          style={{ width: 26, height: 26, borderRadius: 6, border: '0.5px solid #fca5a5', background: '#fee2e2', cursor: 'pointer', color: '#dc2626', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 14, lineHeight: 1 }}>
+                          x
+                        </button>
+                      )}
+                    </div>
+                    {varErrors[vname] && (
+                      <div style={{ fontSize: 10, color: '#dc2626', marginTop: 3, marginLeft: 32 }}>
+                        {varErrors[vname]}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <div style={{ padding: '10px 12px', background: '#faf9f7', borderRadius: 8, border: '0.5px solid #dcd8d0', marginBottom: 16 }}>
@@ -195,11 +371,26 @@ function TemplateEditor({ template, onClose, onSaved }) {
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
               <label style={{ fontSize: 11, fontWeight: 600, color: '#4a4742', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
-                Buttons (optional, max 3)
+                Buttons {!isMetaLibrary && '(optional, max 3)'}
               </label>
-              {buttons.length < 3 && <Btn variant="ghost" size="sm" onClick={addButton}>+ Add Button</Btn>}
+              {!isMetaLibrary && buttons.length < 3 && <Btn variant="ghost" size="sm" onClick={addButton}>+ Add Button</Btn>}
             </div>
-            {buttons.map((b, i) => (
+            {isMetaLibrary && buttons.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>
+                {buttons.map((b, i) => (
+                  <div key={i} style={{ padding: '8px 12px', background: '#f5f3ef', border: '0.5px solid #dcd8d0', borderRadius: 7, fontSize: 12, color: '#6e6a63', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 10, color: '#9a958c', fontFamily: 'monospace', minWidth: 90 }}>{b.type || 'BUTTON'}</span>
+                    <span style={{ color: '#14130f', fontWeight: 500 }}>{b.text || b.label || '(no label)'}</span>
+                    {b.url && <span style={{ fontSize: 10, color: '#9a958c', fontFamily: 'monospace' }}>{b.url}</span>}
+                    {b.phone_number && <span style={{ fontSize: 10, color: '#9a958c', fontFamily: 'monospace' }}>{b.phone_number}</span>}
+                  </div>
+                ))}
+              </div>
+            )}
+            {isMetaLibrary && buttons.length === 0 && (
+              <div style={{ fontSize: 11, color: '#9a958c', fontStyle: 'italic', padding: '8px 0' }}>No buttons on this template.</div>
+            )}
+            {!isMetaLibrary && buttons.map((b, i) => (
               <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
                 <select value={b.type} onChange={e => updateButton(i, 'type', e.target.value)}
                   style={{ width: 140, padding: '8px 10px', border: '0.5px solid #dcd8d0', borderRadius: 7, fontSize: 12, outline: 'none', background: '#fff', color: '#14130f', flexShrink: 0 }}>
@@ -242,7 +433,7 @@ function TemplateEditor({ template, onClose, onSaved }) {
 
         <div>
           <div style={{ fontSize: 11, fontWeight: 600, color: '#4a4742', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 12 }}>Live Preview</div>
-          <IPhonePreview body={body} buttons={buttons} />
+          <IPhonePreview body={body} buttons={buttons} variableDefaults={varDefaults} variableOrder={varOrdered} />
           <div style={{ marginTop: 12, fontSize: 11, color: '#9a958c', lineHeight: 1.5, textAlign: 'center' }}>
             Variables shown in blue will be replaced with actual data when sent
           </div>
@@ -300,8 +491,10 @@ function TemplateCard({ t, canCreate, canApprove, onPreview, onEdit, onDelete, o
       )}
       <div style={{ padding: '10px 16px', borderTop: '0.5px solid #f5f3ef', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
         <Btn variant="ghost" size="sm" onClick={() => onPreview(t)}>Preview</Btn>
-        {canCreate && !isLocked && (
-          <Btn variant="ghost" size="sm" onClick={() => onEdit(t)}>Edit</Btn>
+        {canCreate && (
+          <Btn variant="ghost" size="sm" onClick={() => onEdit(t)}>
+            {isLocked ? 'Defaults' : 'Edit'}
+          </Btn>
         )}
         {canApprove && t.status === 'pending' && (
           <>
@@ -547,15 +740,37 @@ export default function Templates() {
           onClose={() => setShowLibrary(false)}
           onSelect={(libraryTpl) => {
             setShowLibrary(false)
+            // Convert positional placeholders {{1}} {{2}} to named {{candidate_name}} {{job_title}}
+            // using the variables map from the library (which maps "1" -> "candidate_name", etc.)
+            const vmap = libraryTpl.variables || {}
+            let convertedBody = libraryTpl.body || ''
+            const ordered = []
+            const defaults = {}
+            // Sort keys numerically to handle {{1}}, {{2}}, ..., {{10}} correctly
+            const positions = Object.keys(vmap).filter(k => /^\d+$/.test(k)).sort((a, b) => parseInt(a) - parseInt(b))
+            for (const pos of positions) {
+              const name = vmap[pos]
+              if (typeof name !== 'string' || !name) continue
+              // Sanitise name: lowercase, only letters/digits/underscores, must start with letter
+              const cleanName = name.toLowerCase().replace(/[^a-z0-9_]/g, '_').replace(/^[^a-z]/, 'v')
+              // Replace {{N}} with {{cleanName}} in the body
+              const re = new RegExp(`\\{\\{\\s*${pos}\\s*\\}\\}`, 'g')
+              convertedBody = convertedBody.replace(re, `{{${cleanName}}}`)
+              if (!ordered.includes(cleanName)) {
+                ordered.push(cleanName)
+                defaults[cleanName] = ''
+              }
+            }
             setEditingTemplate({
               name: libraryTpl.template_key,
               category: libraryTpl.category === 'marketing' ? 'marketing' : 'utility',
-              body: libraryTpl.body,
+              body: convertedBody,
               buttons: (libraryTpl.buttons || []).map(b => ({
                 type: 'quick_reply',
                 label: b.text || b.label || ''
               })),
-              status: 'draft'
+              status: 'draft',
+              variables: { ordered, defaults }
             })
             setShowEditor(true)
           }}
@@ -579,7 +794,12 @@ export default function Templates() {
                 style={{ width: 28, height: 28, borderRadius: 7, border: '0.5px solid #dcd8d0', background: '#faf9f7', cursor: 'pointer', fontSize: 14, color: '#6e6a63', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
             </div>
             <div style={{ display: 'flex', justifyContent: 'center' }}>
-              <IPhonePreview body={previewTemplate.body} buttons={previewTemplate.buttons || []} />
+              <IPhonePreview
+                body={previewTemplate.body}
+                buttons={previewTemplate.buttons || []}
+                variableDefaults={previewTemplate.variables?.defaults || {}}
+                variableOrder={previewTemplate.variables?.ordered || []}
+              />
             </div>
           </div>
         </div>

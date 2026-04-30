@@ -1,14 +1,40 @@
 import { ink, accent } from '../utils/designTokens'
 
-export default function IPhonePreview({ body, buttons = [], variables = {} }) {
+export default function IPhonePreview({ body, buttons = [], variables = {}, variableDefaults = {}, variableOrder = [] }) {
   const now = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false })
 
-  // Highlight both {{name}} (Handlebars) and {{1}} (positional) placeholders.
-  // For positional, swap in the variable name from the variables map for readability.
-  const highlighted = (body || '').replace(/\{\{(\w+)\}\}/g, (_, v) => {
-    const label = variables[v] || v
-    return `<span style="background:${accent.soft};color:${accent.DEFAULT};padding:1px 4px;border-radius:3px;font-weight:600;font-size:11px;">{{${label}}}</span>`
-  })
+  // Replace each {{varName}} occurrence:
+  //   - If variableDefaults[varName] is a non-empty string, substitute it as plain text.
+  //   - Otherwise, render the placeholder as a styled blue pill with the variable name.
+  // Also supports the legacy `variables` prop which maps positional indices to readable names
+  // (e.g. variables["1"] = "candidate_name").
+  function renderBody(raw) {
+    if (!raw) return ''
+    return raw.replace(/\{\{\s*(\w+)\s*\}\}/g, (match, vname) => {
+      // Case A: Named placeholder. Look up directly in variableDefaults.
+      if (variableDefaults[vname] !== undefined && String(variableDefaults[vname]).trim() !== '') {
+        return escapeHtml(String(variableDefaults[vname]))
+      }
+      // Case B: Positional placeholder (e.g. "{{1}}"). Resolve via variableOrder array.
+      if (/^\d+$/.test(vname)) {
+        const idx = parseInt(vname) - 1
+        const mappedName = variableOrder[idx]
+        if (mappedName && variableDefaults[mappedName] !== undefined && String(variableDefaults[mappedName]).trim() !== '') {
+          return escapeHtml(String(variableDefaults[mappedName]))
+        }
+      }
+      // Case C: Legacy variables prop (positional -> readable name map)
+      const legacyLabel = variables[vname]
+      const display = legacyLabel || vname
+      return `<span style="background:${accent.soft};color:${accent.DEFAULT};padding:1px 4px;border-radius:3px;font-weight:600;font-size:11px;">{{${escapeHtml(display)}}}</span>`
+    })
+  }
+
+  function escapeHtml(s) {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+  }
+
+  const highlighted = renderBody(body)
 
   return (
     <div style={{ width: 240, flexShrink: 0 }}>

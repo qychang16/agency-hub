@@ -374,6 +374,7 @@ async function setupDatabase() {
     await runPhaseII1Migration()
     await runChunk9HeaderFooterMigration()
     await runChunk10BackfillAudienceMigration()
+    await runChunk11VariablesShapeMigration()
   } catch (err) {
     await client.query('ROLLBACK')
     console.error('�?DB setup error:', err.message)
@@ -1421,6 +1422,171 @@ async function runChunk10BackfillAudienceMigration() {
   }
 }
 
+// ─── CHUNK 11: Variables shape migration ─────────────────────────────────
+// Old shape (positional, used by Meta Library install and old Suggested seeds):
+//   { "1": "candidate_name", "2": "job_title" }   (key = position, value = name)
+//   OR
+//   { "1": "John Tan", "2": "Software Engineer" }  (key = position, value = sample value)
+//
+// New shape (named, used by Custom and post-import Suggested):
+//   {
+//     ordered: ["candidate_name", "job_title"],
+//     defaults: { candidate_name: "", job_title: "" }
+//   }
+//
+// Migration converts existing rows to new shape:
+//   - If keys are numeric strings ("1", "2"), treat values as variable names
+//   - If row already has 'ordered' key, skip (already migrated)
+async function runChunk11VariablesShapeMigration() {
+  const MIGRATION_ID = 'chunk_11_variables_shape_v1'
+  try {
+    const applied = await pool.query('SELECT id FROM _migrations WHERE id=$1', [MIGRATION_ID])
+    if (applied.rows.length > 0) {
+      console.log(`Migration ${MIGRATION_ID} already applied, skipping`)
+      return
+    }
+    console.log(`Running migration ${MIGRATION_ID}...`)
+
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+
+      const all = await client.query(`SELECT id, variables, source FROM templates WHERE variables IS NOT NULL`)
+      let converted = 0
+      let alreadyOk = 0
+      let emptied = 0
+
+      for (const row of all.rows) {
+        const v = row.variables
+        if (!v || (typeof v === 'object' && Object.keys(v).length === 0)) {
+          // Empty -> set canonical empty shape
+          await client.query(
+            `UPDATE templates SET variables=$1 WHERE id=$2`,
+            [JSON.stringify({ ordered: [], defaults: {} }), row.id]
+          )
+          emptied++
+          continue
+        }
+        if (v.ordered && Array.isArray(v.ordered) && v.defaults) {
+          alreadyOk++
+          continue
+        }
+        // Old positional shape: keys are "1", "2", etc.
+        const keys = Object.keys(v).filter(k => /^\d+$/.test(k))
+        if (keys.length === 0) {
+          // Unknown shape - normalise to empty
+          await client.query(
+            `UPDATE templates SET variables=$1 WHERE id=$2`,
+            [JSON.stringify({ ordered: [], defaults: {} }), row.id]
+          )
+          emptied++
+          continue
+        }
+        // Sort by numeric position
+        keys.sort((a, b) => parseInt(a) - parseInt(b))
+        const ordered = []
+        const defaults = {}
+        for (const k of keys) {
+          const value = v[k]
+          if (row.source === 'meta_library') {
+            // Meta library: positions are locked, value is sample data, name is param_N
+            const name = `param_${k}`
+            ordered.push(name)
+            defaults[name] = String(value || '')
+          } else {
+            // Library/Suggested old shape: value IS the variable name
+            const name = String(value).toLowerCase().replace(/[^a-z0-9_]/g, '_')
+            ordered.push(name)
+            defaults[name] = ''
+          }
+        }
+        await client.query(
+          `UPDATE templates SET variables=$1 WHERE id=$2`,
+          [JSON.stringify({ ordered, defaults }), row.id]
+        )
+        converted++
+      }
+
+      console.log(`   converted ${converted} rows from old shape, ${alreadyOk} already in new shape, ${emptied} normalised to empty`)
+
+      await client.query(`INSERT INTO _migrations (id) VALUES ($1)`, [MIGRATION_ID])
+      await client.query('COMMIT')
+      console.log(`Migration ${MIGRATION_ID} complete`)
+    } catch (err) {
+      await client.query('ROLLBACK')
+      throw err
+    } finally {
+      client.release()
+    }
+  } catch (err) {
+    console.error(`Migration ${MIGRATION_ID} FAILED:`, err.message)
+    throw err
+  }
+}
+
+// ─── Variables helpers ─────────────────────────────────────────────────────
+// Validates a variable name. Returns true if valid.
+// Rules: starts with letter, contains only lowercase letters/digits/underscores, max 30 chars.
+function isValidVariableName(name) {
+  if (typeof name !== 'string') return false
+  return /^[a-z][a-z0-9_]{0,29}$/.test(name)
+}
+
+// Extracts {{name}} variables from body text in order of first appearance.
+// Returns an array of unique names.
+function extractVariablesFromBody(body) {
+  if (!body) return []
+  const matches = body.match(/\{\{\s*([a-z][a-z0-9_]{0,29})\s*\}\}/g) || []
+  const seen = new Set()
+  const ordered = []
+  for (const m of matches) {
+    const name = m.replace(/[{}\s]/g, '')
+    if (!seen.has(name)) {
+      seen.add(name)
+      ordered.push(name)
+    }
+  }
+  return ordered
+}
+
+// Normalises a variables payload from the client.
+// Accepts either the new shape { ordered, defaults } or a legacy shape; returns canonical new shape.
+// Removes invalid names, deduplicates, and ensures every name in ordered has an entry in defaults.
+function normaliseVariables(input) {
+  if (!input) return { ordered: [], defaults: {} }
+  if (typeof input !== 'object') return { ordered: [], defaults: {} }
+  const ordered = Array.isArray(input.ordered) ? input.ordered : []
+  const defaults = (input.defaults && typeof input.defaults === 'object') ? input.defaults : {}
+  const cleanOrdered = []
+  const cleanDefaults = {}
+  const seen = new Set()
+  for (const raw of ordered) {
+    const name = String(raw || '').trim()
+    if (!isValidVariableName(name)) continue
+    if (seen.has(name)) continue
+    seen.add(name)
+    cleanOrdered.push(name)
+    cleanDefaults[name] = (defaults[name] !== undefined && defaults[name] !== null) ? String(defaults[name]) : ''
+  }
+  return { ordered: cleanOrdered, defaults: cleanDefaults }
+}
+
+// Reconciles variables with body content.
+// - Adds variables found in body but missing from list (auto-extract on save)
+// - Keeps unused variables in the list (user might have removed temporarily)
+// Returns the merged { ordered, defaults }.
+function reconcileVariablesWithBody(variables, body) {
+  const norm = normaliseVariables(variables)
+  const bodyVars = extractVariablesFromBody(body)
+  for (const name of bodyVars) {
+    if (!norm.ordered.includes(name)) {
+      norm.ordered.push(name)
+      norm.defaults[name] = ''
+    }
+  }
+  return norm
+}
+
 // ─── AUTH ──────────────────────────────────────────────────────────────────────
 app.post('/login', async (req, res) => {
   try {
@@ -2209,7 +2375,7 @@ app.get('/templates', auth, async (req, res) => {
 app.post('/templates', auth, requirePermission('manage_templates'), async (req, res) => {
   try {
     const wsId = await getWorkspaceId(req.user.id)
-    const { name, category, body, buttons, subject, type, status } = req.body
+    const { name, category, body, buttons, subject, type, status, variables, header, footer } = req.body
     if (!name || !name.trim()) return res.status(400).json({ error: 'Template name is required' })
     const cleanName = name.trim()
     // Duplicate name check (Meta WABA enforces uniqueness; fail fast in our DB)
@@ -2220,10 +2386,12 @@ app.post('/templates', auth, requirePermission('manage_templates'), async (req, 
     if (dup.rows.length > 0) {
       return res.status(409).json({ error: `A template named "${cleanName}" already exists in your workspace. Choose a different name.` })
     }
+    // Normalise variables and reconcile with body (auto-extract any {{name}} from body that's missing from list)
+    const reconciled = reconcileVariablesWithBody(variables, body)
     const r = await pool.query(
-      `INSERT INTO templates (workspace_id, name, category, body, buttons, subject, type, status, created_by, source)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'tenant') RETURNING *`,
-      [wsId, cleanName, category, body, JSON.stringify(buttons || []), subject, type || 'whatsapp', status || 'draft', req.user.id]
+      `INSERT INTO templates (workspace_id, name, category, body, buttons, subject, type, status, created_by, source, variables, header, footer)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'tenant',$10,$11,$12) RETURNING *`,
+      [wsId, cleanName, category, body, JSON.stringify(buttons || []), subject, type || 'whatsapp', status || 'draft', req.user.id, JSON.stringify(reconciled), header || null, footer || null]
     )
     res.json(r.rows[0])
   } catch (err) {
@@ -2235,18 +2403,33 @@ app.post('/templates', auth, requirePermission('manage_templates'), async (req, 
 app.patch('/templates/:id', auth, requirePermission('manage_templates'), async (req, res) => {
   try {
     const wsId = await getWorkspaceId(req.user.id)
-    const { name, category, body, buttons, status, subject } = req.body
+    const { name, category, body, buttons, status, subject, variables, header, footer } = req.body
 
     // Fetch current row to know its source/status before mutating
-    const current = await pool.query(`SELECT id, name, source, status FROM templates WHERE id=$1 AND workspace_id=$2`, [req.params.id, wsId])
+    const current = await pool.query(`SELECT id, name, source, status, body, variables FROM templates WHERE id=$1 AND workspace_id=$2`, [req.params.id, wsId])
     if (!current.rows.length) return res.status(404).json({ error: 'Template not found' })
     const tpl = current.rows[0]
 
-    // Lock body/header/buttons edits on Meta-library templates and on approved templates
-    if (tpl.source === 'meta_library' && (body !== undefined || buttons !== undefined)) {
-      return res.status(403).json({ error: 'Body and buttons of Meta library templates cannot be edited.' })
+    // Lock body/header/buttons edits on Meta-library templates (always)
+    // For Meta library templates, we still allow updating defaults (the values inside variables.defaults)
+    if (tpl.source === 'meta_library') {
+      if (body !== undefined || buttons !== undefined || header !== undefined || footer !== undefined) {
+        return res.status(403).json({ error: 'Body, buttons, header, and footer of Meta library templates cannot be edited. You may update default values for variables.' })
+      }
+      // Meta library: variable names and ordering are locked, only defaults can change
+      if (variables !== undefined) {
+        const incoming = normaliseVariables(variables)
+        const existing = tpl.variables || { ordered: [], defaults: {} }
+        // Verify ordered list is unchanged (names locked)
+        const sameNames = JSON.stringify(incoming.ordered) === JSON.stringify(existing.ordered)
+        if (!sameNames) {
+          return res.status(403).json({ error: 'Variable names of Meta library templates cannot be changed. Only default values may be edited.' })
+        }
+      }
     }
-    if (tpl.status === 'approved' && (body !== undefined || buttons !== undefined)) {
+
+    // Lock body/buttons edits on approved templates (clone-for-reapproval pattern)
+    if (tpl.status === 'approved' && tpl.source !== 'meta_library' && (body !== undefined || buttons !== undefined || header !== undefined || footer !== undefined)) {
       return res.status(403).json({ error: 'Approved templates cannot be edited. Clone for re-approval instead.' })
     }
 
@@ -2261,6 +2444,16 @@ app.patch('/templates/:id', auth, requirePermission('manage_templates'), async (
       }
     }
 
+    // Determine final variables value: reconcile with whatever body is being saved (or existing body if not changing)
+    let finalVariables = null
+    if (variables !== undefined) {
+      const finalBody = body !== undefined ? body : tpl.body
+      finalVariables = reconcileVariablesWithBody(variables, finalBody)
+    } else if (body !== undefined) {
+      // Body changed but variables not sent: reconcile existing variables against new body
+      finalVariables = reconcileVariablesWithBody(tpl.variables, body)
+    }
+
     const r = await pool.query(
       `UPDATE templates SET
          name = COALESCE($1, name),
@@ -2269,8 +2462,11 @@ app.patch('/templates/:id', auth, requirePermission('manage_templates'), async (
          buttons = COALESCE($4, buttons),
          status = COALESCE($5, status),
          subject = COALESCE($6, subject),
+         variables = COALESCE($7, variables),
+         header = COALESCE($8, header),
+         footer = COALESCE($9, footer),
          updated_at = NOW()
-       WHERE id=$7 AND workspace_id=$8 RETURNING *`,
+       WHERE id=$10 AND workspace_id=$11 RETURNING *`,
       [
         name !== undefined ? name.trim() : null,
         category !== undefined ? category : null,
@@ -2278,6 +2474,9 @@ app.patch('/templates/:id', auth, requirePermission('manage_templates'), async (
         buttons !== undefined ? JSON.stringify(buttons || []) : null,
         status !== undefined ? status : null,
         subject !== undefined ? subject : null,
+        finalVariables !== null ? JSON.stringify(finalVariables) : null,
+        header !== undefined ? header : null,
+        footer !== undefined ? footer : null,
         req.params.id,
         wsId
       ]
@@ -2416,13 +2615,19 @@ app.post('/api/meta-library/install', auth, async (req, res) => {
       // Build the buttons array (use button_inputs from request if provided, else from source template)
       const buttons = button_inputs || sourceTpl.buttons || []
 
-      // Build variables map from body_params
-      const variables = {}
+      // Build variables map from body_params (NEW SHAPE: ordered + defaults)
+      // Meta library uses positional {{1}} {{2}}; we name them param_1, param_2 etc.
+      // and store the sample values as default values.
+      const ordered = []
+      const defaults = {}
       if (Array.isArray(sourceTpl.body_params)) {
         sourceTpl.body_params.forEach((sample, idx) => {
-          variables[String(idx + 1)] = sample
+          const name = `param_${idx + 1}`
+          ordered.push(name)
+          defaults[name] = String(sample || '')
         })
       }
+      const variables = { ordered, defaults }
 
       const insert = await pool.query(
         `INSERT INTO templates (

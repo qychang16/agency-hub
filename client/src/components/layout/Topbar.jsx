@@ -7,6 +7,7 @@ const NAV_ITEMS = [
   { key: 'inbox',       label: 'Inbox' },
   { key: 'projects',    label: 'Projects' },
   { key: 'scheduled',   label: 'Scheduled' },
+  { key: 'calendar',    label: 'Calendar' },
   { key: 'broadcasts',  label: 'Broadcasts' },
   { key: 'templates',   label: 'Templates' },
   { key: 'analytics',   label: 'Analytics' },

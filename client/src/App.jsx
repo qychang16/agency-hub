@@ -16,6 +16,7 @@ const Templates = lazy(() => import('./components/templates/Templates'))
 const Analytics = lazy(() => import('./components/analytics/Analytics'))
 const Projects = lazy(() => import('./components/projects/Projects'))
 const Scheduled = lazy(() => import('./components/scheduled/Scheduled'))
+const Calendar = lazy(() => import('./components/calendar/Calendar'))
 const Settings = lazy(() => import('./components/settings/Settings'))
 const Pipeline = lazy(() => import('./components/pipeline/Pipeline'))
 const JobOrders = lazy(() => import('./components/jobs/JobOrders'))
@@ -313,6 +314,7 @@ function MainApp() {
     const preload = () => {
       import('./components/projects/Projects')
       import('./components/scheduled/Scheduled')
+      import('./components/calendar/Calendar')
       import('./components/templates/Templates')
       import('./components/settings/Settings')
       import('./components/inbox/InboxList')
@@ -410,6 +412,7 @@ function MainApp() {
         case 'templates': return <Templates />
         case 'analytics': return <Analytics />
         case 'scheduled': return <Scheduled />
+        case 'calendar': return <Calendar />
         case 'settings': return <Settings />
         case 'pipeline': return <Pipeline />
         case 'jobs': return <JobOrders />

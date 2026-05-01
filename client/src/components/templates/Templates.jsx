@@ -221,7 +221,6 @@ function TemplateEditor({ template, onClose, onSaved }) {
     if (!body.trim()) { setError('Message body is required'); return }
     const errored = Object.entries(varErrors).find(([, v]) => v)
     if (errored) { setError(`Fix variable name issues before saving: ${errored[0]}`); return }
-    console.log('[save] varEventFieldMap at save time:', varEventFieldMap, 'varOrdered:', varOrdered)
     setSaving(true)
     try {
       // Clones are always POSTs (new template), never PATCHes - even though template object exists.

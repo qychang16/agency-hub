@@ -30,6 +30,32 @@ export default function EventModal({ event, defaultDate, eventTypes, onClose, on
   const [location, setLocation] = useState(event?.location || '')
   const [notes, setNotes] = useState(event?.notes || '')
 
+  // Conversation linker state
+  const [conversationId, setConversationId] = useState(event?.conversation_id || null)
+  const [conversations, setConversations] = useState([])
+  const [convoSearch, setConvoSearch] = useState('')
+  const [showConvoDropdown, setShowConvoDropdown] = useState(false)
+
+  // Load conversations once when modal opens (we filter client-side)
+  useEffect(() => {
+    if (!token) return
+    fetch(`${API}/conversations?status=open`, { headers: { Authorization: 'Bearer ' + token } })
+      .then(r => r.json())
+      .then(data => setConversations(Array.isArray(data) ? data : []))
+      .catch(() => setConversations([]))
+  }, [token])
+
+  // The currently linked conversation object (for display)
+  const linkedConvo = conversations.find(c => c.id === conversationId)
+
+  // Filter conversations by search query
+  const filteredConvos = conversations.filter(c => {
+    if (!convoSearch.trim()) return true
+    const q = convoSearch.toLowerCase().trim()
+    return (c.name || '').toLowerCase().includes(q)
+        || (c.phone || '').includes(q)
+  })
+
   // UI state
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -52,6 +78,7 @@ export default function EventModal({ event, defaultDate, eventTypes, onClose, on
         event_type_id: parseInt(eventTypeId),
         location: location.trim() || null,
         notes: notes.trim() || null,
+        conversation_id: conversationId || null,
       }
       const r = await fetch(url, {
         method,
@@ -189,6 +216,145 @@ export default function EventModal({ event, defaultDate, eventTypes, onClose, on
               )
             })}
           </div>
+        </div>
+
+        {/* Linked conversation */}
+        <div style={{ position: 'relative' }}>
+          <label style={labelStyle}>Linked conversation (optional)</label>
+          {linkedConvo ? (
+            <div style={{
+              padding: '9px 12px',
+              border: `0.5px solid ${ink[300]}`,
+              borderRadius: 8,
+              background: '#ede9fe',
+              display: 'flex', alignItems: 'center', gap: 10,
+              fontFamily: fonts.body,
+            }}>
+              <div style={{
+                width: 28, height: 28, borderRadius: '50%',
+                background: linkedConvo.type === 'client' ? accent.DEFAULT : '#f5e9d6',
+                color: linkedConvo.type === 'client' ? '#fff' : '#7a5a1f',
+                fontSize: 11, fontWeight: 600,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                flexShrink: 0,
+              }}>
+                {(linkedConvo.name || '?').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: ink[900], marginBottom: 1 }}>
+                  {linkedConvo.name}
+                </div>
+                <div style={{ fontSize: 11, color: ink[600], fontFamily: fonts.mono }}>
+                  {linkedConvo.phone}
+                </div>
+              </div>
+              <button type="button" onClick={() => { setConversationId(null); setConvoSearch('') }}
+                title="Remove link"
+                style={{
+                  width: 26, height: 26, borderRadius: 6,
+                  border: `0.5px solid ${ink[300]}`,
+                  background: '#fff', cursor: 'pointer',
+                  color: ink[600],
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  flexShrink: 0,
+                }}>
+                <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                  <path d="M3 3l10 10M13 3l-10 10" strokeLinecap="round"/>
+                </svg>
+              </button>
+            </div>
+          ) : (
+            <>
+              <input
+                value={convoSearch}
+                onChange={e => { setConvoSearch(e.target.value); setShowConvoDropdown(true) }}
+                onFocus={() => setShowConvoDropdown(true)}
+                onBlur={() => setTimeout(() => setShowConvoDropdown(false), 200)}
+                placeholder="Search by name or phone..."
+                style={inputStyle}
+              />
+              {showConvoDropdown && filteredConvos.length > 0 && (
+                <div style={{
+                  position: 'absolute', top: '100%', left: 0, right: 0,
+                  marginTop: 4,
+                  background: '#fff',
+                  border: `0.5px solid ${ink[300]}`,
+                  borderRadius: 8,
+                  maxHeight: 240,
+                  overflowY: 'auto',
+                  zIndex: 50,
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+                }}>
+                  {filteredConvos.slice(0, 10).map(c => (
+                    <button key={c.id}
+                      type="button"
+                      onMouseDown={e => e.preventDefault()}
+                      onClick={() => {
+                        setConversationId(c.id)
+                        setShowConvoDropdown(false)
+                        setConvoSearch('')
+                      }}
+                      style={{
+                        width: '100%', textAlign: 'left',
+                        padding: '8px 12px',
+                        background: 'transparent',
+                        border: 'none',
+                        borderBottom: `0.5px solid ${ink[200]}`,
+                        cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', gap: 8,
+                        fontFamily: fonts.body,
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.background = ink[100]}
+                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                      <div style={{
+                        width: 26, height: 26, borderRadius: '50%',
+                        background: c.type === 'client' ? accent.DEFAULT : '#f5e9d6',
+                        color: c.type === 'client' ? '#fff' : '#7a5a1f',
+                        fontSize: 10, fontWeight: 600,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        flexShrink: 0,
+                      }}>
+                        {(c.name || '?').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 1 }}>
+                          <span style={{ fontSize: 12, fontWeight: 600, color: ink[900], overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {c.name}
+                          </span>
+                          <span style={{ fontSize: 10, color: ink[600], fontFamily: fonts.mono, flexShrink: 0 }}>
+                            {c.phone}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: 10, color: ink[600], overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {c.preview || c.last_message_text || '(no messages)'}
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                  {filteredConvos.length > 10 && (
+                    <div style={{ padding: '6px 12px', fontSize: 10, color: ink[600], textAlign: 'center', fontStyle: 'italic' }}>
+                      Showing first 10 of {filteredConvos.length}. Refine search to narrow.
+                    </div>
+                  )}
+                </div>
+              )}
+              {showConvoDropdown && filteredConvos.length === 0 && convoSearch.trim() && (
+                <div style={{
+                  position: 'absolute', top: '100%', left: 0, right: 0,
+                  marginTop: 4,
+                  padding: '12px',
+                  background: '#fff',
+                  border: `0.5px solid ${ink[300]}`,
+                  borderRadius: 8,
+                  fontSize: 11, color: ink[600], textAlign: 'center',
+                  zIndex: 50,
+                  fontFamily: fonts.body,
+                }}>
+                  No conversations match "{convoSearch}"
+                </div>
+              )}
+            </>
+          )}
         </div>
 
         {/* Location */}

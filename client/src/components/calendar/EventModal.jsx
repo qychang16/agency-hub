@@ -4,6 +4,7 @@ import { API } from '../../utils/constants'
 import { ink, accent, fonts, textSize, textWeight, space, radius, border } from '../../utils/designTokens'
 import Modal from '../ui/Modal'
 import Btn from '../ui/Btn'
+import ReminderModal from './ReminderModal'
 
 // Formats a Date as YYYY-MM-DD for HTML date input
 function ymd(d) {
@@ -60,6 +61,52 @@ export default function EventModal({ event, defaultDate, eventTypes, onClose, on
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState('')
+
+  // Reminder state (Phase 4)
+  const [reminder, setReminder] = useState(null)
+  const [showReminderModal, setShowReminderModal] = useState(false)
+  const [cancellingReminder, setCancellingReminder] = useState(false)
+
+  // Fetch reminder details when editing an existing event
+  async function loadReminder() {
+    if (!isEdit || !event?.id) { setReminder(null); return }
+    try {
+      const r = await fetch(`${API}/calendar/${event.id}`, {
+        headers: { Authorization: 'Bearer ' + token }
+      })
+      if (!r.ok) return
+      const data = await r.json()
+      setReminder(data.reminder || null)
+    } catch {
+      setReminder(null)
+    }
+  }
+
+  useEffect(() => {
+    loadReminder()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [event?.id])
+
+  async function cancelReminder() {
+    if (!event?.id) return
+    if (!confirm('Cancel this reminder? The recipient will not be notified.')) return
+    setCancellingReminder(true)
+    try {
+      const r = await fetch(`${API}/calendar/${event.id}/reminder`, {
+        method: 'DELETE',
+        headers: { Authorization: 'Bearer ' + token }
+      })
+      if (!r.ok) {
+        setError('Failed to cancel reminder')
+        return
+      }
+      setReminder(null)
+    } catch {
+      setError('Network error. Try again.')
+    } finally {
+      setCancellingReminder(false)
+    }
+  }
 
   async function save() {
     setError('')
@@ -378,6 +425,90 @@ export default function EventModal({ event, defaultDate, eventTypes, onClose, on
           )}
         </div>
 
+        {/* Reminders (only on saved events) */}
+        {isEdit && (
+          <div>
+            <label style={labelStyle}>Reminder</label>
+            {reminder ? (
+              <div style={{
+                padding: '10px 12px',
+                border: '0.5px solid #d4ccf4',
+                borderRadius: 8,
+                background: '#fafaff',
+                display: 'flex', alignItems: 'center', gap: 10,
+                fontFamily: fonts.body,
+              }}>
+                <div style={{
+                  width: 28, height: 28, borderRadius: '50%',
+                  background: '#ede9fe',
+                  color: '#5b21b6',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  flexShrink: 0,
+                }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+                    <path d="M12 6v6l4 2" strokeLinecap="round" strokeLinejoin="round"/>
+                    <circle cx="12" cy="12" r="9"/>
+                  </svg>
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: ink[900], marginBottom: 2 }}>
+                    {reminder.offset_hours}h before, using <span style={{ fontFamily: fonts.mono }}>{reminder.template_name || 'template'}</span>
+                  </div>
+                  <div style={{ fontSize: 11, color: ink[600] }}>
+                    Sends {reminder.scheduled_at ? new Date(reminder.scheduled_at).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Singapore' }) : 'soon'} SGT
+                  </div>
+                </div>
+                <button type="button" onClick={cancelReminder} disabled={cancellingReminder}
+                  title="Cancel reminder"
+                  style={{
+                    padding: '5px 10px',
+                    borderRadius: 6,
+                    border: '0.5px solid #fca5a5',
+                    background: '#fee2e2', color: '#dc2626',
+                    cursor: 'pointer',
+                    fontSize: 11, fontWeight: 600,
+                    flexShrink: 0,
+                    fontFamily: fonts.body,
+                  }}>
+                  {cancellingReminder ? 'Cancelling...' : 'Cancel'}
+                </button>
+              </div>
+            ) : !conversationId ? (
+              <div style={{
+                padding: '10px 12px',
+                border: `0.5px solid ${ink[300]}`,
+                borderRadius: 8,
+                background: '#faf9f7',
+                fontSize: 11, color: ink[600],
+                fontFamily: fonts.body,
+              }}>
+                Link a conversation first to enable reminders.
+              </div>
+            ) : (
+              <button type="button"
+                onClick={() => setShowReminderModal(true)}
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  borderRadius: 8,
+                  border: `0.5px dashed ${ink[400]}`,
+                  background: '#fff',
+                  color: ink[700],
+                  cursor: 'pointer',
+                  fontSize: 12, fontWeight: 500,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                  fontFamily: fonts.body,
+                }}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <path d="M12 6v6l4 2" strokeLinecap="round" strokeLinejoin="round"/>
+                  <circle cx="12" cy="12" r="9"/>
+                </svg>
+                Schedule reminder
+              </button>
+            )}
+          </div>
+        )}
+
         {/* Location */}
         <div>
           <label style={labelStyle}>Location (optional)</label>
@@ -430,6 +561,16 @@ export default function EventModal({ event, defaultDate, eventTypes, onClose, on
           </Btn>
         </div>
       </div>
+
+      {showReminderModal && event?.id && (
+        <ReminderModal
+          eventId={event.id}
+          eventDate={eventDate}
+          eventTime={eventTime}
+          onClose={() => setShowReminderModal(false)}
+          onScheduled={() => { setShowReminderModal(false); loadReminder() }}
+        />
+      )}
     </Modal>
   )
 }

@@ -381,6 +381,7 @@ async function setupDatabase() {
     await runChunk12MetaLibraryLabelsMigration()
     await runChunk13CalendarMigration()
     await runChunk13bCalendarPermissionJsonbMigration()
+    await runChunk14EventRemindersMigration()
   } catch (err) {
     await client.query('ROLLBACK')
     console.error('�?DB setup error:', err.message)
@@ -1762,7 +1763,73 @@ async function runChunk13bCalendarPermissionJsonbMigration() {
   }
 }
 
-// ─── Variables helpers ─────────────────────────────────────────────────────
+// ─── CHUNK 14: Event Reminders ──────────────────────────────────────────────
+// Adds event_reminders table linking calendar_events to scheduled_messages.
+// Each event can have at most one active reminder. The reminder is a child of
+// the event: when the event date/time changes, the reminder's send time is
+// re-anchored. When the event is deleted, the reminder is cancelled.
+async function runChunk14EventRemindersMigration() {
+  const MIGRATION_ID = 'chunk_14_event_reminders_v1'
+  try {
+    const applied = await pool.query('SELECT id FROM _migrations WHERE id=$1', [MIGRATION_ID])
+    if (applied.rows.length > 0) {
+      console.log(`Migration ${MIGRATION_ID} already applied, skipping`)
+      return
+    }
+    console.log(`Running migration ${MIGRATION_ID}...`)
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+
+      // Create the event_reminders table. One row per active reminder per event.
+      // Status flow: active -> sent (when scheduled_message fires) OR active -> cancelled
+      // (when recruiter cancels OR event is deleted/rescheduled in a way that requires re-queue).
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS event_reminders (
+          id SERIAL PRIMARY KEY,
+          workspace_id INTEGER NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+          event_id INTEGER NOT NULL REFERENCES calendar_events(id) ON DELETE CASCADE,
+          scheduled_message_id INTEGER NOT NULL REFERENCES scheduled_messages(id) ON DELETE CASCADE,
+          template_id INTEGER REFERENCES templates(id) ON DELETE SET NULL,
+          offset_hours INTEGER NOT NULL CHECK (offset_hours IN (3, 12, 24)),
+          status VARCHAR(20) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'sent', 'cancelled')),
+          created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+          created_at TIMESTAMP DEFAULT NOW(),
+          updated_at TIMESTAMP DEFAULT NOW()
+        )
+      `)
+
+      // Index for fast lookup by event when checking "does this event have a reminder?"
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS idx_event_reminders_event_id
+        ON event_reminders(event_id)
+        WHERE status = 'active'
+      `)
+
+      // Index for fast workspace-scoped queries
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS idx_event_reminders_workspace
+        ON event_reminders(workspace_id, status)
+      `)
+
+      console.log(`   created event_reminders table with indexes`)
+
+      await client.query(`INSERT INTO _migrations (id) VALUES ($1)`, [MIGRATION_ID])
+      await client.query('COMMIT')
+      console.log(`Migration ${MIGRATION_ID} complete`)
+    } catch (err) {
+      await client.query('ROLLBACK')
+      throw err
+    } finally {
+      client.release()
+    }
+  } catch (err) {
+    console.error(`Migration ${MIGRATION_ID} FAILED:`, err.message)
+    throw err
+  }
+}
+
+// ─── Variables helpers
 // Validates a variable name. Returns true if valid.
 // Rules: starts with letter, contains only lowercase letters/digits/underscores, max 30 chars.
 function isValidVariableName(name) {
@@ -3112,7 +3179,176 @@ app.patch('/security', auth, requirePermission('manage_workspace_settings'), asy
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-// ─── CALENDAR ──────────────────────────────────────────────────────────────────
+// ─── CALENDAR ──────────────────────────────────────────────────────────────
+
+// ─── REMINDER HELPERS (Phase 4) ─────────────────────────────────────────────
+
+// Compute the reminder send time from event_date + event_time + offset_hours.
+// If event has no time, treats it as 09:00 SGT (start of business day).
+// Returns a JS Date object (in UTC, ready for DB INSERT).
+//
+// IMPORTANT: pg driver converts DATE columns to JS Date at local midnight,
+// which means .toISOString() shifts the date by the server's timezone offset.
+// We avoid this by extracting date components from local-time accessors when
+// the input is a Date object, or string-slicing when the input is a string.
+function computeReminderSendTime(event_date, event_time, offset_hours) {
+  let dateStr
+  if (typeof event_date === 'string') {
+    dateStr = event_date.slice(0, 10)
+  } else {
+    // Date object from pg - read local-time components, NOT UTC
+    const d = event_date instanceof Date ? event_date : new Date(event_date)
+    const y = d.getFullYear()
+    const m = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    dateStr = `${y}-${m}-${day}`
+  }
+  const timeStr = event_time ? String(event_time).slice(0, 5) : '09:00'
+  // Construct as SGT (UTC+8) - Singapore timezone
+  const eventDateTime = new Date(`${dateStr}T${timeStr}:00+08:00`)
+  // Subtract offset hours
+  return new Date(eventDateTime.getTime() - (offset_hours * 60 * 60 * 1000))
+}
+
+// Resolves and renders the reminder message body using current event data and template.
+// Reads template variables, applies event_field_map auto-fill, renders {{name}} placeholders.
+// Returns the final text string ready to send.
+async function renderReminderBody(client, eventId, templateId, contactName) {
+  const evRes = await client.query(
+    `SELECT ce.*, ct.name as contact_name
+     FROM calendar_events ce
+     LEFT JOIN contacts ct ON ct.id = ce.contact_id
+     WHERE ce.id = $1`,
+    [eventId]
+  )
+  if (evRes.rows.length === 0) throw new Error('Event not found')
+  const ev = evRes.rows[0]
+
+  const tplRes = await client.query(`SELECT body, variables FROM templates WHERE id = $1`, [templateId])
+  if (tplRes.rows.length === 0) throw new Error('Template not found')
+  const tpl = tplRes.rows[0]
+  const ordered = tpl.variables?.ordered || []
+  const defaults = tpl.variables?.defaults || {}
+  const fieldMap = tpl.variables?.event_field_map || {}
+
+  // Build values: start from defaults, override with event field mapping
+  const values = {}
+  for (const vname of ordered) {
+    values[vname] = defaults[vname] || ''
+    const field = fieldMap[vname]
+    if (!field) continue
+    if (field === 'contact_name') values[vname] = contactName || ev.contact_name || ''
+    else if (field === 'event_date') {
+      const d = new Date(ev.event_date)
+      values[vname] = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Singapore' })
+    }
+    else if (field === 'event_time') {
+      values[vname] = ev.event_time ? String(ev.event_time).slice(0, 5) : ''
+    }
+    else if (field === 'location') values[vname] = ev.location || ''
+    else if (field === 'event_title') values[vname] = ev.title || ''
+  }
+
+  // Substitute {{name}} and {{1}} (positional) in the body
+  return (tpl.body || '').replace(/\{\{\s*(\w+)\s*\}\}/g, (match, vname) => {
+    if (values[vname] !== undefined && values[vname] !== '') return values[vname]
+    if (/^\d+$/.test(vname)) {
+      const idx = parseInt(vname) - 1
+      const mapped = ordered[idx]
+      if (mapped && values[mapped] !== undefined && values[mapped] !== '') return values[mapped]
+    }
+    return match
+  })
+}
+
+// Cancels an active reminder for an event by:
+// 1. Marking the scheduled_message as 'cancelled'
+// 2. Marking the event_reminders row as 'cancelled'
+// Idempotent — does nothing if no active reminder exists.
+async function cancelReminderForEvent(client, eventId) {
+  const reminderRes = await client.query(
+    `SELECT id, scheduled_message_id FROM event_reminders WHERE event_id = $1 AND status = 'active' LIMIT 1`,
+    [eventId]
+  )
+  if (reminderRes.rows.length === 0) return null
+  const reminder = reminderRes.rows[0]
+  // Cancel the queued scheduled_message (only if still pending)
+  await client.query(
+    `UPDATE scheduled_messages SET status = 'cancelled' WHERE id = $1 AND status = 'pending'`,
+    [reminder.scheduled_message_id]
+  )
+  await client.query(
+    `UPDATE event_reminders SET status = 'cancelled', updated_at = NOW() WHERE id = $1`,
+    [reminder.id]
+  )
+  return reminder.id
+}
+
+// Re-queues an existing reminder against an updated event. Used by PATCH /calendar/:id
+// when the event date or time changes. Cancels the old reminder + creates a new one
+// with the same template and offset, but a fresh send time.
+// Returns the new reminder id, or null if no active reminder existed.
+async function requeueReminderForEvent(client, eventId, wsId) {
+  const reminderRes = await client.query(
+    `SELECT er.template_id, er.offset_hours, er.created_by, sm.conversation_id, sm.contact_id, sm.phone_number_id
+     FROM event_reminders er
+     JOIN scheduled_messages sm ON sm.id = er.scheduled_message_id
+     WHERE er.event_id = $1 AND er.status = 'active'
+     LIMIT 1`,
+    [eventId]
+  )
+  if (reminderRes.rows.length === 0) return null
+  const old = reminderRes.rows[0]
+
+  // Cancel the old one
+  await cancelReminderForEvent(client, eventId)
+
+  // Get fresh event data to compute new send time
+  const evRes = await client.query(
+    `SELECT ce.event_date, ce.event_time, ct.name as contact_name
+     FROM calendar_events ce
+     LEFT JOIN contacts ct ON ct.id = ce.contact_id
+     WHERE ce.id = $1`,
+    [eventId]
+  )
+  if (evRes.rows.length === 0) return null
+  const ev = evRes.rows[0]
+
+  const newSendTime = computeReminderSendTime(ev.event_date, ev.event_time, old.offset_hours)
+
+  // Skip re-queue if new send time is in the past (event was rescheduled to imminent)
+  if (newSendTime <= new Date()) {
+    console.log(`[reminder] Skipping requeue for event ${eventId}: new send time ${newSendTime.toISOString()} is in the past`)
+    return null
+  }
+
+  // Render fresh body with updated event data
+  const renderedBody = await renderReminderBody(client, eventId, old.template_id, ev.contact_name)
+
+  // Insert new scheduled_message
+  const smRes = await client.query(
+    `INSERT INTO scheduled_messages
+       (workspace_id, conversation_id, contact_id, phone_number_id, created_by,
+        channel, template_id, body, scheduled_at, send_mode, status)
+     VALUES ($1, $2, $3, $4, $5, 'whatsapp', $6, $7, $8, 'scheduled', 'pending')
+     RETURNING id`,
+    [wsId, old.conversation_id, old.contact_id, old.phone_number_id, old.created_by,
+     old.template_id, renderedBody, newSendTime]
+  )
+  const newSmId = smRes.rows[0].id
+
+  // Insert new event_reminders row linking the new scheduled_message
+  const erRes = await client.query(
+    `INSERT INTO event_reminders
+       (workspace_id, event_id, scheduled_message_id, template_id, offset_hours, status, created_by)
+     VALUES ($1, $2, $3, $4, $5, 'active', $6)
+     RETURNING id`,
+    [wsId, eventId, newSmId, old.template_id, old.offset_hours, old.created_by]
+  )
+  return erRes.rows[0].id
+}
+
+// ─── CALENDAR ENDPOINTS ─────────────────────────────────────────────────────
 app.get('/calendar', auth, async (req, res) => {
   try {
     const wsId = await getWorkspaceId(req.user.id)
@@ -3151,10 +3387,27 @@ app.post('/calendar', auth, requirePermission('manage_calendar'), async (req, re
 
 // PATCH /calendar/:id — update an event
 app.patch('/calendar/:id', auth, requirePermission('manage_calendar'), async (req, res) => {
+  const client = await pool.connect()
   try {
     const wsId = await getWorkspaceId(req.user.id)
+    const eventId = parseInt(req.params.id)
     const { conversation_id, contact_id, job_order_id, title, event_date, event_time, location, notes, event_type_id } = req.body
-    const r = await pool.query(
+
+    await client.query('BEGIN')
+
+    // Capture pre-update state to detect what changed
+    const beforeRes = await client.query(
+      `SELECT event_date, event_time, conversation_id FROM calendar_events WHERE id = $1 AND workspace_id = $2`,
+      [eventId, wsId]
+    )
+    if (beforeRes.rows.length === 0) {
+      await client.query('ROLLBACK')
+      return res.status(404).json({ error: 'Event not found' })
+    }
+    const before = beforeRes.rows[0]
+
+    // Apply the update
+    const r = await client.query(
       `UPDATE calendar_events
        SET conversation_id=COALESCE($1, conversation_id),
            contact_id=COALESCE($2, contact_id),
@@ -3166,11 +3419,34 @@ app.patch('/calendar/:id', auth, requirePermission('manage_calendar'), async (re
            notes=$8,
            event_type_id=COALESCE($9, event_type_id)
        WHERE id=$10 AND workspace_id=$11 RETURNING *`,
-      [conversation_id, contact_id, job_order_id, title, event_date, event_time, location, notes, event_type_id, req.params.id, wsId]
+      [conversation_id, contact_id, job_order_id, title, event_date, event_time, location, notes, event_type_id, eventId, wsId]
     )
-    if (r.rows.length === 0) return res.status(404).json({ error: 'Event not found' })
-    res.json(r.rows[0])
-  } catch (err) { res.status(500).json({ error: err.message }) }
+    const updated = r.rows[0]
+
+    // Detect changes that require reminder sync.
+    // Date or time changed? -> requeue reminder with new send time.
+    // Conversation unlinked? -> cancel reminder (can't send without recipient).
+    const dateChanged = event_date !== undefined && String(before.event_date).slice(0, 10) !== String(updated.event_date).slice(0, 10)
+    const timeChanged = String(before.event_time || '') !== String(updated.event_time || '')
+    const convoUnlinked = before.conversation_id && !updated.conversation_id
+
+    if (convoUnlinked) {
+      const cancelledId = await cancelReminderForEvent(client, eventId)
+      if (cancelledId) console.log(`[reminder sync] Event ${eventId} conversation unlinked -> reminder cancelled`)
+    } else if (dateChanged || timeChanged) {
+      const newReminderId = await requeueReminderForEvent(client, eventId, wsId)
+      if (newReminderId) console.log(`[reminder sync] Event ${eventId} date/time changed -> reminder requeued (new id ${newReminderId})`)
+    }
+
+    await client.query('COMMIT')
+    res.json(updated)
+  } catch (err) {
+    await client.query('ROLLBACK')
+    console.error('PATCH /calendar/:id error:', err)
+    res.status(500).json({ error: err.message })
+  } finally {
+    client.release()
+  }
 })
 
 // DELETE /calendar/:id — delete an event
@@ -3182,8 +3458,172 @@ app.delete('/calendar/:id', auth, requirePermission('manage_calendar'), async (r
       [req.params.id, wsId]
     )
     if (r.rows.length === 0) return res.status(404).json({ error: 'Event not found' })
+    // CASCADE on event_reminders.event_id handles cleanup of reminder + scheduled_message rows
     res.json({ deleted: true })
   } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+// GET /calendar/:id — single event with linked reminder details if any
+app.get('/calendar/:id', auth, async (req, res) => {
+  try {
+    const wsId = await getWorkspaceId(req.user.id)
+    const r = await pool.query(
+      `SELECT ce.*, c.name as contact_name, u.name as created_by_name,
+              et.name as event_type_name, et.color_bg as event_type_bg, et.color_fg as event_type_fg
+       FROM calendar_events ce
+       LEFT JOIN contacts c ON c.id=ce.contact_id
+       LEFT JOIN users u ON u.id=ce.created_by
+       LEFT JOIN event_types et ON et.id=ce.event_type_id
+       WHERE ce.id=$1 AND ce.workspace_id=$2`,
+      [req.params.id, wsId]
+    )
+    if (r.rows.length === 0) return res.status(404).json({ error: 'Event not found' })
+    const event = r.rows[0]
+    // Fetch active reminder if any
+    const reminderRes = await pool.query(
+      `SELECT er.id, er.template_id, er.offset_hours, er.status,
+              t.name as template_name,
+              sm.scheduled_at, sm.status as scheduled_message_status
+       FROM event_reminders er
+       LEFT JOIN templates t ON t.id = er.template_id
+       LEFT JOIN scheduled_messages sm ON sm.id = er.scheduled_message_id
+       WHERE er.event_id = $1 AND er.status = 'active'
+       LIMIT 1`,
+      [req.params.id]
+    )
+    event.reminder = reminderRes.rows[0] || null
+    res.json(event)
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+// POST /calendar/:id/reminder — schedule a reminder for an event
+app.post('/calendar/:id/reminder', auth, requirePermission('manage_calendar'), async (req, res) => {
+  const client = await pool.connect()
+  try {
+    const wsId = await getWorkspaceId(req.user.id)
+    const eventId = parseInt(req.params.id)
+    const { template_id, offset_hours } = req.body
+
+    // Validate input
+    if (!template_id) return res.status(400).json({ error: 'template_id is required' })
+    if (![3, 12, 24].includes(parseInt(offset_hours))) {
+      return res.status(400).json({ error: 'offset_hours must be 3, 12, or 24' })
+    }
+
+    await client.query('BEGIN')
+
+    // Load event + verify ownership + verify it has a linked conversation
+    const evRes = await client.query(
+      `SELECT ce.*, ct.name as contact_name, ct.id as contact_id_resolved,
+              c.phone_number_id
+       FROM calendar_events ce
+       LEFT JOIN conversations c ON c.id = ce.conversation_id
+       LEFT JOIN contacts ct ON ct.id = c.contact_id
+       WHERE ce.id = $1 AND ce.workspace_id = $2`,
+      [eventId, wsId]
+    )
+    if (evRes.rows.length === 0) {
+      await client.query('ROLLBACK')
+      return res.status(404).json({ error: 'Event not found' })
+    }
+    const ev = evRes.rows[0]
+    if (!ev.conversation_id) {
+      await client.query('ROLLBACK')
+      return res.status(400).json({ error: 'Event must have a linked conversation before scheduling a reminder' })
+    }
+
+    // Compute send time and check it's not in the past
+    const sendTime = computeReminderSendTime(ev.event_date, ev.event_time, parseInt(offset_hours))
+    if (sendTime <= new Date()) {
+      await client.query('ROLLBACK')
+      return res.status(400).json({ error: 'Reminder send time is in the past. Pick a shorter offset or reschedule the event.' })
+    }
+
+    // Cancel any existing active reminder (1 reminder per event policy)
+    await cancelReminderForEvent(client, eventId)
+
+    // Verify template is approved + workspace-owned
+    const tplRes = await client.query(
+      `SELECT id, status FROM templates WHERE id = $1 AND workspace_id = $2`,
+      [template_id, wsId]
+    )
+    if (tplRes.rows.length === 0) {
+      await client.query('ROLLBACK')
+      return res.status(404).json({ error: 'Template not found' })
+    }
+    if (tplRes.rows[0].status !== 'approved') {
+      await client.query('ROLLBACK')
+      return res.status(400).json({ error: 'Template must be approved before use in reminder' })
+    }
+
+    // Render the body using current event data
+    const renderedBody = await renderReminderBody(client, eventId, template_id, ev.contact_name)
+
+    // Insert scheduled_message
+    const smRes = await client.query(
+      `INSERT INTO scheduled_messages
+         (workspace_id, conversation_id, contact_id, phone_number_id, created_by,
+          channel, template_id, body, scheduled_at, send_mode, status)
+       VALUES ($1, $2, $3, $4, $5, 'whatsapp', $6, $7, $8, 'scheduled', 'pending')
+       RETURNING id`,
+      [wsId, ev.conversation_id, ev.contact_id_resolved, ev.phone_number_id, req.user.id,
+       template_id, renderedBody, sendTime]
+    )
+    const smId = smRes.rows[0].id
+
+    // Insert event_reminders row
+    const erRes = await client.query(
+      `INSERT INTO event_reminders
+         (workspace_id, event_id, scheduled_message_id, template_id, offset_hours, status, created_by)
+       VALUES ($1, $2, $3, $4, $5, 'active', $6)
+       RETURNING *`,
+      [wsId, eventId, smId, template_id, parseInt(offset_hours), req.user.id]
+    )
+
+    await client.query('COMMIT')
+    res.json({ ...erRes.rows[0], scheduled_at: sendTime, rendered_body: renderedBody })
+  } catch (err) {
+    await client.query('ROLLBACK')
+    console.error('POST /calendar/:id/reminder error:', err)
+    res.status(500).json({ error: err.message })
+  } finally {
+    client.release()
+  }
+})
+
+// DELETE /calendar/:id/reminder — cancel an active reminder
+app.delete('/calendar/:id/reminder', auth, requirePermission('manage_calendar'), async (req, res) => {
+  const client = await pool.connect()
+  try {
+    const wsId = await getWorkspaceId(req.user.id)
+    const eventId = parseInt(req.params.id)
+
+    await client.query('BEGIN')
+
+    // Verify event ownership
+    const evCheck = await client.query(
+      `SELECT id FROM calendar_events WHERE id = $1 AND workspace_id = $2`,
+      [eventId, wsId]
+    )
+    if (evCheck.rows.length === 0) {
+      await client.query('ROLLBACK')
+      return res.status(404).json({ error: 'Event not found' })
+    }
+
+    const cancelledId = await cancelReminderForEvent(client, eventId)
+    await client.query('COMMIT')
+
+    if (cancelledId === null) {
+      return res.status(404).json({ error: 'No active reminder for this event' })
+    }
+    res.json({ cancelled: true, reminder_id: cancelledId })
+  } catch (err) {
+    await client.query('ROLLBACK')
+    console.error('DELETE /calendar/:id/reminder error:', err)
+    res.status(500).json({ error: err.message })
+  } finally {
+    client.release()
+  }
 })
 
 // GET /event-types — list event types for current workspace
@@ -3595,14 +4035,181 @@ io.on('connection', socket => {
   })
 })
 
-// ─── HEALTH CHECK ──────────────────────────────────────────────────────────────
+// ─── HEALTH CHECK ───────────────────────────────────────────────────────────
 app.get('/', (req, res) => res.json({ status: 'ok', platform: 'Tel-Cloud', version: '2.0.0', timestamp: new Date().toISOString() }))
 
-// ─── START ─────────────────────────────────────────────────────────────────────
+// ─── SCHEDULED MESSAGES WORKER ──────────────────────────────────────────────
+// Polls every WORKER_INTERVAL_MS for pending scheduled_messages whose scheduled_at
+// has arrived. Sends each via the existing sendWhatsAppMessage helper. Updates
+// status to 'sent' on success or 'failed' on error. If the message is a reminder
+// (linked via event_reminders), marks the reminder as 'sent' too.
+//
+// Design rules:
+// - Never crashes the process - all errors caught and logged
+// - Idempotent at the message level - status check prevents double-send if poll
+//   overlaps a slow send (rare, but possible under load)
+// - Multi-tenant safe - each message carries its workspace_id and is sent via
+//   that workspace's recipient phone (looked up via conversation -> contact)
+// - Re-renders body for reminders at send time (always fresh event data)
+const WORKER_INTERVAL_MS = 60 * 1000  // 60 seconds
+const WORKER_BATCH_SIZE = 20  // Max messages per poll cycle
+
+async function processScheduledMessage(msg) {
+  // Guard: only send if still pending. If another worker (or a previous poll) already
+  // grabbed this row, skip. We re-query inside a transaction to claim the message.
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+
+    // Atomic claim: only proceed if still pending
+    const claimRes = await client.query(
+      `UPDATE scheduled_messages SET status = 'sending'
+       WHERE id = $1 AND status = 'pending'
+       RETURNING *`,
+      [msg.id]
+    )
+    if (claimRes.rows.length === 0) {
+      // Another worker beat us, or status changed - just skip
+      await client.query('COMMIT')
+      return { skipped: true }
+    }
+    const claimed = claimRes.rows[0]
+
+    // Check if this is a reminder - if so, re-render body using current event data
+    const reminderRes = await client.query(
+      `SELECT er.event_id, er.template_id, er.id as reminder_id
+       FROM event_reminders er
+       WHERE er.scheduled_message_id = $1 AND er.status = 'active'
+       LIMIT 1`,
+      [claimed.id]
+    )
+    let bodyToSend = claimed.body
+    let reminderId = null
+    if (reminderRes.rows.length > 0) {
+      const reminder = reminderRes.rows[0]
+      reminderId = reminder.reminder_id
+      // Re-render with fresh event data
+      try {
+        const evRes = await client.query(
+          `SELECT ct.name as contact_name FROM calendar_events ce
+           LEFT JOIN contacts ct ON ct.id = ce.contact_id
+           WHERE ce.id = $1`,
+          [reminder.event_id]
+        )
+        const contactName = evRes.rows[0]?.contact_name || ''
+        bodyToSend = await renderReminderBody(client, reminder.event_id, reminder.template_id, contactName)
+      } catch (renderErr) {
+        console.error(`[worker] Failed to re-render reminder body for sm ${claimed.id}:`, renderErr.message)
+        // Fall through with the original frozen body
+      }
+    }
+
+    // Look up recipient phone via conversation -> contact
+    const phoneRes = await client.query(
+      `SELECT ct.phone FROM conversations c
+       JOIN contacts ct ON ct.id = c.contact_id
+       WHERE c.id = $1 AND c.workspace_id = $2`,
+      [claimed.conversation_id, claimed.workspace_id]
+    )
+    const toPhone = phoneRes.rows[0]?.phone
+    if (!toPhone) {
+      throw new Error('No recipient phone number on contact')
+    }
+
+    // Commit the claim before sending - we don't want the send to hold a DB transaction
+    await client.query('COMMIT')
+
+    // Send via existing helper. This may throw on Meta credential issues or API errors.
+    const waMessageId = await sendWhatsAppMessage(toPhone, bodyToSend)
+
+    // Mark sent. Use a fresh client (the previous transaction has been committed).
+    await pool.query(
+      `UPDATE scheduled_messages SET status = 'sent', sent_at = NOW(), body = $1
+       WHERE id = $2`,
+      [bodyToSend, claimed.id]
+    )
+
+    // Also create the actual messages table row so it appears in the conversation thread
+    await pool.query(
+      `INSERT INTO messages (conversation_id, workspace_id, user_id, direction, text, type, is_note, template_id, status, whatsapp_message_id, sent_at)
+       VALUES ($1, $2, $3, 'out', $4, 'text', false, $5, 'sent', $6, NOW())`,
+      [claimed.conversation_id, claimed.workspace_id, claimed.created_by, bodyToSend, claimed.template_id, waMessageId]
+    )
+
+    // Update conversation's last_message_at + preview
+    await pool.query(
+      `UPDATE conversations SET last_message_at = NOW(), last_message_preview = $1, updated_at = NOW()
+       WHERE id = $2`,
+      [bodyToSend.slice(0, 100), claimed.conversation_id]
+    )
+
+    // Mark reminder as sent if applicable
+    if (reminderId) {
+      await pool.query(
+        `UPDATE event_reminders SET status = 'sent', updated_at = NOW() WHERE id = $1`,
+        [reminderId]
+      )
+    }
+
+    return { sent: true, sm_id: claimed.id, wa_id: waMessageId }
+  } catch (err) {
+    // Mark as failed - try to release transaction first if still in one
+    try { await client.query('ROLLBACK') } catch {}
+    try {
+      await pool.query(
+        `UPDATE scheduled_messages SET status = 'failed', failed_at = NOW(), failed_reason = $1
+         WHERE id = $2 AND status IN ('pending', 'sending')`,
+        [err.message?.slice(0, 500) || 'unknown error', msg.id]
+      )
+    } catch (markErr) {
+      console.error(`[worker] Failed to mark sm ${msg.id} as failed:`, markErr.message)
+    }
+    return { failed: true, sm_id: msg.id, error: err.message }
+  } finally {
+    client.release()
+  }
+}
+
+async function pollScheduledMessages() {
+  try {
+    const res = await pool.query(
+      `SELECT id, workspace_id, conversation_id, contact_id, created_by, template_id, body
+       FROM scheduled_messages
+       WHERE status = 'pending' AND scheduled_at <= NOW()
+       ORDER BY scheduled_at ASC
+       LIMIT $1`,
+      [WORKER_BATCH_SIZE]
+    )
+    if (res.rows.length === 0) return  // Nothing to do, stay quiet
+
+    console.log(`[worker] Processing ${res.rows.length} due scheduled message(s)`)
+    let sent = 0, failed = 0, skipped = 0
+    for (const msg of res.rows) {
+      const result = await processScheduledMessage(msg)
+      if (result.sent) sent++
+      else if (result.failed) failed++
+      else if (result.skipped) skipped++
+    }
+    console.log(`[worker] Cycle complete: ${sent} sent, ${failed} failed, ${skipped} skipped`)
+  } catch (err) {
+    console.error('[worker] Poll cycle error:', err.message)
+  }
+}
+
+function startScheduledMessageWorker() {
+  console.log(`[worker] Scheduled message worker starting (poll every ${WORKER_INTERVAL_MS / 1000}s)`)
+  // Run once immediately so any messages already due fire promptly on boot
+  pollScheduledMessages()
+  // Then poll on interval
+  setInterval(pollScheduledMessages, WORKER_INTERVAL_MS)
+}
+
+// ─── START ──────────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 4000
 setupDatabase().then(() => {
   httpServer.listen(PORT, () => {
     console.log(`🚀 Tel-Cloud server running on port ${PORT}`)
     console.log(`📧 Super admin login: superadmin@tel-cloud.com / admin123`)
+    startScheduledMessageWorker()
   })
 })

@@ -70,7 +70,7 @@ function ymd(date) {
   return `${y}-${m}-${d}`
 }
 
-export default function Calendar() {
+export default function Calendar({ onOpenConversation }) {
   const { token, hasPermission } = useAuth()
   const canManage = hasPermission('manage_calendar')
 
@@ -217,14 +217,45 @@ export default function Calendar() {
           </button>
 
           <div style={{
-            fontFamily: fonts.display,
-            fontSize: textSize.lg,
-            fontWeight: textWeight.semibold,
-            color: ink[900],
-            letterSpacing: '-0.2px',
+            display: 'flex', alignItems: 'center', gap: space[2],
             marginLeft: space[2],
           }}>
-            {MONTH_LABELS[viewMonth]} {viewYear}
+            <select value={viewMonth} onChange={e => setViewMonth(parseInt(e.target.value))}
+              style={{
+                padding: '6px 10px',
+                border: `0.5px solid ${ink[300]}`,
+                borderRadius: radius.md,
+                background: '#fff',
+                fontSize: textSize.sm,
+                fontWeight: textWeight.semibold,
+                color: ink[900],
+                cursor: 'pointer',
+                fontFamily: fonts.body,
+                outline: 'none',
+                letterSpacing: '-0.1px',
+              }}>
+              {MONTH_LABELS.map((label, i) => (
+                <option key={i} value={i}>{label}</option>
+              ))}
+            </select>
+            <select value={viewYear} onChange={e => setViewYear(parseInt(e.target.value))}
+              style={{
+                padding: '6px 10px',
+                border: `0.5px solid ${ink[300]}`,
+                borderRadius: radius.md,
+                background: '#fff',
+                fontSize: textSize.sm,
+                fontWeight: textWeight.semibold,
+                color: ink[900],
+                cursor: 'pointer',
+                fontFamily: fonts.body,
+                outline: 'none',
+                fontVariantNumeric: 'tabular-nums',
+              }}>
+              {Array.from({ length: 11 }, (_, i) => today.getFullYear() - 2 + i).map(y => (
+                <option key={y} value={y}>{y}</option>
+              ))}
+            </select>
           </div>
 
           {!isViewingCurrentMonth && (
@@ -403,6 +434,7 @@ export default function Calendar() {
           eventTypes={eventTypes}
           onClose={() => setModalState(null)}
           onSaved={loadEvents}
+          onOpenConversation={onOpenConversation}
         />
       )}
     </div>

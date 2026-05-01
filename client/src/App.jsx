@@ -412,7 +412,11 @@ function MainApp() {
         case 'templates': return <Templates />
         case 'analytics': return <Analytics />
         case 'scheduled': return <Scheduled />
-        case 'calendar': return <Calendar />
+        case 'calendar': return <Calendar onOpenConversation={(convoId) => {
+          setActiveNav('inbox')
+          setActiveConvoId(convoId)
+          if (isMobile) setMobileView('chat')
+        }} />
         case 'settings': return <Settings />
         case 'pipeline': return <Pipeline />
         case 'jobs': return <JobOrders />

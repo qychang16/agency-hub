@@ -3115,8 +3115,9 @@ app.get('/calendar', auth, async (req, res) => {
                  LEFT JOIN event_types et ON et.id=ce.event_type_id
                  WHERE ce.workspace_id=$1`
     const params = [wsId]
-    if (from) { query += ' AND ce.event_date >= $2'; params.push(from) }
+    if (from) { query += ` AND ce.event_date >= $${params.length + 1}`; params.push(from) }
     if (to) { query += ` AND ce.event_date <= $${params.length + 1}`; params.push(to) }
+    if (req.query.conversation_id) { query += ` AND ce.conversation_id = $${params.length + 1}`; params.push(req.query.conversation_id) }
     query += ' ORDER BY ce.event_date ASC, ce.event_time ASC'
     const r = await pool.query(query, params)
     res.json(r.rows)

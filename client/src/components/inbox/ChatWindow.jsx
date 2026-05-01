@@ -5,6 +5,7 @@ import { ink, accent, semantic, fonts, textSize, textWeight, space, radius, bord
 import { fmtSGT } from '../../utils/dates'
 import { io } from 'socket.io-client'
 import SendTemplate from './SendTemplate'
+import EventModal from '../calendar/EventModal'
 
 const scrollMemory = new Map()
 
@@ -62,6 +63,9 @@ export default function ChatWindow({ activeConvoId, active, setActive, projects,
   const [pinError, setPinError] = useState('')
   const [flashedMsgId, setFlashedMsgId] = useState(null)
   const [expandedPinId, setExpandedPinId] = useState(null)
+  const [linkedEvents, setLinkedEvents] = useState([])
+  const [eventModalState, setEventModalState] = useState(null) // { event } for edit, null for closed
+  const [eventTypes, setEventTypes] = useState([])
   const messagesRef = useRef(null)
   const textareaRef = useRef(null)
   const socketRef = useRef(null)
@@ -69,6 +73,14 @@ export default function ChatWindow({ activeConvoId, active, setActive, projects,
   const prevConvoIdRef = useRef(null)
   const isAtBottomRef = useRef(true)
   const messageRefs = useRef(new Map())
+
+  useEffect(() => {
+    if (!token) return
+    fetch(`${API}/event-types`, { headers: { Authorization: 'Bearer ' + token } })
+      .then(r => r.json())
+      .then(data => setEventTypes(Array.isArray(data) ? data : []))
+      .catch(() => {})
+  }, [token])
 
   useEffect(() => {
     const socket = io(API)
@@ -91,7 +103,21 @@ export default function ChatWindow({ activeConvoId, active, setActive, projects,
     prevConvoIdRef.current = activeConvoId
     setNewMessagesCount(0)
     setExpandedPinId(null)
+    setLinkedEvents([])
   }, [activeConvoId])
+
+  // Fetch upcoming events linked to this conversation. Range covers today
+  // forward to avoid showing past events that no longer matter.
+  useEffect(() => {
+    if (!activeConvoId || !token) { setLinkedEvents([]); return }
+    const today = new Date()
+    const ymd = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    const url = `${API}/calendar?conversation_id=${activeConvoId}&from=${ymd(today)}`
+    fetch(url, { headers: { Authorization: 'Bearer ' + token } })
+      .then(r => r.json())
+      .then(data => setLinkedEvents(Array.isArray(data) ? data : []))
+      .catch(() => setLinkedEvents([]))
+  }, [activeConvoId, token])
 
   useEffect(() => {
     const el = messagesRef.current
@@ -410,6 +436,82 @@ export default function ChatWindow({ activeConvoId, active, setActive, projects,
           }}>
             Choose one from the list on the left to start replying.
           </div>
+        </div>
+      )}
+
+      {/* Upcoming linked events */}
+      {active && linkedEvents.length > 0 && (
+        <div style={{
+          borderBottom: border.subtle,
+          background: '#fafaff',
+          padding: `${space[2]}px ${space[4]}px`,
+          display: 'flex', flexDirection: 'column', gap: space[1],
+          flexShrink: 0,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: space[1], ...microLabel, color: ink[600] }}>
+            <svg width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <rect x="2" y="3" width="12" height="11" rx="1.5" strokeLinecap="round"/>
+              <path d="M2 6h12M5 1.5v3M11 1.5v3" strokeLinecap="round"/>
+            </svg>
+            {linkedEvents.length} upcoming {linkedEvents.length === 1 ? 'event' : 'events'}
+          </div>
+          {linkedEvents.slice(0, 3).map(ev => {
+            const eventDate = new Date(ev.event_date)
+            const currentYear = new Date().getFullYear()
+            const eventYear = eventDate.getFullYear()
+            const dateStr = eventDate.toLocaleDateString('en-GB', {
+              day: '2-digit',
+              month: 'short',
+              year: eventYear !== currentYear ? 'numeric' : undefined,
+              timeZone: 'Asia/Singapore',
+            })
+            const timeStr = ev.event_time ? ev.event_time.slice(0, 5) : null
+            return (
+              <div key={ev.id}
+                onClick={() => setEventModalState({ event: ev })}
+                style={{
+                  fontSize: textSize.xs, color: ink[800],
+                  padding: `${space[1] + 1}px ${space[2]}px`,
+                  borderRadius: radius.sm,
+                  background: '#fff',
+                  border: border.subtle,
+                  display: 'flex', alignItems: 'center', gap: space[2],
+                  fontFamily: fonts.body,
+                  cursor: 'pointer',
+                  transition: 'border-color 0.1s',
+                }}
+                onMouseEnter={e => e.currentTarget.style.borderColor = ink[400]}
+                onMouseLeave={e => e.currentTarget.style.borderColor = ink[300]}>
+                <span style={{
+                  fontSize: 10,
+                  padding: '2px 6px',
+                  borderRadius: 4,
+                  background: ev.event_type_bg || '#ede9fe',
+                  color: ev.event_type_fg || '#5b21b6',
+                  fontWeight: textWeight.semibold,
+                  flexShrink: 0,
+                  fontFamily: fonts.body,
+                }}>
+                  {ev.event_type_name || 'Event'}
+                </span>
+                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: textWeight.medium }}>
+                  {ev.title}
+                </span>
+                <span style={{
+                  fontSize: 10, color: ink[600],
+                  fontFamily: fonts.mono, fontVariantNumeric: 'tabular-nums',
+                  flexShrink: 0,
+                }}>
+                  {dateStr}{timeStr ? ` ${timeStr}` : ''}
+                </span>
+              </div>
+            )
+          })}
+          {linkedEvents.length > 3 && (
+            <div style={{ fontSize: 10, color: ink[600], padding: '0 4px' }}>
+              +{linkedEvents.length - 3} more
+            </div>
+          )}
         </div>
       )}
 
@@ -765,6 +867,22 @@ export default function ChatWindow({ activeConvoId, active, setActive, projects,
           conversationId={activeConvoId}
           onClose={() => setShowSendTemplate(false)}
           onSent={() => { setShowSendTemplate(false) }}
+        />
+      )}
+      {eventModalState && (
+        <EventModal
+          event={eventModalState.event}
+          eventTypes={eventTypes}
+          onClose={() => setEventModalState(null)}
+          onSaved={() => {
+            // Refresh linked events after save/delete
+            const today = new Date()
+            const ymd = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+            fetch(`${API}/calendar?conversation_id=${activeConvoId}&from=${ymd(today)}`, { headers: { Authorization: 'Bearer ' + token } })
+              .then(r => r.json())
+              .then(data => setLinkedEvents(Array.isArray(data) ? data : []))
+              .catch(() => {})
+          }}
         />
       )}
     </div>

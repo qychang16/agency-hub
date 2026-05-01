@@ -14,7 +14,7 @@ function ymd(d) {
   return `${y}-${m}-${day}`
 }
 
-export default function EventModal({ event, defaultDate, eventTypes, onClose, onSaved }) {
+export default function EventModal({ event, defaultDate, eventTypes, onClose, onSaved, onOpenConversation }) {
   const { token } = useAuth()
   const isEdit = !!(event && event.id)
 
@@ -248,6 +248,27 @@ export default function EventModal({ event, defaultDate, eventTypes, onClose, on
                   {linkedConvo.phone}
                 </div>
               </div>
+              {onOpenConversation && (
+                <button type="button"
+                  onClick={() => { onClose(); onOpenConversation(linkedConvo.id) }}
+                  title="Open conversation in Inbox"
+                  style={{
+                    padding: '6px 10px',
+                    borderRadius: 6,
+                    border: `0.5px solid ${accent.DEFAULT}`,
+                    background: accent.DEFAULT, color: '#fff',
+                    cursor: 'pointer',
+                    fontSize: 11, fontWeight: 600,
+                    display: 'flex', alignItems: 'center', gap: 5,
+                    flexShrink: 0,
+                    fontFamily: fonts.body,
+                  }}>
+                  Open chat
+                  <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M6 4l4 4-4 4" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </button>
+              )}
               <button type="button" onClick={() => { setConversationId(null); setConvoSearch('') }}
                 title="Remove link"
                 style={{

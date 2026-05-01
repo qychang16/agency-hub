@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../../context/AuthContext'
-import { API, EMOJIS, DEFAULT_TEMPLATES } from '../../utils/constants'
+import { API, EMOJIS } from '../../utils/constants'
 import { ink, accent, semantic, fonts, textSize, textWeight, space, radius, border, shadow, microLabel } from '../../utils/designTokens'
 import { fmtSGT } from '../../utils/dates'
 import { io } from 'socket.io-client'
@@ -370,10 +370,48 @@ export default function ChatWindow({ activeConvoId, active, setActive, projects,
               <GhostButton onClick={() => setShowDrawer(!showDrawer)} active={showDrawer}>Contact</GhostButton>
             </div>
           </>
-        ) : (
-          <div style={{ fontSize: textSize.md, color: ink[500] }}>Select a conversation</div>
-        )}
+        ) : null}
       </div>
+
+      {/* Empty state body when no conversation is selected */}
+      {!active && (
+        <div style={{
+          flex: 1, display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center',
+          padding: space[6],
+          textAlign: 'center',
+        }}>
+          <div style={{
+            width: 56, height: 56, borderRadius: radius.pill,
+            background: '#fff', border: `0.5px solid ${ink[300]}`,
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            marginBottom: space[3],
+          }}>
+            <svg width="22" height="22" viewBox="0 0 16 16" fill="none" stroke={ink[500]} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M2.5 4.5h11v8a1 1 0 01-1 1h-9a1 1 0 01-1-1v-8z"/>
+              <path d="M2.5 4.5L8 9l5.5-4.5"/>
+            </svg>
+          </div>
+          <div style={{
+            fontSize: textSize.sm,
+            fontWeight: textWeight.semibold,
+            color: ink[800],
+            marginBottom: space[1] + 2,
+            fontFamily: fonts.body,
+          }}>
+            Pick a conversation
+          </div>
+          <div style={{
+            fontSize: textSize.xs,
+            color: ink[600],
+            lineHeight: 1.5,
+            maxWidth: 260,
+            fontFamily: fonts.body,
+          }}>
+            Choose one from the list on the left to start replying.
+          </div>
+        </div>
+      )}
 
       {/* Pinned messages bar */}
       {pinnedMessages.length > 0 && (
@@ -622,7 +660,8 @@ export default function ChatWindow({ activeConvoId, active, setActive, projects,
               letterSpacing: '0.2px',
               fontFamily: fonts.body,
             }}>Emoji</button>
-          <button onClick={() => alert('File attachment available once Meta API connected.')}
+          <button disabled
+            title="Available once Meta API is connected"
             style={{
               marginLeft: 'auto',
               padding: `${space[1]}px ${space[2] + 2}px`,
@@ -630,10 +669,11 @@ export default function ChatWindow({ activeConvoId, active, setActive, projects,
               border: `0.5px solid ${ink[300]}`,
               background: 'transparent',
               fontSize: 10, fontWeight: textWeight.medium,
-              color: ink[700], cursor: 'pointer',
+              color: ink[500], cursor: 'not-allowed',
               display: 'flex', alignItems: 'center', gap: 5,
               letterSpacing: '0.2px',
               fontFamily: fonts.body,
+              opacity: 0.6,
             }}>
             <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
               <path d="M9.5 3L5 7.5a2.5 2.5 0 0 0 3.5 3.5L13 6.5a4 4 0 0 0-5.5-5.5L3 5.5a5.5 5.5 0 0 0 7.5 7.5L15 8.5" strokeLinecap="round" strokeLinejoin="round"/>

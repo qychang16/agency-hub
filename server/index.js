@@ -227,7 +227,8 @@ const ALL_PERMISSIONS_TRUE = {
   manage_phone_numbers: true, manage_teams: true,
   manage_workspace_settings: true, manage_staff: true,
   manage_role_permissions: true,
-  manage_quick_replies: true
+  manage_quick_replies: true,
+  manage_calendar: true
 }
 const ALL_PERMISSIONS_FALSE = {
   send_messages: false, write_notes: false, manage_conversations: false,
@@ -235,7 +236,9 @@ const ALL_PERMISSIONS_FALSE = {
   manage_templates: false, manage_scheduled_messages: false,
   manage_phone_numbers: false, manage_teams: false,
   manage_workspace_settings: false, manage_staff: false,
-  manage_role_permissions: false
+  manage_role_permissions: false,
+  manage_quick_replies: false,
+  manage_calendar: false
 }
 const DEFAULT_ROLE_PERMISSIONS = {
   manager: {
@@ -377,6 +380,7 @@ async function setupDatabase() {
     await runChunk11VariablesShapeMigration()
     await runChunk12MetaLibraryLabelsMigration()
     await runChunk13CalendarMigration()
+    await runChunk13bCalendarPermissionJsonbMigration()
   } catch (err) {
     await client.query('ROLLBACK')
     console.error('�?DB setup error:', err.message)
@@ -1695,6 +1699,53 @@ async function runChunk13CalendarMigration() {
         }
       }
       console.log(`   backfilled event_type_id on ${eventsBackfilled} calendar_events`)
+
+      await client.query(`INSERT INTO _migrations (id) VALUES ($1)`, [MIGRATION_ID])
+      await client.query('COMMIT')
+      console.log(`Migration ${MIGRATION_ID} complete`)
+    } catch (err) {
+      await client.query('ROLLBACK')
+      throw err
+    } finally {
+      client.release()
+    }
+  } catch (err) {
+    console.error(`Migration ${MIGRATION_ID} FAILED:`, err.message)
+    throw err
+  }
+}
+
+async function runChunk13bCalendarPermissionJsonbMigration() {
+  const MIGRATION_ID = 'chunk_13b_calendar_perm_jsonb_v1'
+  try {
+    const applied = await pool.query('SELECT id FROM _migrations WHERE id=$1', [MIGRATION_ID])
+    if (applied.rows.length > 0) {
+      console.log(`Migration ${MIGRATION_ID} already applied, skipping`)
+      return
+    }
+    console.log(`Running migration ${MIGRATION_ID}...`)
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+
+      // Backfill manage_calendar key into existing role_permissions JSONB rows.
+      // Match the manage_quick_replies precedent: admin gets false, others get true.
+      const rows = await client.query(`SELECT id, role, permissions FROM role_permissions`)
+      let updated = 0
+      for (const row of rows.rows) {
+        if (row.permissions.manage_calendar !== undefined) continue
+        // Default per role (matches DEFAULT_ROLE_PERMISSIONS where applicable):
+        //   admin/consultant: false
+        //   manager/supervisor/senior_consultant: true
+        const grantTrue = ['manager', 'supervisor', 'senior_consultant'].includes(row.role)
+        const newPermissions = { ...row.permissions, manage_calendar: grantTrue }
+        await client.query(
+          `UPDATE role_permissions SET permissions=$1, updated_at=NOW() WHERE id=$2`,
+          [JSON.stringify(newPermissions), row.id]
+        )
+        updated++
+      }
+      console.log(`   backfilled manage_calendar on ${updated} role_permissions rows`)
 
       await client.query(`INSERT INTO _migrations (id) VALUES ($1)`, [MIGRATION_ID])
       await client.query('COMMIT')

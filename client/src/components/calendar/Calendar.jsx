@@ -1,7 +1,9 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useAuth } from '../../context/AuthContext'
+import { API } from '../../utils/constants'
 import { ink, accent, fonts, textSize, textWeight, space, radius, border } from '../../utils/designTokens'
 import Btn from '../ui/Btn'
+import EventModal from './EventModal'
 
 // Day name labels for the grid header (Mon-Sun, Singapore convention)
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
@@ -59,15 +61,84 @@ function isSameDay(a, b) {
     && a.getDate() === b.getDate()
 }
 
+// Formats a Date as YYYY-MM-DD (local time) for matching against event_date
+// strings returned by the API.
+function ymd(date) {
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
 export default function Calendar() {
-  const { hasPermission } = useAuth()
+  const { token, hasPermission } = useAuth()
   const canManage = hasPermission('manage_calendar')
 
   const today = new Date()
   const [viewYear, setViewYear] = useState(today.getFullYear())
   const [viewMonth, setViewMonth] = useState(today.getMonth())
-
+  const [events, setEvents] = useState([])
+  const [eventTypes, setEventTypes] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [modalState, setModalState] = useState(null) // { event } for edit, { defaultDate } for create, null for closed
   const cells = useMemo(() => buildMonthGrid(viewYear, viewMonth), [viewYear, viewMonth])
+
+  // Build a lookup of events keyed by YYYY-MM-DD for fast cell rendering.
+  // event_date comes back from the API as 'YYYY-MM-DDT00:00:00.000Z' so we
+  // slice to the date portion for matching.
+  const eventsByDay = useMemo(() => {
+    const map = {}
+    for (const ev of events) {
+      if (!ev.event_date) continue
+      // Postgres returns event_date as a UTC ISO timestamp at midnight SGT,
+      // which is 16:00 UTC the previous day. Parse and convert back to a
+      // local date so it matches the cell's local YYYY-MM-DD key.
+      const d = new Date(ev.event_date)
+      const key = ymd(d)
+      if (!map[key]) map[key] = []
+      map[key].push(ev)
+    }
+    // Sort each day's events by time (events without time go to the end)
+    for (const k of Object.keys(map)) {
+      map[k].sort((a, b) => {
+        if (!a.event_time && !b.event_time) return 0
+        if (!a.event_time) return 1
+        if (!b.event_time) return -1
+        return a.event_time.localeCompare(b.event_time)
+      })
+    }
+    return map
+  }, [events])
+
+  // Fetch event types once on mount
+  useEffect(() => {
+    if (!token) return
+    fetch(`${API}/event-types`, { headers: { Authorization: 'Bearer ' + token } })
+      .then(r => r.json())
+      .then(data => setEventTypes(Array.isArray(data) ? data : []))
+      .catch(() => {})
+  }, [token])
+
+  // Fetch events when the visible month changes. Range covers the entire grid
+  // (including prev/next month tail/head days) so events bleeding into adjacent
+  // weeks still render in their cells.
+  function loadEvents() {
+    if (!token) return
+    setLoading(true)
+    const firstCell = cells[0].date
+    const lastCell = cells[cells.length - 1].date
+    const fmt = d => ymd(d)
+    const url = `${API}/calendar?from=${fmt(firstCell)}&to=${fmt(lastCell)}`
+    fetch(url, { headers: { Authorization: 'Bearer ' + token } })
+      .then(r => r.json())
+      .then(data => setEvents(Array.isArray(data) ? data : []))
+      .catch(() => setEvents([]))
+      .finally(() => setLoading(false))
+  }
+  useEffect(() => {
+    loadEvents()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, viewYear, viewMonth])
 
   function prevMonth() {
     if (viewMonth === 0) {
@@ -111,7 +182,7 @@ export default function Calendar() {
             </div>
           </div>
           {canManage && (
-            <Btn disabled title="Event creation coming in next update">
+            <Btn onClick={() => setModalState({ defaultDate: new Date() })}>
               + New Event
             </Btn>
           )}
@@ -232,6 +303,11 @@ export default function Calendar() {
                   cursor: cell.isCurrentMonth && canManage ? 'pointer' : 'default',
                   transition: 'background 0.08s',
                 }}
+                  onClick={() => {
+                    if (cell.isCurrentMonth && canManage) {
+                      setModalState({ defaultDate: cell.date })
+                    }
+                  }}
                   onMouseEnter={e => {
                     if (cell.isCurrentMonth && canManage) {
                       e.currentTarget.style.background = ink[100]
@@ -260,24 +336,75 @@ export default function Calendar() {
                   }}>
                     {cell.day}
                   </div>
-                  {/* Events will render here in Chunk C */}
+
+                  {/* Events for this day */}
+                  {(() => {
+                    const dayEvents = eventsByDay[ymd(cell.date)] || []
+                    if (dayEvents.length === 0) return null
+                    const visible = dayEvents.slice(0, 2)
+                    const overflow = dayEvents.length - 2
+                    return (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2, overflow: 'hidden' }}>
+                        {visible.map(ev => (
+                          <div key={ev.id}
+                            title={`${ev.title}${ev.event_time ? ' - ' + ev.event_time.slice(0, 5) : ''}`}
+                            onClick={e => {
+                              e.stopPropagation()
+                              if (canManage) setModalState({ event: ev })
+                            }}
+                            style={{
+                              fontSize: 10,
+                              padding: '2px 5px',
+                              borderRadius: 4,
+                              background: ev.event_type_bg || '#ede9fe',
+                              color: ev.event_type_fg || '#5b21b6',
+                              fontWeight: textWeight.medium,
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                              fontFamily: fonts.body,
+                              opacity: cell.isCurrentMonth ? 1 : 0.55,
+                              cursor: canManage ? 'pointer' : 'default',
+                            }}>
+                            {ev.event_time && (
+                              <span style={{ fontVariantNumeric: 'tabular-nums', marginRight: 4, opacity: 0.75 }}>
+                                {ev.event_time.slice(0, 5)}
+                              </span>
+                            )}
+                            {ev.title}
+                          </div>
+                        ))}
+                        {overflow > 0 && (
+                          <div style={{
+                            fontSize: 9,
+                            padding: '1px 5px',
+                            color: ink[600],
+                            fontWeight: textWeight.medium,
+                            fontFamily: fonts.body,
+                          }}>
+                            +{overflow} more
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })()}
                 </div>
               )
             })}
           </div>
         </div>
 
-        {/* Helpful caption below grid */}
-        <div style={{
-          marginTop: space[3],
-          fontSize: 11,
-          color: ink[600],
-          textAlign: 'center',
-          fontFamily: fonts.body,
-        }}>
-          Event creation and visualisation coming in the next update.
         </div>
-      </div>
+
+      {modalState && (
+        <EventModal
+          event={modalState.event}
+          defaultDate={modalState.defaultDate}
+          eventTypes={eventTypes}
+          onClose={() => setModalState(null)}
+          onSaved={loadEvents}
+        />
+      )}
     </div>
   )
 }

@@ -424,7 +424,7 @@ function MainApp() {
         case 'templates': return <Templates />
         case 'analytics': return <Analytics />
         case 'scheduled': return <Scheduled />
-        case 'calendar': return <Calendar onOpenConversation={(convoId) => {
+        case 'calendar': return <Calendar isMobile={isMobile} onOpenConversation={(convoId) => {
           setActiveNav('inbox')
           setActiveConvoId(convoId)
           if (isMobile) setMobileView('chat')

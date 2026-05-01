@@ -96,6 +96,10 @@ function TemplateEditor({ template, onClose, onSaved }) {
   const [varDefaults, setVarDefaults] = useState(initialVariables.defaults)
   // Clones drop labels (clones are fresh tenant templates; labels are Meta-library metadata)
   const [varLabels] = useState(isClone ? {} : (initialVariables.labels || {}))
+  // Event field mapping: { varName: 'contact_name' | 'event_date' | 'event_time' | 'location' | 'event_title' }
+  // Used by Send Template auto-fill when conversation has linked calendar events.
+  // Clones drop the map (fresh template, recruiter sets it themselves).
+  const [varEventFieldMap, setVarEventFieldMap] = useState(isClone ? {} : (initialVariables.event_field_map || {}))
   const [varErrors, setVarErrors] = useState({})
 
   // Validates variable name: lowercase, starts with letter, only letters/digits/underscores
@@ -153,6 +157,25 @@ function TemplateEditor({ template, onClose, onSaved }) {
       delete next[name]
       return next
     })
+    // Also clean up the event field mapping if it was set
+    setVarEventFieldMap(p => {
+      const next = { ...p }
+      delete next[name]
+      return next
+    })
+  }
+
+  // Update the event field mapping for a variable. Empty string clears the mapping.
+  function updateEventFieldMap(varName, eventField) {
+    setVarEventFieldMap(p => {
+      const next = { ...p }
+      if (eventField) {
+        next[varName] = eventField
+      } else {
+        delete next[varName]
+      }
+      return next
+    })
   }
 
   // Live duplicate name check (debounced).
@@ -198,6 +221,7 @@ function TemplateEditor({ template, onClose, onSaved }) {
     if (!body.trim()) { setError('Message body is required'); return }
     const errored = Object.entries(varErrors).find(([, v]) => v)
     if (errored) { setError(`Fix variable name issues before saving: ${errored[0]}`); return }
+    console.log('[save] varEventFieldMap at save time:', varEventFieldMap, 'varOrdered:', varOrdered)
     setSaving(true)
     try {
       // Clones are always POSTs (new template), never PATCHes - even though template object exists.
@@ -206,7 +230,8 @@ function TemplateEditor({ template, onClose, onSaved }) {
       const variables = {
         ordered: varOrdered,
         defaults: varDefaults,
-        ...(Object.keys(varLabels).length > 0 ? { labels: varLabels } : {})
+        ...(Object.keys(varLabels).length > 0 ? { labels: varLabels } : {}),
+        ...(Object.keys(varEventFieldMap).length > 0 ? { event_field_map: varEventFieldMap } : {})
       }
       const r = await fetch(url, {
         method,
@@ -328,6 +353,12 @@ function TemplateEditor({ template, onClose, onSaved }) {
               )}
             </div>
 
+            {varOrdered.length > 0 && (
+              <div style={{ fontSize: 10, color: '#6e6a63', marginBottom: 8, fontStyle: 'italic' }}>
+                Map a variable to an event field (e.g. Contact name, Event date) so it auto-fills when the conversation has a linked calendar event.
+              </div>
+            )}
+
             {isMetaLibrary && (
               <div style={{ fontSize: 11, color: '#6e6a63', marginBottom: 10, padding: '6px 10px', background: '#e7f0fd', borderRadius: 6, border: '0.5px solid #cfe0fb' }}>
                 Meta Library template. Variable names and positions are locked. You may only edit default values below.
@@ -378,6 +409,22 @@ function TemplateEditor({ template, onClose, onSaved }) {
                           flex: 1, padding: '7px 10px', border: '0.5px solid #dcd8d0', borderRadius: 6,
                           fontSize: 12, outline: 'none', background: '#fff', color: '#14130f'
                         }} />
+                      <select
+                        value={varEventFieldMap[vname] || ''}
+                        onChange={e => updateEventFieldMap(vname, e.target.value)}
+                        title="Auto-fill from event field when sending"
+                        style={{
+                          width: 130, padding: '7px 8px', border: '0.5px solid #dcd8d0', borderRadius: 6,
+                          fontSize: 11, outline: 'none', background: '#fff', color: '#14130f',
+                          cursor: 'pointer', flexShrink: 0
+                        }}>
+                        <option value="">- Manual fill -</option>
+                        <option value="contact_name">Contact name</option>
+                        <option value="event_date">Event date</option>
+                        <option value="event_time">Event time</option>
+                        <option value="location">Event venue</option>
+                        <option value="event_title">Event title</option>
+                      </select>
                       {!isMetaLibrary && (
                         <button onClick={() => deleteVariable(vname)}
                           style={{ width: 26, height: 26, borderRadius: 6, border: '0.5px solid #fca5a5', background: '#fee2e2', cursor: 'pointer', color: '#dc2626', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 14, lineHeight: 1 }}>

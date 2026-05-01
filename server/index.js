@@ -1796,9 +1796,14 @@ function normaliseVariables(input) {
   const ordered = Array.isArray(input.ordered) ? input.ordered : []
   const defaults = (input.defaults && typeof input.defaults === 'object') ? input.defaults : {}
   const labels = (input.labels && typeof input.labels === 'object') ? input.labels : null
+  // event_field_map: { varName: 'contact_name'|'event_date'|'event_time'|'location'|'event_title' }
+  // Used by Send Template auto-fill when conversation has linked calendar events.
+  const eventFieldMap = (input.event_field_map && typeof input.event_field_map === 'object') ? input.event_field_map : null
+  const VALID_EVENT_FIELDS = ['contact_name', 'event_date', 'event_time', 'location', 'event_title']
   const cleanOrdered = []
   const cleanDefaults = {}
   const cleanLabels = {}
+  const cleanEventFieldMap = {}
   const seen = new Set()
   for (const raw of ordered) {
     const name = String(raw || '').trim()
@@ -1810,9 +1815,14 @@ function normaliseVariables(input) {
     if (labels && typeof labels[name] === 'string' && labels[name].trim()) {
       cleanLabels[name] = labels[name]
     }
+    // Only preserve mapping if value is a known field. Drop unknown values silently.
+    if (eventFieldMap && typeof eventFieldMap[name] === 'string' && VALID_EVENT_FIELDS.includes(eventFieldMap[name])) {
+      cleanEventFieldMap[name] = eventFieldMap[name]
+    }
   }
   const result = { ordered: cleanOrdered, defaults: cleanDefaults }
   if (Object.keys(cleanLabels).length > 0) result.labels = cleanLabels
+  if (Object.keys(cleanEventFieldMap).length > 0) result.event_field_map = cleanEventFieldMap
   return result
 }
 

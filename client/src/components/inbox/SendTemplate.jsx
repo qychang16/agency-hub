@@ -30,7 +30,7 @@ function matchVarToEventField(varName) {
   const norm = (varName || '').toLowerCase().replace(/[_\-\s]/g, '')
 
   // Contact name patterns
-  if (['name', 'candidate', 'candidatename', 'contactname', 'recipient', 'recipientname'].includes(norm)) {
+  if (['name', 'candidate', 'candidatename', 'contactname', 'recipient', 'recipientname', 'customer', 'customername', 'client', 'clientname'].includes(norm)) {
     return 'contact_name'
   }
   // Date patterns
@@ -65,15 +65,26 @@ function formatEventTime(timeStr) {
   return timeStr.slice(0, 5)
 }
 
+// Resolve a template variable to an event field value.
+// Priority: explicit event_field_map (from template metadata) > pattern matcher fallback.
+function resolveVarToEventField(vname, eventFieldMap) {
+  // Explicit mapping from template editor takes precedence
+  if (eventFieldMap && eventFieldMap[vname]) {
+    return eventFieldMap[vname]
+  }
+  // Fallback: pattern matcher
+  return matchVarToEventField(vname)
+}
+
 // Build an autofill values object by matching event fields to template variable names.
 // Returns { autoFilledValues, autoFilledKeys (Set of var names that got filled) }.
-function buildAutofillValues(event, contactName, ordered) {
+function buildAutofillValues(event, contactName, ordered, eventFieldMap) {
   const filled = {}
   const filledKeys = new Set()
   if (!event) return { values: filled, keys: filledKeys }
 
   for (const vname of ordered) {
-    const field = matchVarToEventField(vname)
+    const field = resolveVarToEventField(vname, eventFieldMap)
     if (!field) continue
     let val = ''
     if (field === 'contact_name') val = contactName || event.contact_name || ''
@@ -152,13 +163,14 @@ export default function SendTemplate({ conversationId, onClose, onSent }) {
     if (!template) return
     const ordered = template.variables?.ordered || []
     const storedDefaults = template.variables?.defaults || {}
+    const eventFieldMap = template.variables?.event_field_map || {}
     // Start from stored defaults
     const newValues = {}
     for (const name of ordered) {
       newValues[name] = storedDefaults[name] !== undefined ? storedDefaults[name] : ''
     }
     // Layer event autofill on top
-    const { values: autoVals, keys: autoKeys } = buildAutofillValues(event, contactName, ordered)
+    const { values: autoVals, keys: autoKeys } = buildAutofillValues(event, contactName, ordered, eventFieldMap)
     Object.assign(newValues, autoVals)
     setValues(newValues)
     setAutoFilledKeys(autoKeys)

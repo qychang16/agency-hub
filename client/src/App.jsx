@@ -275,7 +275,19 @@ function MainApp() {
   const { maintenance, setMaintenance } = useWorkspace()
   const [activeNav, setActiveNav] = useState(() => localStorage.getItem('activeNav') || 'inbox')
   useEffect(() => { localStorage.setItem('activeNav', activeNav) }, [activeNav])
-  const [activeConvoId, setActiveConvoId] = useState(null)
+  const [activeConvoId, setActiveConvoIdRaw] = useState(() => {
+    const stored = localStorage.getItem('activeConvoId')
+    return stored ? parseInt(stored) : null
+  })
+  // Wrap setter to persist to localStorage so a refresh keeps the open conversation
+  const setActiveConvoId = (id) => {
+    if (id === null || id === undefined) {
+      localStorage.removeItem('activeConvoId')
+    } else {
+      localStorage.setItem('activeConvoId', String(id))
+    }
+    setActiveConvoIdRaw(id)
+  }
   const [showDrawer, setShowDrawer] = useState(false)
   const [showNewContact, setShowNewContact] = useState(false)
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768)

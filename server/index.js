@@ -376,6 +376,7 @@ async function setupDatabase() {
     await runChunk10BackfillAudienceMigration()
     await runChunk11VariablesShapeMigration()
     await runChunk12MetaLibraryLabelsMigration()
+    await runChunk13CalendarMigration()
   } catch (err) {
     await client.query('ROLLBACK')
     console.error('�?DB setup error:', err.message)
@@ -1573,6 +1574,127 @@ async function runChunk12MetaLibraryLabelsMigration() {
       }
 
       console.log(`   backfilled labels on ${backfilled} Meta Library templates, skipped ${skipped}`)
+
+      await client.query(`INSERT INTO _migrations (id) VALUES ($1)`, [MIGRATION_ID])
+      await client.query('COMMIT')
+      console.log(`Migration ${MIGRATION_ID} complete`)
+    } catch (err) {
+      await client.query('ROLLBACK')
+      throw err
+    } finally {
+      client.release()
+    }
+  } catch (err) {
+    console.error(`Migration ${MIGRATION_ID} FAILED:`, err.message)
+    throw err
+  }
+}
+
+async function runChunk13CalendarMigration() {
+  const MIGRATION_ID = 'chunk_13_calendar_v1'
+  try {
+    const applied = await pool.query('SELECT id FROM _migrations WHERE id=$1', [MIGRATION_ID])
+    if (applied.rows.length > 0) {
+      console.log(`Migration ${MIGRATION_ID} already applied, skipping`)
+      return
+    }
+    console.log(`Running migration ${MIGRATION_ID}...`)
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+
+      // 1. Add manage_calendar permission column to role_permissions
+      await client.query(`
+        ALTER TABLE role_permissions
+        ADD COLUMN IF NOT EXISTS manage_calendar BOOLEAN DEFAULT false
+      `)
+
+      // 2. Backfill manage_calendar for existing roles
+      //    Director and Manager get true; others get false (matches manage_scheduled_messages pattern)
+      await client.query(`
+        UPDATE role_permissions
+        SET manage_calendar = CASE
+          WHEN role IN ('director', 'manager') THEN true
+          ELSE false
+        END
+        WHERE manage_calendar IS NULL OR manage_calendar = false
+      `)
+
+      // 3. Create event_types table
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS event_types (
+          id SERIAL PRIMARY KEY,
+          workspace_id INTEGER NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+          name VARCHAR(100) NOT NULL,
+          color_bg VARCHAR(20) NOT NULL,
+          color_fg VARCHAR(20) NOT NULL,
+          sort_order INTEGER DEFAULT 0,
+          is_default BOOLEAN DEFAULT false,
+          created_at TIMESTAMP DEFAULT NOW()
+        )
+      `)
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS idx_event_types_workspace
+        ON event_types(workspace_id)
+      `)
+
+      // 4. Add event_type_id to calendar_events (nullable for back-compat)
+      await client.query(`
+        ALTER TABLE calendar_events
+        ADD COLUMN IF NOT EXISTS event_type_id INTEGER REFERENCES event_types(id) ON DELETE SET NULL
+      `)
+
+      // 5. Seed 5 default event types into every existing workspace
+      const DEFAULT_TYPES = [
+        { name: 'Interview',         color_bg: '#e0e7ff', color_fg: '#4338ca', sort_order: 1 },
+        { name: 'Client Meeting',    color_bg: '#dcfce7', color_fg: '#16a34a', sort_order: 2 },
+        { name: 'Candidate Meeting', color_bg: '#fef3c7', color_fg: '#92400e', sort_order: 3 },
+        { name: 'Internal',          color_bg: '#f5f3ef', color_fg: '#6e6a63', sort_order: 4 },
+        { name: 'Other',             color_bg: '#ede9fe', color_fg: '#5b21b6', sort_order: 5 },
+      ]
+
+      const wsRows = await client.query(`SELECT id FROM workspaces WHERE status='active'`)
+      let typesCreated = 0
+      for (const ws of wsRows.rows) {
+        const existing = await client.query(
+          `SELECT id FROM event_types WHERE workspace_id=$1`,
+          [ws.id]
+        )
+        if (existing.rows.length > 0) continue
+        for (const t of DEFAULT_TYPES) {
+          await client.query(
+            `INSERT INTO event_types (workspace_id, name, color_bg, color_fg, sort_order, is_default)
+             VALUES ($1, $2, $3, $4, $5, true)`,
+            [ws.id, t.name, t.color_bg, t.color_fg, t.sort_order]
+          )
+          typesCreated++
+        }
+      }
+      console.log(`   seeded ${typesCreated} event types across ${wsRows.rows.length} workspaces`)
+
+      // 6. Backfill existing calendar_events.type strings to event_type_id where possible
+      //    Maps legacy 'interview' string to the new Interview type per workspace
+      const ceRows = await client.query(
+        `SELECT id, workspace_id, type FROM calendar_events WHERE event_type_id IS NULL AND type IS NOT NULL`
+      )
+      let eventsBackfilled = 0
+      for (const ce of ceRows.rows) {
+        // map old type string to new event_type by name (case-insensitive, with fallback)
+        const typeMatch = await client.query(
+          `SELECT id FROM event_types
+           WHERE workspace_id=$1 AND LOWER(name) = LOWER($2)
+           LIMIT 1`,
+          [ce.workspace_id, ce.type === 'interview' ? 'Interview' : ce.type]
+        )
+        if (typeMatch.rows.length > 0) {
+          await client.query(
+            `UPDATE calendar_events SET event_type_id=$1 WHERE id=$2`,
+            [typeMatch.rows[0].id, ce.id]
+          )
+          eventsBackfilled++
+        }
+      }
+      console.log(`   backfilled event_type_id on ${eventsBackfilled} calendar_events`)
 
       await client.query(`INSERT INTO _migrations (id) VALUES ($1)`, [MIGRATION_ID])
       await client.query('COMMIT')
@@ -2934,7 +3056,13 @@ app.get('/calendar', auth, async (req, res) => {
   try {
     const wsId = await getWorkspaceId(req.user.id)
     const { from, to } = req.query
-    let query = `SELECT ce.*, c.name as contact_name, u.name as created_by_name FROM calendar_events ce LEFT JOIN contacts c ON c.id=ce.contact_id LEFT JOIN users u ON u.id=ce.created_by WHERE ce.workspace_id=$1`
+    let query = `SELECT ce.*, c.name as contact_name, u.name as created_by_name,
+                        et.name as event_type_name, et.color_bg as event_type_bg, et.color_fg as event_type_fg
+                 FROM calendar_events ce
+                 LEFT JOIN contacts c ON c.id=ce.contact_id
+                 LEFT JOIN users u ON u.id=ce.created_by
+                 LEFT JOIN event_types et ON et.id=ce.event_type_id
+                 WHERE ce.workspace_id=$1`
     const params = [wsId]
     if (from) { query += ' AND ce.event_date >= $2'; params.push(from) }
     if (to) { query += ` AND ce.event_date <= $${params.length + 1}`; params.push(to) }
@@ -2944,12 +3072,69 @@ app.get('/calendar', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-app.post('/calendar', auth, requirePermission('manage_scheduled_messages'), async (req, res) => {
+app.post('/calendar', auth, requirePermission('manage_calendar'), async (req, res) => {
   try {
     const wsId = await getWorkspaceId(req.user.id)
-    const { conversation_id, contact_id, job_order_id, title, event_date, event_time, location, notes, type } = req.body
-    const r = await pool.query(`INSERT INTO calendar_events (workspace_id, conversation_id, contact_id, job_order_id, created_by, title, event_date, event_time, location, notes, type) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`, [wsId, conversation_id, contact_id, job_order_id, req.user.id, title, event_date, event_time, location, notes, type || 'interview'])
+    const { conversation_id, contact_id, job_order_id, title, event_date, event_time, location, notes, event_type_id, type } = req.body
+    if (!title || !event_date) return res.status(400).json({ error: 'Title and date are required' })
+    const r = await pool.query(
+      `INSERT INTO calendar_events
+       (workspace_id, conversation_id, contact_id, job_order_id, created_by, title, event_date, event_time, location, notes, type, event_type_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
+      [wsId, conversation_id || null, contact_id || null, job_order_id || null, req.user.id, title, event_date, event_time || null, location || null, notes || null, type || 'event', event_type_id || null]
+    )
     res.json(r.rows[0])
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+// PATCH /calendar/:id — update an event
+app.patch('/calendar/:id', auth, requirePermission('manage_calendar'), async (req, res) => {
+  try {
+    const wsId = await getWorkspaceId(req.user.id)
+    const { conversation_id, contact_id, job_order_id, title, event_date, event_time, location, notes, event_type_id } = req.body
+    const r = await pool.query(
+      `UPDATE calendar_events
+       SET conversation_id=COALESCE($1, conversation_id),
+           contact_id=COALESCE($2, contact_id),
+           job_order_id=COALESCE($3, job_order_id),
+           title=COALESCE($4, title),
+           event_date=COALESCE($5, event_date),
+           event_time=$6,
+           location=$7,
+           notes=$8,
+           event_type_id=COALESCE($9, event_type_id)
+       WHERE id=$10 AND workspace_id=$11 RETURNING *`,
+      [conversation_id, contact_id, job_order_id, title, event_date, event_time, location, notes, event_type_id, req.params.id, wsId]
+    )
+    if (r.rows.length === 0) return res.status(404).json({ error: 'Event not found' })
+    res.json(r.rows[0])
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+// DELETE /calendar/:id — delete an event
+app.delete('/calendar/:id', auth, requirePermission('manage_calendar'), async (req, res) => {
+  try {
+    const wsId = await getWorkspaceId(req.user.id)
+    const r = await pool.query(
+      `DELETE FROM calendar_events WHERE id=$1 AND workspace_id=$2 RETURNING id`,
+      [req.params.id, wsId]
+    )
+    if (r.rows.length === 0) return res.status(404).json({ error: 'Event not found' })
+    res.json({ deleted: true })
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+// GET /event-types — list event types for current workspace
+app.get('/event-types', auth, async (req, res) => {
+  try {
+    const wsId = await getWorkspaceId(req.user.id)
+    const r = await pool.query(
+      `SELECT id, name, color_bg, color_fg, sort_order, is_default
+       FROM event_types WHERE workspace_id=$1
+       ORDER BY sort_order ASC, name ASC`,
+      [wsId]
+    )
+    res.json(r.rows)
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 

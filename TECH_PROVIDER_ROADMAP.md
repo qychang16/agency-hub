@@ -742,3 +742,153 @@ where content comes from and respects tenant agency.
 ---
 
 End of v2 addendum. Implementation begins with Phase II1.
+
+---
+
+## Build log (outside roadmap phases)
+
+This section tracks product features shipped that weren't planned in the
+phased roadmap above. Tracking them here so future sessions have full
+context on what's already built.
+
+### 2 May 2026 — Calendar v1 + Send Template upgrades + Phase 4 Reminders + Calendar Chunk D
+
+Single-day push, 21 commits.
+
+**Calendar v1** (8 commits, earlier in day)
+- New /calendar page with month grid, prev/next navigation, month/year dropdowns
+- Event types table seeded: Interview, Client Meeting, Candidate Meeting,
+  Internal, Other (each with bg/fg colors)
+- POST/PATCH/DELETE/GET /calendar endpoints, GET /event-types
+- EventModal with conversation linker, type picker, date/time/location/notes
+- Bidirectional jump: open conversation from calendar event, see linked
+  events in conversation drawer
+- Migration chunk_13_calendar_v1 + chunk_13b_calendar_perm_jsonb_v1
+
+**Send Template Phase 2 — Smart pattern autofill**
+- Send Template flow auto-fills variables from linked event when
+  conversation has events
+- Pattern matcher: name/candidate/customer/client -> contact_name;
+  date variants -> event_date; time variants -> event_time;
+  venue/location/place -> location; event/eventtitle -> event_title
+- AUTO pill + yellow input background indicates auto-filled fields
+- Re-runs on event change, preserves manual edits
+
+**Send Template Phase 3 — Explicit event_field_map in template editor**
+- Templates.jsx: new event field mapping dropdown next to each variable
+- Options: Manual fill | Contact name | Event date | Event time |
+  Event venue | Event title
+- Backend bug fixed: normaliseVariables in server/index.js was stripping
+  event_field_map. Now preserves with whitelist validation
+- DB JSONB structure:
+  variables = { ordered, defaults, labels, event_field_map }
+- SendTemplate.jsx: resolveVarToEventField checks explicit map first,
+  falls back to pattern matcher
+
+**Phase 4 — Event Reminders (THE big build, 1063 lines, commit a34cfab)**
+
+Migration chunk_14_event_reminders_v1:
+- New event_reminders table (workspace_id, event_id, scheduled_message_id,
+  template_id, offset_hours, status, created_by)
+- CHECK: offset_hours in (3, 12, 24)
+- CHECK: status in ('active', 'sent', 'cancelled')
+- CASCADE on event delete
+
+Backend helpers:
+- computeReminderSendTime: subtract offset hours from event datetime in
+  SGT. Fixed timezone bug: pg DATE column converted to JS Date at local
+  midnight, .toISOString() shifted by server TZ. Solution: use local-time
+  accessors (getFullYear/getMonth/getDate) when input is Date object.
+- renderReminderBody: re-renders template with current event data +
+  event_field_map auto-fill, substitutes {{name}} and {{1}} placeholders
+- cancelReminderForEvent: marks scheduled_message + event_reminders
+  cancelled (idempotent)
+- requeueReminderForEvent: cancels old + creates fresh with new send time
+
+New endpoints:
+- POST /calendar/:id/reminder (validates conversation linked, template
+  approved, offset valid, send time not past)
+- DELETE /calendar/:id/reminder
+- GET /calendar/:id (returns event + reminder details)
+
+PATCH /calendar/:id extended:
+- Date/time change -> requeueReminderForEvent
+- Conversation unlinked -> cancelReminderForEvent
+
+Scheduled-Message Worker (was MISSING entirely before this session):
+- Polls every 60s, batch 20
+- Atomic claim via UPDATE WHERE status='pending' to prevent double-send
+- For reminders: re-renders body with fresh event data at send time
+- Calls existing sendWhatsAppMessage helper
+- On success: marks scheduled_message sent, inserts messages row, updates
+  conversation last_message_preview, marks reminder sent
+- On failure: marks failed with reason, never crashes
+- Boots inside httpServer.listen callback
+
+Frontend:
+- EventModal extended with Reminder section showing existing reminder or
+  prompting to schedule one (with conditional state messages)
+- New ReminderModal: template picker (approved only), offset buttons
+  (3h/12h/24h with smart-disable for past offsets), live preview using
+  event_field_map autofill, all-offsets-invalid fallback message
+
+Verified end-to-end:
+- Schedule reminder for 06 May 14:00 event with 3h offset -> queues for
+  06 May 11:00 SGT
+- Change event time 12:45am -> 02:00pm -> reminder requeued from
+  '05 May 21:45' to '06 May 11:00' SGT
+- Manually inserted past-due message -> worker fired within 60s, marked
+  failed ('Meta credentials not configured') without crashing
+- Cancel reminder -> scheduled_message + event_reminders both cancelled
+
+**Calendar Chunk D — Polish (commit b47d5bd)**
+- Filter chips: multi-select chips above grid by event type, with color
+  dots, Clear button when active filters
+- +N more popover: clickable button opens popover anchored near cell,
+  lists all events for that day sorted by time, click event to open in
+  EventModal, click backdrop or X to dismiss
+- Mobile schedule view (responsive at <768px):
+  - isMobile prop wired App.jsx -> Calendar.jsx
+  - mobileDayList memo: days with events + today, sorted
+  - Empty-state fallback: today + 7 placeholder days when month has no events
+  - Vertical day cards with date badge, weekday label, event count
+  - Today marker with accent color + 'TODAY' pill
+  - Event pills full-width, color-coded by event type
+  - Floating + button (FAB) bottom-right opens new event for today
+  - Tap day header to add event for that specific date
+  - Filter chips and month nav wrap naturally on narrow widths
+
+### Outstanding for next session
+
+Operational priorities:
+1. SGNIC VerifiedID@SG verification (deadline 20 May 2026, ~18 days).
+   Currently VerifiedID@SG-Pending. Domain registered to Pte Ltd not
+   sole prop. Quiinn amended UEN in Vodien but WHOIS sync hadn't
+   propagated. Email sent to Vodien support. Status check needed.
+2. Eque Railway production deploy (worker needs META_ACCESS_TOKEN,
+   META_PHONE_NUMBER_ID, META_API_VERSION env vars to actually fire)
+3. Marketing landing site (Vercel)
+4. Legal docs (Privacy/ToS/AUP)
+5. Y.E.C as WhatsApp sender setup
+6. New Meta App for Tech Provider
+
+Product polish:
+- Pipeline page
+- Contacts page
+- PDPA page
+- Settings page
+
+### Critical architecture notes added today
+
+- pg DATE columns return as JS Date at local midnight. Never use
+  .toISOString() on them — use getFullYear/getMonth/getDate local-time
+  accessors instead. This caused a 24h offset bug in reminder send time
+  computation that we caught and fixed.
+- scheduled_messages worker now exists in server/index.js. Polls every
+  60s. Needs Meta env vars in production to actually send. In dev, marks
+  messages as failed with reason 'Meta credentials not configured'.
+- Director role auto-gets ALL_PERMISSIONS_TRUE which includes
+  manage_calendar (added via chunk_13b migration).
+- ASCII-only in code (PowerShell UTF-8 quirks). Lucide-style SVG
+  (strokeWidth 1.3-1.7, no fill, stroke="currentColor"). Find/replace
+  strings preferred over line numbers.

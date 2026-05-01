@@ -49,7 +49,7 @@ const SECTIONS = [
     caption: 'Pre-approved by Meta. Install instantly, no review wait. Body content is locked.',
     accentColor: '#1877f2',
     accentBg: '#e7f0fd',
-    emptyHint: 'Click Meta Library above to browse and install pre-approved utility templates.',
+    emptyHint: 'No Meta Library templates installed yet. Click the Meta Library button (top right) to browse and install pre-approved templates.',
   },
   {
     key: 'tel_cloud_library',
@@ -57,7 +57,7 @@ const SECTIONS = [
     caption: 'Recruitment-vertical templates curated for you. Customise and submit to Meta for approval.',
     accentColor: '#5b21b6',
     accentBg: '#ede9fe',
-    emptyHint: 'Click Suggested above to browse curated recruitment templates.',
+    emptyHint: 'No suggested templates installed yet. Click the Suggested button (top right) to browse the recruitment library.',
   },
   {
     key: 'tenant',
@@ -65,7 +65,7 @@ const SECTIONS = [
     caption: 'Your own custom-drafted templates. Write from scratch and submit to Meta for approval.',
     accentColor: '#fff',
     accentBg: ACCENT,
-    emptyHint: 'Click + Custom Template above to draft from scratch.',
+    emptyHint: 'No custom templates yet. Click + Custom Template (top right) to draft your own from scratch.',
   },
 ]
 
@@ -703,7 +703,7 @@ export default function Templates() {
           <div>
             <div style={{ fontSize: 22, fontWeight: 700, color: '#14130f', marginBottom: 4, letterSpacing: '-0.3px' }}>Templates</div>
             <div style={{ fontSize: 12, color: '#6e6a63' }}>
-              {counts.approved} approved {'\u00b7'} {counts.pending} pending approval {'\u00b7'} {counts.draft} drafts
+              {counts.approved} approved {'\u00b7'} {counts.pending} pending approval {'\u00b7'} {counts.draft} {counts.draft === 1 ? 'draft' : 'drafts'}
             </div>
           </div>
           {canCreate && (
@@ -733,10 +733,10 @@ export default function Templates() {
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
           {[
-            { label: 'Approved', value: counts.approved, color: '#2d6a4f' },
-            { label: 'Pending', value: counts.pending, color: '#9a6a00' },
-            { label: 'Drafts', value: counts.draft, color: '#6e6a63' },
-            { label: 'Rejected', value: counts.rejected, color: '#8e2a2a' },
+            { label: 'Approved', value: counts.approved, color: counts.approved === 0 ? '#9a958c' : '#2d6a4f' },
+            { label: 'Pending', value: counts.pending, color: counts.pending === 0 ? '#9a958c' : '#9a6a00' },
+            { label: 'Drafts', value: counts.draft, color: counts.draft === 0 ? '#9a958c' : '#6e6a63' },
+            { label: 'Rejected', value: counts.rejected, color: counts.rejected === 0 ? '#9a958c' : '#8e2a2a' },
           ].map(s => (
             <div key={s.label} style={{ background: '#fff', borderRadius: 8, padding: '14px 16px', border: '0.5px solid #dcd8d0' }}>
               <div style={{ fontSize: 24, fontWeight: 700, color: s.color, letterSpacing: '-0.3px' }}>{s.value}</div>

@@ -239,7 +239,7 @@ function ProjectCard({ project, onEdit, onArchive, onRestore, onDelete, onSelect
         <div className="[&>button]:min-h-[40px] md:[&>button]:min-h-0" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {!isArchived && (
             <>
-              <Btn size="sm" onClick={() => onSelect(project)} style={{ flex: 1, justifyContent: 'center' }}>
+              <Btn variant="ghost" size="sm" onClick={() => onSelect(project)} style={{ flex: 1, justifyContent: 'center' }}>
                 Open
               </Btn>
               {canManageProjects && (

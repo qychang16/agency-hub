@@ -864,7 +864,7 @@ export default function ChatWindow({ activeConvoId, active, setActive, projects,
       )}
       {showSendTemplate && (
         <SendTemplate
-          conversationId={activeConvoId}
+          conversationId={activeConvoId || active?.id}
           onClose={() => setShowSendTemplate(false)}
           onSent={() => { setShowSendTemplate(false) }}
         />

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { API } from '../../utils/constants'
 import IPhonePreview from '../IPhonePreview'
@@ -23,14 +23,84 @@ function substituteBody(body, ordered, values) {
   })
 }
 
+// Smart variable name matcher. Maps a template variable name (e.g. "candidate_name",
+// "interview_date") to the corresponding event field. Returns null if no match.
+// Case-insensitive, ignores underscores/hyphens.
+function matchVarToEventField(varName) {
+  const norm = (varName || '').toLowerCase().replace(/[_\-\s]/g, '')
+
+  // Contact name patterns
+  if (['name', 'candidate', 'candidatename', 'contactname', 'recipient', 'recipientname'].includes(norm)) {
+    return 'contact_name'
+  }
+  // Date patterns
+  if (['date', 'eventdate', 'interviewdate', 'meetingdate', 'appointmentdate'].includes(norm)) {
+    return 'event_date'
+  }
+  // Time patterns
+  if (['time', 'eventtime', 'interviewtime', 'meetingtime', 'appointmenttime'].includes(norm)) {
+    return 'event_time'
+  }
+  // Location/venue patterns
+  if (['venue', 'location', 'place', 'address', 'where'].includes(norm)) {
+    return 'location'
+  }
+  // Event title patterns
+  if (['event', 'eventtitle', 'interview', 'interviewtitle', 'meeting', 'meetingtitle'].includes(norm)) {
+    return 'event_title'
+  }
+  return null
+}
+
+// Format event_date (e.g. "2026-04-30T16:00:00.000Z") as "07 May 2026" in SGT.
+function formatEventDate(dateStr) {
+  if (!dateStr) return ''
+  const d = new Date(dateStr)
+  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Singapore' })
+}
+
+// Format event_time (e.g. "14:30:00") as "14:30".
+function formatEventTime(timeStr) {
+  if (!timeStr) return ''
+  return timeStr.slice(0, 5)
+}
+
+// Build an autofill values object by matching event fields to template variable names.
+// Returns { autoFilledValues, autoFilledKeys (Set of var names that got filled) }.
+function buildAutofillValues(event, contactName, ordered) {
+  const filled = {}
+  const filledKeys = new Set()
+  if (!event) return { values: filled, keys: filledKeys }
+
+  for (const vname of ordered) {
+    const field = matchVarToEventField(vname)
+    if (!field) continue
+    let val = ''
+    if (field === 'contact_name') val = contactName || event.contact_name || ''
+    else if (field === 'event_date') val = formatEventDate(event.event_date)
+    else if (field === 'event_time') val = formatEventTime(event.event_time)
+    else if (field === 'location') val = event.location || ''
+    else if (field === 'event_title') val = event.title || ''
+    if (val) {
+      filled[vname] = val
+      filledKeys.add(vname)
+    }
+  }
+  return { values: filled, keys: filledKeys }
+}
+
 export default function SendTemplate({ conversationId, onClose, onSent }) {
   const { token } = useAuth()
   const [templates, setTemplates] = useState([])
   const [selected, setSelected] = useState(null)
   const [values, setValues] = useState({})
+  const [autoFilledKeys, setAutoFilledKeys] = useState(new Set())
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
   const [search, setSearch] = useState('')
+  const [linkedEvents, setLinkedEvents] = useState([])
+  const [selectedEventId, setSelectedEventId] = useState(null)
+  const [contactName, setContactName] = useState('')
 
   // Load templates on mount
   useEffect(() => {
@@ -50,7 +120,57 @@ export default function SendTemplate({ conversationId, onClose, onSent }) {
       .catch(() => setTemplates([]))
   }, [token])
 
-  // When user picks a template, populate values from defaults
+  // Fetch linked events for this conversation (today forward only)
+  useEffect(() => {
+    if (!conversationId || !token) return
+    const today = new Date()
+    const ymd = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    fetch(`${API}/calendar?conversation_id=${conversationId}&from=${ymd(today)}`, {
+      headers: { Authorization: 'Bearer ' + token }
+    })
+      .then(r => r.json())
+      .then(data => setLinkedEvents(Array.isArray(data) ? data : []))
+      .catch(() => setLinkedEvents([]))
+  }, [conversationId, token])
+
+  // Fetch the conversation's contact name (for autofill)
+  useEffect(() => {
+    if (!conversationId || !token) return
+    fetch(`${API}/conversations/${conversationId}`, { headers: { Authorization: 'Bearer ' + token } })
+      .then(r => r.json())
+      .then(data => setContactName(data?.name || ''))
+      .catch(() => setContactName(''))
+  }, [conversationId, token])
+
+  const selectedEvent = useMemo(
+    () => linkedEvents.find(e => e.id === selectedEventId) || null,
+    [linkedEvents, selectedEventId]
+  )
+
+  // Apply autofill whenever template OR event selection changes
+  function applyAutofill(template, event) {
+    if (!template) return
+    const ordered = template.variables?.ordered || []
+    const storedDefaults = template.variables?.defaults || {}
+    // Start from stored defaults
+    const newValues = {}
+    for (const name of ordered) {
+      newValues[name] = storedDefaults[name] !== undefined ? storedDefaults[name] : ''
+    }
+    // Layer event autofill on top
+    const { values: autoVals, keys: autoKeys } = buildAutofillValues(event, contactName, ordered)
+    Object.assign(newValues, autoVals)
+    setValues(newValues)
+    setAutoFilledKeys(autoKeys)
+  }
+
+  // Re-run autofill when event picker changes (template stays the same)
+  useEffect(() => {
+    if (selected) applyAutofill(selected, selectedEvent)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedEventId, contactName])
+
+  // When user picks a template, populate values from defaults + event autofill
   function selectTemplate(t) {
     if (t.status !== 'approved') return
     setError('')
@@ -59,12 +179,9 @@ export default function SendTemplate({ conversationId, onClose, onSent }) {
     const storedDefaults = v.defaults || {}
 
     // Auto-extract variables from the body ONLY if no variables are registered.
-    // For Meta Library templates and any template with a curated ordered list,
-    // we trust the stored list (it knows the correct param_N to position mapping).
     const augmentedOrdered = [...storedOrdered]
     const augmentedLabels = { ...(v.labels || {}) }
     if (storedOrdered.length === 0 && t.source !== 'meta_library') {
-      // Legacy template with no registered variables: extract from body
       const matches = (t.body || '').match(/\{\{\s*(\w+)\s*\}\}/g) || []
       const seen = new Set()
       for (const m of matches) {
@@ -75,7 +192,6 @@ export default function SendTemplate({ conversationId, onClose, onSent }) {
       }
     }
 
-    // Build the augmented template object so render uses the merged ordered list
     const augmented = {
       ...t,
       variables: {
@@ -85,16 +201,32 @@ export default function SendTemplate({ conversationId, onClose, onSent }) {
       }
     }
     setSelected(augmented)
-    // Initialise values: use stored defaults; everything else starts empty
-    const initialValues = {}
-    for (const name of augmentedOrdered) {
-      initialValues[name] = storedDefaults[name] !== undefined ? storedDefaults[name] : ''
-    }
-    setValues(initialValues)
+    applyAutofill(augmented, selectedEvent)
   }
 
   function updateValue(name, val) {
     setValues(p => ({ ...p, [name]: val }))
+    // If user manually edits an auto-filled field, drop it from autoFilledKeys
+    if (autoFilledKeys.has(name)) {
+      setAutoFilledKeys(prev => {
+        const next = new Set(prev)
+        next.delete(name)
+        return next
+      })
+    }
+  }
+
+  function clearAutofill() {
+    if (!selected) return
+    const ordered = selected.variables?.ordered || []
+    const storedDefaults = selected.variables?.defaults || {}
+    const cleared = {}
+    for (const name of ordered) {
+      cleared[name] = storedDefaults[name] !== undefined ? storedDefaults[name] : ''
+    }
+    setValues(cleared)
+    setAutoFilledKeys(new Set())
+    setSelectedEventId(null)
   }
 
   // Render the final message that will be sent (substituting all values)
@@ -211,13 +343,55 @@ export default function SendTemplate({ conversationId, onClose, onSent }) {
             </div>
           ) : (
             <>
-              <div style={{ marginBottom: 16, padding: '8px 12px', background: '#f5f3ef', borderRadius: 7, fontSize: 10, color: '#6e6a63' }}>
+              <div style={{ marginBottom: 12, padding: '8px 12px', background: '#f5f3ef', borderRadius: 7, fontSize: 10, color: '#6e6a63' }}>
                 <span style={{ fontFamily: 'monospace', color: '#14130f', fontWeight: 600 }}>{selected.name}</span>
                 {selected.source === 'meta_library' && <span style={{ marginLeft: 8, padding: '1px 6px', background: '#e7f0fd', color: '#1877f2', borderRadius: 3, fontSize: 9 }}>Meta Library</span>}
                 {selected.variables?.ordered?.length > 0 && (
                   <span style={{ marginLeft: 8 }}>{selected.variables.ordered.length} variable{selected.variables.ordered.length === 1 ? '' : 's'}</span>
                 )}
               </div>
+
+              {/* Event picker - only shown when conversation has linked events AND template has variables */}
+              {linkedEvents.length > 0 && ordered.length > 0 && (
+                <div style={{ marginBottom: 14, padding: '10px 12px', background: '#fafaff', border: '0.5px solid #e0e0f5', borderRadius: 7 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
+                    <div style={{ fontSize: 10, fontWeight: 600, color: '#4a4742', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                      Auto-fill from event
+                    </div>
+                    {autoFilledKeys.size > 0 && (
+                      <button onClick={clearAutofill}
+                        style={{ fontSize: 10, color: '#dc2626', background: 'transparent', border: 'none', cursor: 'pointer', padding: 0, fontWeight: 500 }}>
+                        Clear all
+                      </button>
+                    )}
+                  </div>
+                  <select
+                    value={selectedEventId || ''}
+                    onChange={e => setSelectedEventId(e.target.value ? parseInt(e.target.value) : null)}
+                    style={{
+                      width: '100%', padding: '7px 10px',
+                      border: '0.5px solid #dcd8d0', borderRadius: 6,
+                      fontSize: 11, outline: 'none', background: '#fff', color: '#14130f',
+                      cursor: 'pointer'
+                    }}>
+                    <option value="">None (manual fill)</option>
+                    {linkedEvents.map(ev => {
+                      const dateStr = formatEventDate(ev.event_date)
+                      const timeStr = formatEventTime(ev.event_time)
+                      return (
+                        <option key={ev.id} value={ev.id}>
+                          {ev.event_type_name ? `[${ev.event_type_name}] ` : ''}{ev.title} - {dateStr}{timeStr ? ` ${timeStr}` : ''}
+                        </option>
+                      )
+                    })}
+                  </select>
+                  {selectedEvent && autoFilledKeys.size > 0 && (
+                    <div style={{ marginTop: 6, fontSize: 10, color: '#5b21b6' }}>
+                      Filled {autoFilledKeys.size} field{autoFilledKeys.size === 1 ? '' : 's'} from event. All fields editable below.
+                    </div>
+                  )}
+                </div>
+              )}
 
               {ordered.length === 0 ? (
                 <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px 0' }}>
@@ -239,12 +413,27 @@ export default function SendTemplate({ conversationId, onClose, onSent }) {
                     {ordered.map((vname, idx) => {
                       const label = selected.variables?.labels?.[vname]
                       const isEmpty = !values[vname] || !values[vname].trim()
+                      const isAutoFilled = autoFilledKeys.has(vname)
                       const displayName = label || vname
                       return (
                         <div key={vname}>
                           <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
-                            <span style={{ fontSize: 11, color: '#14130f', fontWeight: 500 }}>
+                            <span style={{ fontSize: 11, color: '#14130f', fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6 }}>
                               {displayName}
+                              {isAutoFilled && (
+                                <span style={{
+                                  fontSize: 8,
+                                  padding: '1px 5px',
+                                  background: '#fef3c7',
+                                  color: '#92400e',
+                                  borderRadius: 3,
+                                  fontWeight: 600,
+                                  letterSpacing: '0.3px',
+                                  textTransform: 'uppercase'
+                                }}>
+                                  Auto
+                                </span>
+                              )}
                             </span>
                             <span style={{ fontSize: 9, color: '#9a958c', fontFamily: 'monospace' }}>
                               {`{{${idx + 1}}}`}
@@ -257,11 +446,13 @@ export default function SendTemplate({ conversationId, onClose, onSent }) {
                             style={{
                               width: '100%',
                               padding: '8px 11px',
-                              border: isEmpty ? '0.5px solid #f5b5b5' : '0.5px solid #dcd8d0',
+                              border: isEmpty
+                                ? '0.5px solid #f5b5b5'
+                                : (isAutoFilled ? '0.5px solid #fbbf24' : '0.5px solid #dcd8d0'),
                               borderRadius: 6,
                               fontSize: 12,
                               outline: 'none',
-                              background: '#fff',
+                              background: isAutoFilled ? '#fffbeb' : '#fff',
                               color: '#14130f',
                               boxSizing: 'border-box',
                               transition: 'border-color 0.15s ease'

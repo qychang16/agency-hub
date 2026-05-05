@@ -387,6 +387,7 @@ async function setupDatabase() {
     await runChunk15BroadcastsMigration()
     await runChunk16BroadcastsPermissionMigration()
     await runChunk17BroadcastSafetyMigration()
+    await runChunk18ContactViewsMigration()
   } catch (err) {
     await client.query('ROLLBACK')
     console.error('�?DB setup error:', err.message)
@@ -800,6 +801,69 @@ async function runTemplateLibrarySeedsMigration() {
         if (r.rowCount > 0) inserted++
       }
       console.log(`   inserted ${inserted} of ${templates.length} library templates`)
+
+      await client.query(`INSERT INTO _migrations (id) VALUES ($1)`, [MIGRATION_ID])
+      await client.query('COMMIT')
+      console.log(`Migration ${MIGRATION_ID} complete`)
+    } catch (err) {
+      await client.query('ROLLBACK')
+      throw err
+    } finally {
+      client.release()
+    }
+  } catch (err) {
+    console.error(`Migration ${MIGRATION_ID} FAILED:`, err.message)
+    throw err
+  }
+}
+
+// ============================================================
+// Chunk 18 Contact Views v1
+// Saved filter/sort/visibility configurations per user. A user can save
+// "Active engineering candidates assigned to me" and reload it instantly.
+// Workspace-scoped because filter values reference workspace-specific data
+// like recruiter ids and tag names.
+async function runChunk18ContactViewsMigration() {
+  const MIGRATION_ID = 'chunk_18_contact_views_v1'
+  try {
+    const applied = await pool.query('SELECT id FROM _migrations WHERE id=$1', [MIGRATION_ID])
+    if (applied.rows.length > 0) {
+      console.log(`Migration ${MIGRATION_ID} already applied, skipping`)
+      return
+    }
+    console.log(`Running migration ${MIGRATION_ID}...`)
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS contact_views (
+          id SERIAL PRIMARY KEY,
+          workspace_id INTEGER NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+          user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          name VARCHAR(100) NOT NULL,
+          filters JSONB NOT NULL DEFAULT '{}'::jsonb,
+          sort JSONB DEFAULT '{}'::jsonb,
+          columns JSONB DEFAULT '[]'::jsonb,
+          is_shared BOOLEAN DEFAULT false,
+          created_at TIMESTAMP DEFAULT NOW(),
+          updated_at TIMESTAMP DEFAULT NOW()
+        )
+      `)
+      console.log(`   created contact_views table`)
+
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS idx_contact_views_user
+        ON contact_views(workspace_id, user_id)
+      `)
+      // Shared views index lets us efficiently query "views I have access to":
+      // my own + all shared in this workspace.
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS idx_contact_views_shared
+        ON contact_views(workspace_id, is_shared)
+        WHERE is_shared = true
+      `)
+      console.log(`   created 2 indexes`)
 
       await client.query(`INSERT INTO _migrations (id) VALUES ($1)`, [MIGRATION_ID])
       await client.query('COMMIT')

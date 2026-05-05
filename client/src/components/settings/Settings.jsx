@@ -48,6 +48,41 @@ const TABS = [
   { key: 'audit', label: 'Audit Log' },
 ]
 
+function MobileTabMenu({ tabs, activeTab, icons, onSelect }) {
+  const [open, setOpen] = useState(false)
+  const current = tabs.find(t => t.key === activeTab) || tabs[0]
+
+  return (
+    <div style={{ position: 'sticky', top: 0, left: 0, right: 0, background: '#fff', borderBottom: '0.5px solid #dcd8d0', zIndex: 20, flexShrink: 0 }}>
+      {/* Collapsed selector — shows current tab, taps to expand */}
+      <button onClick={() => setOpen(o => !o)}
+        style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: '#fff', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10, fontSize: 14, fontWeight: 600, color: '#14130f' }}>
+          <span style={{ display: 'flex', alignItems: 'center', color: ACCENT }}>{icons[current.key]}</span>
+          {current.label}
+        </span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9a958c" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transition: 'transform .15s', transform: open ? 'rotate(180deg)' : 'rotate(0deg)' }}>
+          <polyline points="6 9 12 15 18 9"/>
+        </svg>
+      </button>
+
+      {/* Expanded full list — only when open */}
+      {open && (
+        <div style={{ background: '#fff', borderTop: '0.5px solid #f5f3ef', maxHeight: '60vh', overflowY: 'auto' }}>
+          {tabs.map(tab => (
+            <button key={tab.key}
+              onClick={() => { onSelect(tab.key); setOpen(false) }}
+              style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', border: 'none', background: activeTab === tab.key ? ACCENT_LIGHT : 'transparent', color: activeTab === tab.key ? ACCENT : '#4a4742', cursor: 'pointer', fontSize: 13, fontWeight: activeTab === tab.key ? 600 : 400, textAlign: 'left', borderBottom: '0.5px solid #faf9f7' }}>
+              <span style={{ display: 'flex', alignItems: 'center', color: 'currentColor' }}>{icons[tab.key]}</span>
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function Settings() {
   const { user, isDirector, hasPermission } = useAuth()
   const [activeTab, setActiveTab] = useState('profile')
@@ -121,16 +156,17 @@ export default function Settings() {
         </div>
       )}
 
-      {/* Mobile tab selector - sticky top, not floating */}
+      {/* Mobile tab selector — collapsed dropdown that expands to a vertical
+          list. Default shows current tab as a button; tap to expand all
+          options. Keeps screen real estate for content while still showing
+          all tabs at a glance when needed. */}
       {isMobile && (
-        <div style={{ position: 'sticky', top: 0, left: 0, right: 0, background: '#fff', borderBottom: '0.5px solid #dcd8d0', padding: '10px 12px', zIndex: 20, overflowX: 'auto', display: 'flex', gap: 6, flexShrink: 0 }}>
-          {visibleTabs.map(tab => (
-            <button key={tab.key} onClick={() => setActiveTab(tab.key)}
-              style={{ padding: '7px 12px', borderRadius: 7, border: 'none', background: activeTab === tab.key ? ACCENT : '#f5f3ef', color: activeTab === tab.key ? '#fff' : '#6e6a63', cursor: 'pointer', fontSize: 12, fontWeight: activeTab === tab.key ? 600 : 500, whiteSpace: 'nowrap', flexShrink: 0, minHeight: 36 }}>
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>{Icons[tab.key]} {tab.label}</span>
-            </button>
-          ))}
-        </div>
+        <MobileTabMenu
+          tabs={visibleTabs}
+          activeTab={activeTab}
+          icons={Icons}
+          onSelect={setActiveTab}
+        />
       )}
 
       {/* Content */}

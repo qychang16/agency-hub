@@ -86,6 +86,13 @@ function ContactEditor({ contact, onClose, onSaved }) {
     notes: contact?.notes || '',
     source: contact?.source || '',
     pdpa_consented: contact?.pdpa_consented || false,
+    // Method/notes/expiry are write-only — they only matter when consent is
+    // newly granted. We never read them back from the contact (those live in
+    // pdpa_records). Defaults match the auto-log defaults so a quick toggle
+    // still produces a sensible record.
+    pdpa_method: 'manual',
+    pdpa_notes: '',
+    pdpa_expires_in_months: 24,
     dnc: contact?.dnc || false,
     dnc_reason: contact?.dnc_reason || '',
     opted_out: contact?.opted_out || false,
@@ -207,6 +214,57 @@ function ContactEditor({ contact, onClose, onSaved }) {
           <input type="checkbox" checked={form.pdpa_consented} onChange={e => update('pdpa_consented', e.target.checked)} style={{ accentColor: ACCENT }} />
           <span style={{ fontSize: 12, color: '#14130f' }}>PDPA consent received</span>
         </label>
+        {/* Expanded consent capture — only shows when consent is being granted
+            in this edit. Note we always show this when pdpa_consented is true,
+            including for already-consented contacts being re-edited; the
+            backend only auto-logs a new record on the false→true transition,
+            so showing the fields when already-true is harmless (just lets the
+            director see what defaults would apply if they toggle off and on
+            again). */}
+        {form.pdpa_consented && (
+          <div style={{ paddingLeft: 26, marginTop: -4, marginBottom: 12, paddingBottom: 12, borderBottom: '0.5px solid #f5f3ef' }}>
+            <div style={{ fontSize: 10, color: '#9a958c', marginBottom: 8, lineHeight: 1.5 }}>
+              {isEdit && contact?.pdpa_consented
+                ? 'Already consented. Toggling off then on again will record a new consent event with these settings.'
+                : 'Saving will auto-log a consent record with these details.'}
+            </div>
+            <div style={{ marginBottom: 10 }}>
+              <label style={{ fontSize: 10, fontWeight: 600, color: '#4a4742', display: 'block', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.4px' }}>Method</label>
+              <select value={form.pdpa_method} onChange={e => update('pdpa_method', e.target.value)}
+                style={{ width: '100%', padding: '7px 10px', border: '0.5px solid #dcd8d0', borderRadius: 7, fontSize: 12, outline: 'none', background: '#fff', color: '#14130f', boxSizing: 'border-box' }}>
+                <option value="manual">Manual entry</option>
+                <option value="inbound_whatsapp">Inbound WhatsApp opt-in</option>
+                <option value="web_form">Web form</option>
+                <option value="csv_import">CSV import</option>
+                <option value="verbal">Verbal (with notes)</option>
+              </select>
+            </div>
+            <div style={{ marginBottom: 10 }}>
+              <label style={{ fontSize: 10, fontWeight: 600, color: '#4a4742', display: 'block', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.4px' }}>Valid for</label>
+              <div style={{ display: 'flex', gap: 4 }}>
+                {[12, 18, 24, 36].map(m => (
+                  <button key={m} type="button" onClick={() => update('pdpa_expires_in_months', m)}
+                    style={{
+                      flex: 1, padding: '6px',
+                      border: `1px solid ${form.pdpa_expires_in_months === m ? ACCENT : '#dcd8d0'}`,
+                      background: form.pdpa_expires_in_months === m ? ACCENT_LIGHT : '#fff',
+                      color: form.pdpa_expires_in_months === m ? ACCENT : '#6e6a63',
+                      borderRadius: 6, cursor: 'pointer',
+                      fontSize: 11, fontWeight: form.pdpa_expires_in_months === m ? 600 : 500,
+                    }}>
+                    {m}mo
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label style={{ fontSize: 10, fontWeight: 600, color: '#4a4742', display: 'block', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.4px' }}>Notes (optional)</label>
+              <input type="text" value={form.pdpa_notes} onChange={e => update('pdpa_notes', e.target.value)}
+                placeholder="e.g. Verbal consent during phone call on Tuesday"
+                style={{ width: '100%', padding: '7px 10px', border: '0.5px solid #dcd8d0', borderRadius: 7, fontSize: 12, outline: 'none', background: '#fff', color: '#14130f', boxSizing: 'border-box' }} />
+            </div>
+          </div>
+        )}
         <label style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10, cursor: 'pointer' }}>
           <input type="checkbox" checked={form.opted_out} onChange={e => update('opted_out', e.target.checked)} style={{ accentColor: ACCENT }} />
           <span style={{ fontSize: 12, color: '#14130f' }}>Opted out of communications</span>

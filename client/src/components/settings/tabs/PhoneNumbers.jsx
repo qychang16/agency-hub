@@ -198,7 +198,7 @@ export default function PhoneNumbers() {
       ) : (
         numbers.map(n => (
           <Card key={n.id} style={{ marginBottom: 10 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <div className="phone-number-card-row" style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
               {/* Icon */}
               <div style={{ width: 48, height: 48, borderRadius: 12, background: n.connected ? '#dcfce7' : n.status === 'restricted' ? '#fee2e2' : '#f5f3ef', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flexShrink: 0 }}>
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M12 18h.01"/></svg>
@@ -209,7 +209,7 @@ export default function PhoneNumbers() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5, flexWrap: 'wrap' }}>
                   <div style={{ fontSize: 14, fontWeight: 600, color: '#14130f' }}>{n.display_name || n.number}</div>
                   {n.is_primary && (
-                    <span style={{ fontSize: 9, padding: '2px 8px', borderRadius: 10, background: ACCENT_MID, color: '#2d2a7a', fontWeight: 700 }}>PRIMARY</span>
+                    <span style={{ fontSize: 9, padding: '2px 8px', borderRadius: 10, background: ACCENT_LIGHT, color: '#2d2a7a', fontWeight: 700 }}>PRIMARY</span>
                   )}
                   <span style={{ fontSize: 9, padding: '2px 8px', borderRadius: 10, fontWeight: 600, background: n.connected ? '#dcfce7' : '#f5f3ef', color: n.connected ? '#16a34a' : '#9a958c' }}>
                     {n.connected ? '● Connected' : '○ Not connected'}
@@ -247,7 +247,7 @@ export default function PhoneNumbers() {
 
               {/* Actions */}
               {hasPermission('manage_phone_numbers') && (
-              <div style={{ display: 'flex', gap: 6, flexShrink: 0, flexWrap: 'wrap' }}>
+              <div className="phone-number-card-actions" style={{ display: 'flex', gap: 6, flexShrink: 0, flexWrap: 'wrap' }}>
                 {!n.is_primary && (
                   <Btn variant="dark" size="sm" onClick={() => setPrimary(n.id)}>Set Primary</Btn>
                 )}
@@ -343,6 +343,22 @@ export default function PhoneNumbers() {
           </div>
         </Modal>
       )}
+
+      {/* Mobile: stack card row vertically below 640px so action buttons
+          don't overlap the info block. Desktop layout (horizontal) is the
+          default and stays untouched. */}
+      <style>{`
+        @media (max-width: 640px) {
+          .phone-number-card-row {
+            flex-direction: column;
+            align-items: stretch !important;
+          }
+          .phone-number-card-actions {
+            justify-content: flex-end;
+            margin-top: 8px;
+          }
+        }
+      `}</style>
     </div>
   )
 }

@@ -390,6 +390,7 @@ async function setupDatabase() {
     await runChunk18ContactViewsMigration()
     await runChunk19NotificationPreferencesMigration()
     await runChunk20EmailSettingsMigration()
+    await runChunk21PdpaConstraintsMigration()
   } catch (err) {
     await client.query('ROLLBACK')
     console.error('�?DB setup error:', err.message)
@@ -972,6 +973,79 @@ async function runChunk20EmailSettingsMigration() {
         WHERE id NOT IN (SELECT workspace_id FROM email_settings)
       `)
       console.log(`   backfilled email_settings rows for existing workspaces`)
+      await client.query(`INSERT INTO _migrations (id) VALUES ($1)`, [MIGRATION_ID])
+      await client.query('COMMIT')
+      console.log(`Migration ${MIGRATION_ID} complete`)
+    } catch (err) {
+      await client.query('ROLLBACK')
+      throw err
+    } finally {
+      client.release()
+    }
+  } catch (err) {
+    console.error(`Migration ${MIGRATION_ID} FAILED:`, err.message)
+    throw err
+  }
+}
+// ============================================================
+// Chunk 21 PDPA Constraints v1
+// Adds missing foreign-key constraints and a query index on the existing
+// pdpa_records table. The table was created in an earlier session with
+// only workspace_id constrained — contact_id and collected_by were left
+// as raw integers, allowing orphan records.
+//
+// Also adds an index on contact_id since the most common query pattern
+// is "show consent history for this contact" (sorted desc by created_at).
+async function runChunk21PdpaConstraintsMigration() {
+  const MIGRATION_ID = 'chunk_21_pdpa_constraints_v1'
+  try {
+    const applied = await pool.query('SELECT id FROM _migrations WHERE id=$1', [MIGRATION_ID])
+    if (applied.rows.length > 0) {
+      console.log(`Migration ${MIGRATION_ID} already applied, skipping`)
+      return
+    }
+    console.log(`Running migration ${MIGRATION_ID}...`)
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+
+      // contact_id FK: orphan records become meaningless when the contact
+      // is deleted. CASCADE delete removes consent history along with the
+      // contact — this is intentional, no separate audit trail expected
+      // beyond the contact-level events.
+      await client.query(`
+        ALTER TABLE pdpa_records
+        ADD CONSTRAINT pdpa_records_contact_id_fkey
+        FOREIGN KEY (contact_id) REFERENCES contacts(id) ON DELETE CASCADE
+      `)
+      console.log(`   added contact_id FK constraint`)
+
+      // collected_by FK: SET NULL on user delete because losing the agent
+      // who recorded consent should not destroy the record itself — the
+      // consent is still valid, just unattributed.
+      await client.query(`
+        ALTER TABLE pdpa_records
+        ADD CONSTRAINT pdpa_records_collected_by_fkey
+        FOREIGN KEY (collected_by) REFERENCES users(id) ON DELETE SET NULL
+      `)
+      console.log(`   added collected_by FK constraint`)
+
+      // Compound index for the most common query: "history for this
+      // contact, newest first". Sort direction is part of the index so
+      // queries get index-only scans without a separate sort step.
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS idx_pdpa_records_contact
+        ON pdpa_records(contact_id, created_at DESC)
+      `)
+      console.log(`   created idx_pdpa_records_contact`)
+
+      // Workspace dashboard query: count by status across whole workspace.
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS idx_pdpa_records_workspace_status
+        ON pdpa_records(workspace_id, status)
+      `)
+      console.log(`   created idx_pdpa_records_workspace_status`)
+
       await client.query(`INSERT INTO _migrations (id) VALUES ($1)`, [MIGRATION_ID])
       await client.query('COMMIT')
       console.log(`Migration ${MIGRATION_ID} complete`)
@@ -4836,6 +4910,202 @@ app.patch('/email-settings', auth, requirePermission('manage_workspace_settings'
     res.json(r.rows[0])
   } catch (err) {
     console.error('PATCH /email-settings error:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+// ─── PDPA RECORDS ──────────────────────────────────────────────────────────
+// Singapore PDPA compliance: every contact's consent state needs an audit
+// trail (when given, when withdrawn, by whom, through what channel). The
+// pdpa_records table is append-only history; latest row per contact is the
+// effective consent state.
+//
+// Status values:
+//   - 'pending'    : created but not yet acted on (rare, default)
+//   - 'consented'  : active consent, valid until expires_at
+//   - 'withdrawn'  : contact has withdrawn consent
+//   - 'expired'    : consent expired without renewal
+//
+// Method values: 'manual' | 'inbound_whatsapp' | 'csv_import' | 'web_form'
+// | 'verbal' (with notes). Free-form to support future channels.
+//
+// Default consent validity: 24 months. Singapore PDPA has no statutory
+// expiry but industry practice for recruitment is 12-24 months.
+const DEFAULT_CONSENT_MONTHS = 24
+
+// Aggregate dashboard stats for the workspace.
+// One query that returns counts grouped by effective consent status.
+// "Effective" means the latest record per contact; we use a window function
+// to pick the newest record per contact_id and group from there.
+app.get('/pdpa/dashboard', auth, async (req, res) => {
+  try {
+    const wsId = await getWorkspaceId(req.user.id)
+    const r = await pool.query(`
+      WITH latest AS (
+        SELECT DISTINCT ON (contact_id)
+          contact_id, status, expires_at, withdrawn_at
+        FROM pdpa_records
+        WHERE workspace_id = $1
+        ORDER BY contact_id, created_at DESC
+      ),
+      classified AS (
+        SELECT
+          CASE
+            WHEN status = 'withdrawn' THEN 'withdrawn'
+            WHEN status = 'consented' AND expires_at IS NOT NULL AND expires_at < NOW() THEN 'expired'
+            WHEN status = 'consented' AND expires_at IS NOT NULL AND expires_at < NOW() + INTERVAL '30 days' THEN 'expiring'
+            WHEN status = 'consented' THEN 'consented'
+            ELSE 'pending'
+          END AS effective_status
+        FROM latest
+      )
+      SELECT
+        COUNT(*) FILTER (WHERE effective_status = 'consented')   AS consented,
+        COUNT(*) FILTER (WHERE effective_status = 'expiring')    AS expiring,
+        COUNT(*) FILTER (WHERE effective_status = 'expired')     AS expired,
+        COUNT(*) FILTER (WHERE effective_status = 'withdrawn')   AS withdrawn,
+        COUNT(*) FILTER (WHERE effective_status = 'pending')     AS pending,
+        (SELECT COUNT(*) FROM contacts WHERE workspace_id = $1)  AS total_contacts
+      FROM classified
+    `, [wsId])
+    const row = r.rows[0] || {}
+    // Postgres returns counts as strings (BIGINT) — coerce to number for the API
+    res.json({
+      consented:      parseInt(row.consented      || 0),
+      expiring:       parseInt(row.expiring       || 0),
+      expired:        parseInt(row.expired        || 0),
+      withdrawn:      parseInt(row.withdrawn      || 0),
+      pending:        parseInt(row.pending        || 0),
+      total_contacts: parseInt(row.total_contacts || 0),
+      // "Not consented" = total minus everything that has a record
+      not_consented:  parseInt(row.total_contacts || 0)
+                    - parseInt(row.consented || 0)
+                    - parseInt(row.expiring || 0)
+                    - parseInt(row.expired || 0)
+                    - parseInt(row.withdrawn || 0)
+                    - parseInt(row.pending || 0),
+    })
+  } catch (err) {
+    console.error('GET /pdpa/dashboard error:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// List all contacts with their effective PDPA status.
+// Returns a row per contact (not per record) — this is the dashboard list.
+app.get('/pdpa/contacts', auth, async (req, res) => {
+  try {
+    const wsId = await getWorkspaceId(req.user.id)
+    const r = await pool.query(`
+      SELECT
+        c.id, c.name, c.phone, c.email, c.type, c.pipeline_stage,
+        latest.status AS pdpa_status,
+        latest.method AS pdpa_method,
+        latest.consented_at,
+        latest.expires_at,
+        latest.withdrawn_at,
+        u.name AS collected_by_name,
+        CASE
+          WHEN latest.status IS NULL THEN 'not_consented'
+          WHEN latest.status = 'withdrawn' THEN 'withdrawn'
+          WHEN latest.status = 'consented' AND latest.expires_at IS NOT NULL AND latest.expires_at < NOW() THEN 'expired'
+          WHEN latest.status = 'consented' AND latest.expires_at IS NOT NULL AND latest.expires_at < NOW() + INTERVAL '30 days' THEN 'expiring'
+          WHEN latest.status = 'consented' THEN 'consented'
+          ELSE 'pending'
+        END AS effective_status
+      FROM contacts c
+      LEFT JOIN LATERAL (
+        SELECT * FROM pdpa_records r
+        WHERE r.contact_id = c.id AND r.workspace_id = $1
+        ORDER BY r.created_at DESC
+        LIMIT 1
+      ) latest ON TRUE
+      LEFT JOIN users u ON u.id = latest.collected_by
+      WHERE c.workspace_id = $1
+      ORDER BY c.updated_at DESC
+    `, [wsId])
+    res.json(r.rows)
+  } catch (err) {
+    console.error('GET /pdpa/contacts error:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// Full consent history for one contact (newest first).
+app.get('/pdpa/contacts/:id/history', auth, async (req, res) => {
+  try {
+    const wsId = await getWorkspaceId(req.user.id)
+    const r = await pool.query(`
+      SELECT r.*, u.name AS collected_by_name
+      FROM pdpa_records r
+      LEFT JOIN users u ON u.id = r.collected_by
+      WHERE r.contact_id = $1 AND r.workspace_id = $2
+      ORDER BY r.created_at DESC
+    `, [req.params.id, wsId])
+    res.json(r.rows)
+  } catch (err) {
+    console.error('GET /pdpa/contacts/:id/history error:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// Record a new PDPA event. Append-only — never updates existing records.
+// Director or anyone with manage_pdpa permission can record.
+app.post('/pdpa/records', auth, requirePermission('manage_pdpa'), async (req, res) => {
+  try {
+    const wsId = await getWorkspaceId(req.user.id)
+    const { contact_id, status, method, notes, expires_in_months } = req.body
+
+    // Validation
+    if (!contact_id) {
+      return res.status(400).json({ error: 'contact_id is required' })
+    }
+    const validStatuses = ['pending', 'consented', 'withdrawn', 'expired']
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ error: `status must be one of: ${validStatuses.join(', ')}` })
+    }
+
+    // Verify the contact actually belongs to this workspace before writing
+    const contactCheck = await pool.query(
+      'SELECT id FROM contacts WHERE id = $1 AND workspace_id = $2',
+      [contact_id, wsId]
+    )
+    if (contactCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Contact not found in this workspace' })
+    }
+
+    // Compute timestamps based on status
+    const now = new Date()
+    let consented_at = null
+    let withdrawn_at = null
+    let expires_at = null
+
+    if (status === 'consented') {
+      consented_at = now
+      const months = parseInt(expires_in_months) || DEFAULT_CONSENT_MONTHS
+      expires_at = new Date(now)
+      expires_at.setMonth(expires_at.getMonth() + months)
+    } else if (status === 'withdrawn') {
+      withdrawn_at = now
+    }
+
+    const r = await pool.query(`
+      INSERT INTO pdpa_records
+        (workspace_id, contact_id, status, method, consented_at, expires_at, withdrawn_at, collected_by, notes)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      RETURNING *
+    `, [wsId, contact_id, status, method || 'manual', consented_at, expires_at, withdrawn_at, req.user.id, notes || null])
+
+    // Sync the contacts.pdpa_consented flag for backwards compatibility with
+    // existing UI that reads it directly (Contacts list, broadcasts safety).
+    const pdpaConsented = status === 'consented'
+    await pool.query(
+      `UPDATE contacts SET pdpa_consented = $1, pdpa_consented_at = $2 WHERE id = $3 AND workspace_id = $4`,
+      [pdpaConsented, pdpaConsented ? now : null, contact_id, wsId]
+    )
+
+    res.json(r.rows[0])
+  } catch (err) {
+    console.error('POST /pdpa/records error:', err)
     res.status(500).json({ error: err.message })
   }
 })

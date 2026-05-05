@@ -3342,7 +3342,7 @@ app.get('/analytics/dashboard', auth, async (req, res) => {
         COUNT(*) FILTER (WHERE status = 'completed')::int AS completed,
         COUNT(*) FILTER (WHERE status = 'failed')::int AS failed,
         COUNT(*) FILTER (WHERE status IN ('scheduled', 'sending'))::int AS active,
-        COALESCE(SUM(sent_recipients), 0)::int AS total_sent
+        COALESCE(SUM(sent_count), 0)::int AS total_sent
       FROM broadcasts WHERE workspace_id = $1
     `, [wsId, startOfMonth])
 
@@ -3392,7 +3392,11 @@ app.get('/analytics/dashboard', auth, async (req, res) => {
 
     // Recent broadcasts (last 5)
     const recentBroadcasts = await pool.query(`
-      SELECT id, name, status, total_recipients, sent_recipients, failed_recipients, created_at
+      SELECT id, name, status,
+        recipient_count AS total_recipients,
+        sent_count AS sent_recipients,
+        failed_count AS failed_recipients,
+        created_at
       FROM broadcasts
       WHERE workspace_id = $1
       ORDER BY created_at DESC

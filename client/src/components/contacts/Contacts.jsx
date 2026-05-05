@@ -244,6 +244,13 @@ function CsvImportModal({ onClose, onImported }) {
   const [error, setError] = useState('')
   const [importing, setImporting] = useState(false)
   const [result, setResult] = useState(null)
+  // Consent capture for the import batch. Off by default — user must
+  // explicitly affirm consent was collected before we auto-log records.
+  // Default expiry of 24 months matches the manual entry flow.
+  const [consentCollected, setConsentCollected] = useState(false)
+  const [consentMethod, setConsentMethod] = useState('csv_import')
+  const [consentExpiresMonths, setConsentExpiresMonths] = useState(24)
+  const [consentNotes, setConsentNotes] = useState('')
 
   const HEADER_MAP = {
     name: 'name', fullname: 'name', contactname: 'name',
@@ -310,7 +317,13 @@ function CsvImportModal({ onClose, onImported }) {
     try {
       const r = await fetch(`${API}/contacts/bulk`, {
         method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-        body: JSON.stringify({ rows: parsedRows }),
+        body: JSON.stringify({
+          rows: parsedRows,
+          import_consent_collected: consentCollected,
+          import_consent_method: consentMethod,
+          import_consent_expires_in_months: consentExpiresMonths,
+          import_consent_notes: consentNotes.trim() || null,
+        }),
       })
       const data = await r.json()
       if (!r.ok) { setError(data.error || 'Import failed'); return }
@@ -378,6 +391,60 @@ function CsvImportModal({ onClose, onImported }) {
               </tbody>
             </table>
             {parsedRows.length > 10 && (<div style={{ padding: 10, textAlign: 'center', fontSize: 11, color: '#9a958c', background: '#faf9f7' }}>+ {parsedRows.length - 10} more rows</div>)}
+          </div>
+          {/* PDPA consent capture for the whole batch. The toggle defaults
+              OFF — Director must explicitly affirm consent was collected
+              for these contacts. When ON, every successfully imported row
+              gets a pdpa_records audit row with the configured method,
+              expiry, and shared notes. */}
+          <div style={{ marginTop: 16, padding: 14, background: '#faf9f7', border: '0.5px solid #dcd8d0', borderRadius: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+              <input type="checkbox" id="consent-collected"
+                checked={consentCollected}
+                onChange={e => setConsentCollected(e.target.checked)}
+                style={{ accentColor: ACCENT, cursor: 'pointer', marginTop: 2, flexShrink: 0 }} />
+              <label htmlFor="consent-collected" style={{ flex: 1, cursor: 'pointer' }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#14130f', marginBottom: 2 }}>
+                  PDPA consent collected for these contacts
+                </div>
+                <div style={{ fontSize: 11, color: '#6e6a63', lineHeight: 1.4 }}>
+                  Tick this only if you have proof of consent for every contact in this CSV.
+                  Auto-generates audit records on import.
+                </div>
+              </label>
+            </div>
+            {consentCollected && (
+              <div style={{ marginTop: 12, paddingTop: 12, borderTop: '0.5px solid #f5f3ef', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                  <div style={{ flex: '1 1 200px' }}>
+                    <label style={{ fontSize: 10, fontWeight: 600, color: '#4a4742', display: 'block', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.4px' }}>Method</label>
+                    <select value={consentMethod} onChange={e => setConsentMethod(e.target.value)}
+                      style={{ width: '100%', padding: '8px 10px', border: '0.5px solid #dcd8d0', borderRadius: 7, fontSize: 12, outline: 'none', background: '#fff', color: '#14130f', boxSizing: 'border-box' }}>
+                      <option value="csv_import">CSV import</option>
+                      <option value="web_form">Web form</option>
+                      <option value="manual">Manual entry</option>
+                      <option value="verbal">Verbal (with notes)</option>
+                    </select>
+                  </div>
+                  <div style={{ flex: '1 1 200px' }}>
+                    <label style={{ fontSize: 10, fontWeight: 600, color: '#4a4742', display: 'block', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.4px' }}>Valid for</label>
+                    <select value={consentExpiresMonths} onChange={e => setConsentExpiresMonths(parseInt(e.target.value))}
+                      style={{ width: '100%', padding: '8px 10px', border: '0.5px solid #dcd8d0', borderRadius: 7, fontSize: 12, outline: 'none', background: '#fff', color: '#14130f', boxSizing: 'border-box' }}>
+                      <option value={12}>12 months</option>
+                      <option value={18}>18 months</option>
+                      <option value={24}>24 months</option>
+                      <option value={36}>36 months</option>
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label style={{ fontSize: 10, fontWeight: 600, color: '#4a4742', display: 'block', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.4px' }}>Notes (optional)</label>
+                  <input type="text" value={consentNotes} onChange={e => setConsentNotes(e.target.value)}
+                    placeholder="e.g. Job fair attendees who signed consent form on 1 May 2026"
+                    style={{ width: '100%', padding: '8px 10px', border: '0.5px solid #dcd8d0', borderRadius: 7, fontSize: 12, outline: 'none', background: '#fff', color: '#14130f', boxSizing: 'border-box' }} />
+                </div>
+              </div>
+            )}
           </div>
           {error && (<div style={{ marginTop: 12, padding: '10px 12px', background: '#fef2f2', border: '0.5px solid #fecaca', borderRadius: 8, fontSize: 12, color: '#dc2626' }}>{error}</div>)}
           <div style={{ display: 'flex', gap: 10, marginTop: 16, paddingTop: 14, borderTop: '0.5px solid #f5f3ef' }}>

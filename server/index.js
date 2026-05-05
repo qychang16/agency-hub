@@ -3286,7 +3286,17 @@ app.post('/contacts/bulk', auth, requirePermission('manage_contacts'), async (re
   const client = await pool.connect()
   try {
     const wsId = await getWorkspaceId(req.user.id)
-    const { rows } = req.body
+    const {
+      rows,
+      // Optional: PDPA consent applied to all imported rows. The frontend
+      // collects this once, applies it to the whole batch (e.g. "all of
+      // these candidates filled out the consent form on the same date").
+      // Per-row variation is not supported — simpler model, fewer mistakes.
+      import_consent_collected,
+      import_consent_method,
+      import_consent_notes,
+      import_consent_expires_in_months,
+    } = req.body
     if (!Array.isArray(rows)) {
       return res.status(400).json({ error: 'rows must be an array' })
     }
@@ -3338,11 +3348,13 @@ app.post('/contacts/bulk', auth, requirePermission('manage_contacts'), async (re
         batchPhones.add(phone)
       }
       try {
-        await client.query(`
+        const insertResult = await client.query(`
           INSERT INTO contacts (
             workspace_id, name, phone, email, type, pipeline_stage,
-            notes, source, candidate_role, current_company
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+            notes, source, candidate_role, current_company,
+            pdpa_consented, pdpa_consented_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+          RETURNING id
         `, [
           wsId,
           row.name.trim(),
@@ -3354,8 +3366,33 @@ app.post('/contacts/bulk', auth, requirePermission('manage_contacts'), async (re
           row.source?.trim() || 'csv_import',
           row.candidate_role?.trim() || null,
           row.current_company?.trim() || null,
+          import_consent_collected ? true : false,
+          import_consent_collected ? new Date() : null,
         ])
         results.imported++
+        // If consent was collected for this batch, append a pdpa_records row
+        // for every successful import. Single insert per row keeps it simple
+        // and consistent with the manual-entry path; bulk-insert optimization
+        // can come later if imports get genuinely large.
+        if (import_consent_collected) {
+          const now = new Date()
+          const months = parseInt(import_consent_expires_in_months) || 24
+          const expires = new Date(now)
+          expires.setMonth(expires.getMonth() + months)
+          await client.query(`
+            INSERT INTO pdpa_records
+              (workspace_id, contact_id, status, method, consented_at, expires_at, collected_by, notes)
+            VALUES ($1, $2, 'consented', $3, $4, $5, $6, $7)
+          `, [
+            wsId,
+            insertResult.rows[0].id,
+            import_consent_method || 'csv_import',
+            now,
+            expires,
+            req.user.id,
+            import_consent_notes || `Bulk CSV import on ${now.toISOString().slice(0, 10)}`,
+          ])
+        }
       } catch (err) {
         results.invalid++
         results.errors.push({ row: rowNum, reason: err.message?.slice(0, 200) || 'insert failed' })

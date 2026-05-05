@@ -3618,6 +3618,121 @@ app.patch('/broadcasts/:id/schedule', auth, requirePermission('manage_broadcasts
   }
 })
 
+// Cancel a broadcast in flight. Allowed transitions: scheduled -> cancelled,
+// sending -> cancelled. Pending recipients flip to skipped with a cancellation
+// reason. In-flight 'sending' recipients are left as-is (the worker won't
+// pick them up again because the broadcast status changed). Sent recipients
+// are unchanged - we don't unsend what's gone out.
+app.patch('/broadcasts/:id/cancel', auth, requirePermission('manage_broadcasts'), async (req, res) => {
+  const client = await pool.connect()
+  try {
+    const wsId = await getWorkspaceId(req.user.id)
+    await client.query('BEGIN')
+
+    const current = await client.query(
+      `SELECT id, status, name FROM broadcasts WHERE id=$1 AND workspace_id=$2`,
+      [req.params.id, wsId]
+    )
+    if (!current.rows.length) {
+      await client.query('ROLLBACK')
+      return res.status(404).json({ error: 'Broadcast not found' })
+    }
+    const b = current.rows[0]
+    if (!['scheduled', 'sending'].includes(b.status)) {
+      await client.query('ROLLBACK')
+      return res.status(409).json({ error: `Cannot cancel a broadcast in status "${b.status}". Only scheduled or sending broadcasts can be cancelled.` })
+    }
+
+    // Mark broadcast cancelled
+    const updated = await client.query(
+      `UPDATE broadcasts
+       SET status='cancelled', cancelled_at=NOW(), cancelled_by=$1, updated_at=NOW()
+       WHERE id=$2 AND workspace_id=$3
+       RETURNING *`,
+      [req.user.id, req.params.id, wsId]
+    )
+
+    // Skip all pending recipients with a cancellation reason
+    const skipResult = await client.query(
+      `UPDATE broadcast_recipients
+       SET status='skipped', skipped_reason='Broadcast cancelled by user', updated_at=NOW()
+       WHERE broadcast_id=$1 AND status='pending'
+       RETURNING id`,
+      [req.params.id]
+    )
+
+    await client.query('COMMIT')
+    res.json({ ...updated.rows[0], cancelled_pending_count: skipResult.rowCount })
+  } catch (err) {
+    await client.query('ROLLBACK')
+    console.error('PATCH /broadcasts/:id/cancel error:', err)
+    res.status(500).json({ error: err.message })
+  } finally {
+    client.release()
+  }
+})
+// Retry failed recipients in a broadcast. Resets each failed recipient to
+// 'pending' (clearing failed_reason and whatsapp_message_id) and flips the
+// broadcast status from 'failed' back to 'scheduled' so the worker re-picks it
+// up. Only works on 'failed' or 'completed' broadcasts. Skipped recipients
+// (PDPA opt-outs, DNC) are NOT retried because the skip reason is unchanged.
+app.post('/broadcasts/:id/retry-failed', auth, requirePermission('manage_broadcasts'), async (req, res) => {
+  const client = await pool.connect()
+  try {
+    const wsId = await getWorkspaceId(req.user.id)
+    await client.query('BEGIN')
+
+    const current = await client.query(
+      `SELECT id, status, name FROM broadcasts WHERE id=$1 AND workspace_id=$2`,
+      [req.params.id, wsId]
+    )
+    if (!current.rows.length) {
+      await client.query('ROLLBACK')
+      return res.status(404).json({ error: 'Broadcast not found' })
+    }
+    const b = current.rows[0]
+    if (!['failed', 'completed'].includes(b.status)) {
+      await client.query('ROLLBACK')
+      return res.status(409).json({ error: `Cannot retry a broadcast in status "${b.status}". Only failed or completed broadcasts can have failed recipients retried.` })
+    }
+
+    // Reset failed recipients
+    const reset = await client.query(
+      `UPDATE broadcast_recipients
+       SET status='pending', failed_reason=NULL, whatsapp_message_id=NULL,
+           sent_at=NULL, updated_at=NOW()
+       WHERE broadcast_id=$1 AND status='failed'
+       RETURNING id`,
+      [req.params.id]
+    )
+    if (reset.rowCount === 0) {
+      await client.query('ROLLBACK')
+      return res.status(400).json({ error: 'No failed recipients to retry' })
+    }
+
+    // Flip broadcast status back to scheduled. Clear error_summary so the UI
+    // doesn't keep showing the old reason. Bump scheduled_at to NOW() so the
+    // worker picks it up on the next poll. Reset started_at and sent_at.
+    const updated = await client.query(
+      `UPDATE broadcasts
+       SET status='scheduled', scheduled_at=NOW(), started_at=NULL, sent_at=NULL,
+           error_summary=NULL, updated_at=NOW()
+       WHERE id=$1 AND workspace_id=$2
+       RETURNING *`,
+      [req.params.id, wsId]
+    )
+
+    await client.query('COMMIT')
+    res.json({ ...updated.rows[0], retried_count: reset.rowCount })
+  } catch (err) {
+    await client.query('ROLLBACK')
+    console.error('POST /broadcasts/:id/retry-failed error:', err)
+    res.status(500).json({ error: err.message })
+  } finally {
+    client.release()
+  }
+})
+
 // ─── SCHEDULED MESSAGES ────────────────────────────────────────────────────────
 app.get('/scheduled', auth, async (req, res) => {
   try {

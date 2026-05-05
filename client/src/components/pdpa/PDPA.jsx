@@ -293,6 +293,9 @@ export default function PDPA() {
               <StatCard label="Expiring" value={dashboard?.expiring || 0}
                 color={STATUS_CONFIG.expiring.color} bg={STATUS_CONFIG.expiring.bg} desc={STATUS_CONFIG.expiring.desc}
                 onClick={() => setFilter('expiring')} active={filter === 'expiring'} />
+              <StatCard label="Expired" value={dashboard?.expired || 0}
+                color={STATUS_CONFIG.expired.color} bg={STATUS_CONFIG.expired.bg} desc={STATUS_CONFIG.expired.desc}
+                onClick={() => setFilter('expired')} active={filter === 'expired'} />
               <StatCard label="Withdrawn" value={dashboard?.withdrawn || 0}
                 color={STATUS_CONFIG.withdrawn.color} bg={STATUS_CONFIG.withdrawn.bg} desc={STATUS_CONFIG.withdrawn.desc}
                 onClick={() => setFilter('withdrawn')} active={filter === 'withdrawn'} />

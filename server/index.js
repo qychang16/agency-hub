@@ -5058,6 +5058,7 @@ app.get('/pdpa/dashboard', auth, async (req, res) => {
         SELECT
           CASE
             WHEN status = 'withdrawn' THEN 'withdrawn'
+            WHEN status = 'expired' THEN 'expired'
             WHEN status = 'consented' AND expires_at IS NOT NULL AND expires_at < NOW() THEN 'expired'
             WHEN status = 'consented' AND expires_at IS NOT NULL AND expires_at < NOW() + INTERVAL '30 days' THEN 'expiring'
             WHEN status = 'consented' THEN 'consented'
@@ -5114,6 +5115,7 @@ app.get('/pdpa/contacts', auth, async (req, res) => {
         CASE
           WHEN latest.status IS NULL THEN 'not_consented'
           WHEN latest.status = 'withdrawn' THEN 'withdrawn'
+          WHEN latest.status = 'expired' THEN 'expired'
           WHEN latest.status = 'consented' AND latest.expires_at IS NOT NULL AND latest.expires_at < NOW() THEN 'expired'
           WHEN latest.status = 'consented' AND latest.expires_at IS NOT NULL AND latest.expires_at < NOW() + INTERVAL '30 days' THEN 'expiring'
           WHEN latest.status = 'consented' THEN 'consented'
@@ -6637,6 +6639,94 @@ function startBroadcastWorker() {
   setInterval(pollBroadcasts, BROADCAST_WORKER_INTERVAL_MS)
 }
 
+// ============================================================
+// PDPA EXPIRY WORKER (chunk 21 follow-up)
+// ============================================================
+// Polls hourly (expiry tracking doesn't need minute-level precision).
+// Finds consented records whose expires_at has passed AND no later record
+// exists for the same contact. For each such record, inserts an 'expired'
+// row in pdpa_records and flips contacts.pdpa_consented to false.
+//
+// Strategy: append-only audit trail (matches the rest of the PDPA model)
+// + sync the boolean flag on contacts so existing UI continues to work.
+// The latest-record-wins query in /pdpa/dashboard already classifies
+// expired status from the timestamp; this worker makes that visible by
+// writing real rows so contact lists, broadcasts safety, etc., reflect it.
+const PDPA_EXPIRY_WORKER_INTERVAL_MS = 60 * 60 * 1000  // 1 hour
+
+async function pollPdpaExpiry() {
+  try {
+    // Find all "currently consented" records that are past their expiry.
+    // "Currently consented" = the latest record for that contact is a
+    // 'consented' status. We use DISTINCT ON to pick the latest per
+    // contact, then filter by expiry. This catches the legit case
+    // (consent given 2 years ago, never re-asserted, now lapsed) and
+    // ignores already-handled cases (a withdrawn record after consent
+    // means the latest is 'withdrawn', not eligible for expiry).
+    const expired = await pool.query(`
+      WITH latest AS (
+        SELECT DISTINCT ON (contact_id)
+          id, workspace_id, contact_id, status, expires_at
+        FROM pdpa_records
+        ORDER BY contact_id, created_at DESC
+      )
+      SELECT id, workspace_id, contact_id, expires_at
+      FROM latest
+      WHERE status = 'consented'
+        AND expires_at IS NOT NULL
+        AND expires_at < NOW()
+    `)
+
+    if (expired.rows.length === 0) {
+      // Quiet log — only print when there's actual work.
+      return
+    }
+
+    console.log(`[pdpa expiry worker] Found ${expired.rows.length} expired consent record(s)`)
+
+    for (const row of expired.rows) {
+      const client = await pool.connect()
+      try {
+        await client.query('BEGIN')
+        // Append the 'expired' row. Notes captures the original consent's
+        // expiry timestamp so the audit trail is self-explanatory.
+        await client.query(`
+          INSERT INTO pdpa_records
+            (workspace_id, contact_id, status, method, collected_by, notes)
+          VALUES ($1, $2, 'expired', 'system_expiry', NULL, $3)
+        `, [
+          row.workspace_id,
+          row.contact_id,
+          `Auto-expired by system on ${new Date().toISOString().slice(0, 10)} (consent had expires_at ${new Date(row.expires_at).toISOString().slice(0, 10)})`,
+        ])
+        // Sync the contacts.pdpa_consented flag so existing UI (broadcasts
+        // safety check, contact list PDPA pill) reflects the lapse.
+        await client.query(`
+          UPDATE contacts
+          SET pdpa_consented = false, pdpa_consented_at = NULL
+          WHERE id = $1 AND workspace_id = $2
+        `, [row.contact_id, row.workspace_id])
+        await client.query('COMMIT')
+        console.log(`[pdpa expiry worker]   expired contact_id=${row.contact_id} (workspace ${row.workspace_id})`)
+      } catch (err) {
+        await client.query('ROLLBACK')
+        console.error(`[pdpa expiry worker] Failed to expire contact_id=${row.contact_id}:`, err.message)
+      } finally {
+        client.release()
+      }
+    }
+  } catch (err) {
+    console.error('[pdpa expiry worker] Poll cycle error:', err.message)
+  }
+}
+
+function startPdpaExpiryWorker() {
+  console.log(`[pdpa expiry worker] PDPA expiry worker starting (poll every ${PDPA_EXPIRY_WORKER_INTERVAL_MS / 1000 / 60}min)`)
+  // Run once on startup to clean up anything that expired while server was down.
+  pollPdpaExpiry()
+  setInterval(pollPdpaExpiry, PDPA_EXPIRY_WORKER_INTERVAL_MS)
+}
+
 // ─── START ──────────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 4000
 setupDatabase().then(() => {
@@ -6645,5 +6735,6 @@ setupDatabase().then(() => {
     console.log(`📧 Super admin login: superadmin@tel-cloud.com / admin123`)
     startScheduledMessageWorker()
     startBroadcastWorker()
+    startPdpaExpiryWorker()
   })
 })

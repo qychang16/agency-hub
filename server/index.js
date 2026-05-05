@@ -389,6 +389,7 @@ async function setupDatabase() {
     await runChunk17BroadcastSafetyMigration()
     await runChunk18ContactViewsMigration()
     await runChunk19NotificationPreferencesMigration()
+    await runChunk20EmailSettingsMigration()
   } catch (err) {
     await client.query('ROLLBACK')
     console.error('�?DB setup error:', err.message)
@@ -907,6 +908,70 @@ async function runChunk19NotificationPreferencesMigration() {
         ADD COLUMN IF NOT EXISTS notification_preferences JSONB DEFAULT '{}'::jsonb
       `)
       console.log(`   added notification_preferences column to users`)
+      await client.query(`INSERT INTO _migrations (id) VALUES ($1)`, [MIGRATION_ID])
+      await client.query('COMMIT')
+      console.log(`Migration ${MIGRATION_ID} complete`)
+    } catch (err) {
+      await client.query('ROLLBACK')
+      throw err
+    } finally {
+      client.release()
+    }
+  } catch (err) {
+    console.error(`Migration ${MIGRATION_ID} FAILED:`, err.message)
+    throw err
+  }
+}
+// ============================================================
+// Chunk 20 Email Settings v1
+// Workspace-level email integration settings. Separate table (not workspace
+// columns) because this domain will grow with Outlook OAuth state, sender
+// domain verification, and tracking preferences. Mirrors the pattern used
+// for security_settings, business_hours, routing_rules.
+//
+// Outlook OAuth fields (whatsapp_token-style) intentionally NOT added here —
+// connection state stays on workspaces table to keep auth state co-located
+// with the workspace identity. This table is for behavioural settings only:
+// what name to send as, what time to suppress sends, what signature to use.
+async function runChunk20EmailSettingsMigration() {
+  const MIGRATION_ID = 'chunk_20_email_settings_v1'
+  try {
+    const applied = await pool.query('SELECT id FROM _migrations WHERE id=$1', [MIGRATION_ID])
+    if (applied.rows.length > 0) {
+      console.log(`Migration ${MIGRATION_ID} already applied, skipping`)
+      return
+    }
+    console.log(`Running migration ${MIGRATION_ID}...`)
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS email_settings (
+          id SERIAL PRIMARY KEY,
+          workspace_id INTEGER NOT NULL UNIQUE REFERENCES workspaces(id) ON DELETE CASCADE,
+          sender_name VARCHAR(255),
+          reply_to VARCHAR(255),
+          send_mode VARCHAR(20) DEFAULT 'manual',
+          blackout_start VARCHAR(5) DEFAULT '22:00',
+          blackout_end VARCHAR(5) DEFAULT '08:00',
+          default_signature TEXT,
+          open_tracking BOOLEAN DEFAULT true,
+          bounce_alerts BOOLEAN DEFAULT true,
+          created_at TIMESTAMP DEFAULT NOW(),
+          updated_at TIMESTAMP DEFAULT NOW()
+        )
+      `)
+      console.log(`   created email_settings table`)
+      // Backfill: ensure every existing workspace has a row so GET always
+      // returns something (even if all defaults). Avoids the NotificationSettings
+      // pattern of "merge defaults at API layer" — here we just have a single
+      // row per workspace and let the column DEFAULTs do the work.
+      await client.query(`
+        INSERT INTO email_settings (workspace_id)
+        SELECT id FROM workspaces
+        WHERE id NOT IN (SELECT workspace_id FROM email_settings)
+      `)
+      console.log(`   backfilled email_settings rows for existing workspaces`)
       await client.query(`INSERT INTO _migrations (id) VALUES ($1)`, [MIGRATION_ID])
       await client.query('COMMIT')
       console.log(`Migration ${MIGRATION_ID} complete`)
@@ -4690,6 +4755,87 @@ app.patch('/notification-preferences', auth, async (req, res) => {
     res.json({ success: true, preferences: sanitized })
   } catch (err) {
     console.error('PATCH /notifications error:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+// ─── EMAIL SETTINGS ────────────────────────────────────────────────────────
+// Workspace-level email integration settings. The Outlook OAuth connection
+// state lives on the workspaces table (alongside whatsapp_token etc.) — this
+// table is for behavioural settings: sender name, reply-to, send mode,
+// blackout window, default signature.
+//
+// One row per workspace, backfilled at migration time (chunk_20). GET always
+// returns the row (defaults applied at column level), so frontend never has
+// to handle "no settings yet" state.
+
+app.get('/email-settings', auth, async (req, res) => {
+  try {
+    const wsId = await getWorkspaceId(req.user.id)
+    const r = await pool.query('SELECT * FROM email_settings WHERE workspace_id=$1', [wsId])
+    if (r.rows.length === 0) {
+      // Defensive: should never happen due to migration backfill, but if a
+      // workspace was created after migration ran, insert defaults now.
+      await pool.query('INSERT INTO email_settings (workspace_id) VALUES ($1)', [wsId])
+      const r2 = await pool.query('SELECT * FROM email_settings WHERE workspace_id=$1', [wsId])
+      return res.json(r2.rows[0])
+    }
+    res.json(r.rows[0])
+  } catch (err) {
+    console.error('GET /email-settings error:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+app.patch('/email-settings', auth, requirePermission('manage_workspace_settings'), async (req, res) => {
+  try {
+    const wsId = await getWorkspaceId(req.user.id)
+
+    // Whitelist updateable fields. Same partial-update pattern as
+    // PATCH /workspace and PATCH /agents/:id — partial body must work
+    // without nulling unspecified fields.
+    const ALLOWED = [
+      'sender_name', 'reply_to', 'send_mode',
+      'blackout_start', 'blackout_end',
+      'default_signature', 'open_tracking', 'bounce_alerts'
+    ]
+
+    const updates = []
+    const values = []
+    let idx = 1
+    for (const field of ALLOWED) {
+      if (!Object.prototype.hasOwnProperty.call(req.body, field)) continue
+
+      let val = req.body[field]
+      // send_mode validation — only accept known values
+      if (field === 'send_mode' && val !== 'manual' && val !== 'immediate') {
+        return res.status(400).json({ error: `Invalid send_mode: must be "manual" or "immediate"` })
+      }
+      // blackout times: validate HH:MM format if provided
+      if ((field === 'blackout_start' || field === 'blackout_end') && val) {
+        if (!/^\d{2}:\d{2}$/.test(val)) {
+          return res.status(400).json({ error: `${field} must be in HH:MM format` })
+        }
+      }
+      // Reply-to email validation if provided and non-empty
+      if (field === 'reply_to' && val && val.trim() && !/\S+@\S+\.\S+/.test(val)) {
+        return res.status(400).json({ error: 'Reply-to address must be a valid email' })
+      }
+
+      updates.push(`${field}=$${idx++}`)
+      values.push(val)
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'No valid fields provided to update' })
+    }
+
+    updates.push(`updated_at=NOW()`)
+    values.push(wsId)
+    const sql = `UPDATE email_settings SET ${updates.join(', ')} WHERE workspace_id=$${idx} RETURNING *`
+    const r = await pool.query(sql, values)
+    res.json(r.rows[0])
+  } catch (err) {
+    console.error('PATCH /email-settings error:', err)
     res.status(500).json({ error: err.message })
   }
 })

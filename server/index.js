@@ -382,6 +382,7 @@ async function setupDatabase() {
     await runChunk13CalendarMigration()
     await runChunk13bCalendarPermissionJsonbMigration()
     await runChunk14EventRemindersMigration()
+    await runChunk15BroadcastsMigration()
   } catch (err) {
     await client.query('ROLLBACK')
     console.error('�?DB setup error:', err.message)
@@ -1813,6 +1814,97 @@ async function runChunk14EventRemindersMigration() {
       `)
 
       console.log(`   created event_reminders table with indexes`)
+
+      await client.query(`INSERT INTO _migrations (id) VALUES ($1)`, [MIGRATION_ID])
+      await client.query('COMMIT')
+      console.log(`Migration ${MIGRATION_ID} complete`)
+    } catch (err) {
+      await client.query('ROLLBACK')
+      throw err
+    } finally {
+      client.release()
+    }
+  } catch (err) {
+    console.error(`Migration ${MIGRATION_ID} FAILED:`, err.message)
+    throw err
+  }
+}
+
+// ============================================================
+// Chunk 15 Broadcasts v1
+// Extends the bare broadcasts table created at platform setup with the columns
+// needed for proper broadcast lifecycle: cancellation tracking, error capture,
+// variable snapshots, and target filter audit. Creates broadcast_recipients
+// for per-recipient delivery tracking. Worker integration ships in v2.
+async function runChunk15BroadcastsMigration() {
+  const MIGRATION_ID = 'chunk_15_broadcasts_v1'
+  try {
+    const applied = await pool.query('SELECT id FROM _migrations WHERE id=$1', [MIGRATION_ID])
+    if (applied.rows.length > 0) {
+      console.log(`Migration ${MIGRATION_ID} already applied, skipping`)
+      return
+    }
+    console.log(`Running migration ${MIGRATION_ID}...`)
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+
+      // Extend broadcasts with lifecycle columns. Existing rows (none expected
+      // in production) get sensible defaults via the ALTERs.
+      await client.query(`ALTER TABLE broadcasts ADD COLUMN IF NOT EXISTS variables JSONB DEFAULT '{}'::jsonb`)
+      await client.query(`ALTER TABLE broadcasts ADD COLUMN IF NOT EXISTS target_filters JSONB DEFAULT '{}'::jsonb`)
+      await client.query(`ALTER TABLE broadcasts ADD COLUMN IF NOT EXISTS started_at TIMESTAMP`)
+      await client.query(`ALTER TABLE broadcasts ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMP`)
+      await client.query(`ALTER TABLE broadcasts ADD COLUMN IF NOT EXISTS cancelled_by INTEGER REFERENCES users(id) ON DELETE SET NULL`)
+      await client.query(`ALTER TABLE broadcasts ADD COLUMN IF NOT EXISTS error_summary TEXT`)
+      await client.query(`ALTER TABLE broadcasts ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()`)
+      console.log(`   extended broadcasts table with 7 lifecycle columns`)
+
+      // Recipient table. One row per (broadcast, contact). Status flow:
+      // pending -> sending -> sent OR pending -> sending -> failed OR pending -> skipped.
+      // Skipped covers PDPA opt-outs, DNC contacts, and missing phone numbers.
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS broadcast_recipients (
+          id SERIAL PRIMARY KEY,
+          broadcast_id INTEGER NOT NULL REFERENCES broadcasts(id) ON DELETE CASCADE,
+          workspace_id INTEGER NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+          contact_id INTEGER NOT NULL REFERENCES contacts(id) ON DELETE CASCADE,
+          variables JSONB DEFAULT '{}'::jsonb,
+          status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'sending', 'sent', 'failed', 'skipped')),
+          sent_at TIMESTAMP,
+          failed_reason TEXT,
+          skipped_reason TEXT,
+          whatsapp_message_id VARCHAR(255),
+          created_at TIMESTAMP DEFAULT NOW(),
+          updated_at TIMESTAMP DEFAULT NOW()
+        )
+      `)
+      console.log(`   created broadcast_recipients table`)
+
+      // Index for the worker's primary query: "give me all pending recipients
+      // for an in-flight broadcast, ordered by id for stable pagination".
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS idx_broadcast_recipients_broadcast_status
+        ON broadcast_recipients(broadcast_id, status)
+      `)
+      // Index for tenant-scoped list pages and stat aggregations.
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS idx_broadcast_recipients_workspace_status
+        ON broadcast_recipients(workspace_id, status)
+      `)
+      // Index for broadcasts list page filtering by tenant + status.
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS idx_broadcasts_workspace_status
+        ON broadcasts(workspace_id, status)
+      `)
+      // Partial index for the worker's poll query: "find scheduled broadcasts
+      // ready to send right now". Partial on status keeps the index tiny.
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS idx_broadcasts_scheduled_due
+        ON broadcasts(scheduled_at)
+        WHERE status = 'scheduled'
+      `)
+      console.log(`   created 4 indexes`)
 
       await client.query(`INSERT INTO _migrations (id) VALUES ($1)`, [MIGRATION_ID])
       await client.query('COMMIT')

@@ -388,6 +388,7 @@ async function setupDatabase() {
     await runChunk16BroadcastsPermissionMigration()
     await runChunk17BroadcastSafetyMigration()
     await runChunk18ContactViewsMigration()
+    await runChunk19NotificationPreferencesMigration()
   } catch (err) {
     await client.query('ROLLBACK')
     console.error('�?DB setup error:', err.message)
@@ -880,6 +881,46 @@ async function runChunk18ContactViewsMigration() {
   }
 }
 
+// ============================================================
+// Chunk 19 Notification Preferences v1
+// Per-user notification preferences stored as JSONB on the users table.
+// Each user has a map of { event_key: { in_app: bool, email: bool } }.
+// JSONB chosen over a separate prefs table because reads are always
+// "give me my preferences" (one row by user_id) and the data is bounded
+// (~15 events × 2 channels = 30 booleans). Defaults are applied at the
+// API layer, not in the DB, so we can change defaults without re-running
+// migrations.
+async function runChunk19NotificationPreferencesMigration() {
+  const MIGRATION_ID = 'chunk_19_notification_preferences_v1'
+  try {
+    const applied = await pool.query('SELECT id FROM _migrations WHERE id=$1', [MIGRATION_ID])
+    if (applied.rows.length > 0) {
+      console.log(`Migration ${MIGRATION_ID} already applied, skipping`)
+      return
+    }
+    console.log(`Running migration ${MIGRATION_ID}...`)
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+      await client.query(`
+        ALTER TABLE users
+        ADD COLUMN IF NOT EXISTS notification_preferences JSONB DEFAULT '{}'::jsonb
+      `)
+      console.log(`   added notification_preferences column to users`)
+      await client.query(`INSERT INTO _migrations (id) VALUES ($1)`, [MIGRATION_ID])
+      await client.query('COMMIT')
+      console.log(`Migration ${MIGRATION_ID} complete`)
+    } catch (err) {
+      await client.query('ROLLBACK')
+      throw err
+    } finally {
+      client.release()
+    }
+  } catch (err) {
+    console.error(`Migration ${MIGRATION_ID} FAILED:`, err.message)
+    throw err
+  }
+}
 // ============================================================
 // Chunk 17 Broadcast Safety v1
 // Adds safety configuration to broadcasts: quiet hours window, force-send
@@ -4563,6 +4604,94 @@ app.patch('/security', auth, requirePermission('manage_workspace_settings'), asy
     const r = await pool.query(`UPDATE security_settings SET session_timeout_minutes=$1, max_failed_logins=$2, force_password_change=$3, two_factor_required=$4, password_min_length=$5, password_require_special=$6, updated_at=NOW() WHERE workspace_id=$7 RETURNING *`, [session_timeout_minutes, max_failed_logins, force_password_change, two_factor_required, password_min_length, password_require_special, wsId])
     res.json(r.rows[0])
   } catch (err) { res.status(500).json({ error: err.message }) }
+})
+// ─── NOTIFICATIONS ─────────────────────────────────────────────────────────
+// Per-user notification preferences. Each user has their own toggles
+// (workspace setting wouldn't make sense — different agents care about
+// different events). Stored as JSONB on users.notification_preferences.
+//
+// Data shape: { event_key: { in_app: bool, email: bool } }
+// Example:    { "sla_breach": { in_app: true, email: true },
+//               "new_conversation": { in_app: true, email: false } }
+//
+// Defaults are applied at the API layer (DEFAULT_PREFS below) so the source
+// of truth lives in code, not data — we can change defaults without a
+// migration. Frontend merges user prefs over defaults to compute display.
+
+const DEFAULT_NOTIFICATION_PREFS = {
+  // Conversations — in-app on, email off (most agents don't want email spam)
+  new_conversation:        { in_app: true,  email: false },
+  conversation_reassigned: { in_app: true,  email: false },
+  message_received:        { in_app: true,  email: false },
+  watching_message:        { in_app: true,  email: false },
+  // SLA — breaches get email by default because they're urgent
+  sla_warning:             { in_app: true,  email: false },
+  sla_breach:              { in_app: true,  email: true  },
+  escalation:              { in_app: true,  email: false },
+  // Broadcasts — failures get email, success in-app only
+  broadcast_sent:          { in_app: true,  email: false },
+  broadcast_failed:        { in_app: true,  email: true  },
+  // Scheduled
+  scheduled_sent:          { in_app: true,  email: false },
+  scheduled_failed:        { in_app: true,  email: true  },
+  // Team
+  new_agent:               { in_app: true,  email: false },
+  agent_offline:           { in_app: true,  email: false },
+  // CRM & Compliance
+  placement_logged:        { in_app: true,  email: false },
+  pdpa_expiring:           { in_app: true,  email: true  },
+}
+
+app.get('/notification-preferences', auth, async (req, res) => {
+  try {
+    const r = await pool.query(
+      'SELECT notification_preferences FROM users WHERE id=$1',
+      [req.user.id]
+    )
+    const stored = r.rows[0]?.notification_preferences || {}
+    // Merge stored prefs over defaults so frontend always gets a complete map.
+    // User-customized values win; un-customized events fall back to defaults.
+    const merged = {}
+    for (const eventKey of Object.keys(DEFAULT_NOTIFICATION_PREFS)) {
+      merged[eventKey] = {
+        ...DEFAULT_NOTIFICATION_PREFS[eventKey],
+        ...(stored[eventKey] || {})
+      }
+    }
+    res.json(merged)
+  } catch (err) {
+    console.error('GET /notifications error:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+app.patch('/notification-preferences', auth, async (req, res) => {
+  try {
+    const prefs = req.body
+    if (!prefs || typeof prefs !== 'object' || Array.isArray(prefs)) {
+      return res.status(400).json({ error: 'Request body must be a preferences object' })
+    }
+    // Sanitize — only accept known event keys, only accept boolean values for
+    // in_app/email channels. Anything else is silently dropped to prevent
+    // arbitrary data from being written into the JSONB column.
+    const sanitized = {}
+    for (const eventKey of Object.keys(DEFAULT_NOTIFICATION_PREFS)) {
+      if (!Object.prototype.hasOwnProperty.call(prefs, eventKey)) continue
+      const channels = prefs[eventKey] || {}
+      sanitized[eventKey] = {
+        in_app: typeof channels.in_app === 'boolean' ? channels.in_app : DEFAULT_NOTIFICATION_PREFS[eventKey].in_app,
+        email: typeof channels.email === 'boolean' ? channels.email : DEFAULT_NOTIFICATION_PREFS[eventKey].email,
+      }
+    }
+    await pool.query(
+      'UPDATE users SET notification_preferences=$1, updated_at=NOW() WHERE id=$2',
+      [JSON.stringify(sanitized), req.user.id]
+    )
+    res.json({ success: true, preferences: sanitized })
+  } catch (err) {
+    console.error('PATCH /notifications error:', err)
+    res.status(500).json({ error: err.message })
+  }
 })
 
 // ─── CALENDAR ──────────────────────────────────────────────────────────────

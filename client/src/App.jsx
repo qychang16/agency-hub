@@ -12,6 +12,7 @@ const ContactDrawer = lazy(() => import('./components/inbox/ContactDrawer'))
 const GlobalSearch = lazy(() => import('./components/search/GlobalSearch'))
 const NewContactModal = lazy(() => import('./components/inbox/NewContactModal'))
 const Broadcasts = lazy(() => import('./components/broadcasts/Broadcasts'))
+const BroadcastDetail = lazy(() => import('./components/broadcasts/BroadcastDetail'))
 const Templates = lazy(() => import('./components/templates/Templates'))
 const Analytics = lazy(() => import('./components/analytics/Analytics'))
 const Projects = lazy(() => import('./components/projects/Projects'))
@@ -275,6 +276,10 @@ function MainApp() {
   const { maintenance, setMaintenance } = useWorkspace()
   const [activeNav, setActiveNav] = useState(() => localStorage.getItem('activeNav') || 'inbox')
   useEffect(() => { localStorage.setItem('activeNav', activeNav) }, [activeNav])
+  // Clear broadcast detail selection when navigating away from broadcasts page
+  useEffect(() => {
+    if (activeNav !== 'broadcasts') setSelectedBroadcastId(null)
+  }, [activeNav])
   const [activeConvoId, setActiveConvoIdRaw] = useState(() => {
     const stored = localStorage.getItem('activeConvoId')
     return stored ? parseInt(stored) : null
@@ -292,6 +297,7 @@ function MainApp() {
   const [showNewContact, setShowNewContact] = useState(false)
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768)
   const [mobileView, setMobileView] = useState('inbox')
+  const [selectedBroadcastId, setSelectedBroadcastId] = useState(null)
   const [showMaintenanceEditor, setShowMaintenanceEditor] = useState(false)
   const [showSearch, setShowSearch] = useState(false)
   // When a search result is picked, we pass the message id down so ChatWindow
@@ -420,7 +426,9 @@ function MainApp() {
             </div>
           )
         case 'projects': return <Projects />
-        case 'broadcasts': return <Broadcasts />
+        case 'broadcasts': return selectedBroadcastId
+          ? <BroadcastDetail broadcastId={selectedBroadcastId} onBack={() => setSelectedBroadcastId(null)} />
+          : <Broadcasts onOpen={(id) => setSelectedBroadcastId(id)} />
         case 'templates': return <Templates />
         case 'analytics': return <Analytics />
         case 'scheduled': return <Scheduled />

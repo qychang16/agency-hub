@@ -100,7 +100,7 @@ function BroadcastCard({ b, isDirector, onOpen, onDelete }) {
 
       <div style={{ padding: '10px 16px', borderTop: '0.5px solid #f5f3ef', display: 'flex', gap: 8, alignItems: 'center', fontSize: 11, color: '#9a958c' }}>
         <span>By {b.created_by_name || 'unknown'}</span>
-        <span>\u00b7</span>
+        <span>{'\u00b7'}</span>
         <span>{fmtTs(b.created_at)}</span>
         {isDirector && b.status === 'draft' && (
           <Btn
@@ -116,7 +116,7 @@ function BroadcastCard({ b, isDirector, onOpen, onDelete }) {
   )
 }
 
-export default function Broadcasts() {
+export default function Broadcasts({ onOpen }) {
   const { token, user, hasPermission } = useAuth()
   const [broadcasts, setBroadcasts] = useState([])
   const [loading, setLoading] = useState(true)
@@ -266,7 +266,7 @@ export default function Broadcasts() {
                 key={b.id}
                 b={b}
                 isDirector={isDirector}
-                onOpen={() => alert('Detail view ships in the next session.')}
+                onOpen={onOpen ? () => onOpen(b.id) : undefined}
                 onDelete={deleteBroadcast}
               />
             ))}

@@ -688,6 +688,164 @@ function FilterDrawer({
 }
 
 // ─────────────────────────────────────────────────────────────
+// Saved view tab with kebab menu for owner actions.
+// Uses a click-outside handler so the popover dismisses cleanly.
+// ─────────────────────────────────────────────────────────────
+function SavedViewTab({ view, isActive, isOwner, onClick, onDelete }) {
+  const [menuPos, setMenuPos] = useState(null)  // null = closed; {top, right} = open with position
+  const kebabRef = useRef(null)
+  const popoverRef = useRef(null)
+
+  useEffect(() => {
+    if (!menuPos) return
+    function onClickOutside(e) {
+      // Close if click is outside both the kebab button and the popover
+      if (
+        kebabRef.current && !kebabRef.current.contains(e.target) &&
+        popoverRef.current && !popoverRef.current.contains(e.target)
+      ) {
+        setMenuPos(null)
+      }
+    }
+    document.addEventListener('mousedown', onClickOutside)
+    return () => document.removeEventListener('mousedown', onClickOutside)
+  }, [menuPos])
+
+  function openMenu(e) {
+    e.stopPropagation()
+    if (menuPos) { setMenuPos(null); return }
+    const rect = kebabRef.current.getBoundingClientRect()
+    setMenuPos({
+      top: rect.bottom + 4,
+      right: window.innerWidth - rect.right
+    })
+  }
+
+  return (
+    <div style={{ position: 'relative', display: 'inline-flex' }}>
+      <button
+        onClick={onClick}
+        style={{
+          padding: '10px 8px 10px 14px',
+          fontSize: 12, fontWeight: isActive ? 600 : 500,
+          border: 'none', background: 'transparent',
+          color: isActive ? ACCENT : '#6e6a63',
+          borderBottom: isActive ? `2px solid ${ACCENT}` : '2px solid transparent',
+          cursor: 'pointer', whiteSpace: 'nowrap',
+          display: 'inline-flex', alignItems: 'center', gap: 6,
+          transition: 'color .15s'
+        }}>
+        {view.is_shared && (
+          <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="6" cy="5" r="2.5"/>
+            <circle cx="11" cy="5" r="2.5"/>
+            <path d="M2 13c0-2 2-3.5 4-3.5s4 1.5 4 3.5"/>
+            <path d="M9 13c0-2 2-3.5 4-3.5"/>
+          </svg>
+        )}
+        {view.name}
+      </button>
+      {isOwner && (
+        <button
+          ref={kebabRef}
+          onClick={openMenu}
+          style={{
+            padding: '6px 8px',
+            border: 'none', background: 'transparent',
+            color: menuPos ? ACCENT : '#9a958c',
+            cursor: 'pointer',
+            display: 'flex', alignItems: 'center',
+            borderRadius: 4
+          }}
+          onMouseEnter={e => { if (!menuPos) e.currentTarget.style.background = '#f5f3ef' }}
+          onMouseLeave={e => { if (!menuPos) e.currentTarget.style.background = 'transparent' }}
+          aria-label={`More actions for ${view.name}`}>
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+            <circle cx="8" cy="3" r="1.4"/>
+            <circle cx="8" cy="8" r="1.4"/>
+            <circle cx="8" cy="13" r="1.4"/>
+          </svg>
+        </button>
+      )}
+      {menuPos && (
+        <div ref={popoverRef} style={{
+          position: 'fixed',
+          top: menuPos.top, right: menuPos.right,
+          minWidth: 160,
+          background: '#fff', border: '0.5px solid #dcd8d0', borderRadius: 8,
+          boxShadow: '0 6px 20px rgba(0,0,0,0.08)',
+          zIndex: 100, padding: 4
+        }}>
+          <button
+            onClick={() => { setMenuPos(null); onDelete() }}
+            style={{
+              width: '100%', padding: '8px 12px',
+              fontSize: 12, color: '#dc2626', fontWeight: 500,
+              background: 'transparent', border: 'none', cursor: 'pointer',
+              textAlign: 'left', borderRadius: 5,
+              display: 'flex', alignItems: 'center', gap: 8
+            }}
+            onMouseEnter={e => e.currentTarget.style.background = '#fef2f2'}
+            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="3 5 13 5"/>
+              <path d="M5 5v8a1 1 0 001 1h4a1 1 0 001-1V5"/>
+              <path d="M6 5V3a1 1 0 011-1h2a1 1 0 011 1v2"/>
+            </svg>
+            Delete view
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────
+// Save view modal — name + share toggle
+// ─────────────────────────────────────────────────────────────
+function SaveViewModal({ onSave, onClose }) {
+  const [name, setName] = useState('')
+  const [isShared, setIsShared] = useState(false)
+  const [saving, setSaving] = useState(false)
+
+  async function handleSave() {
+    if (!name.trim()) return
+    setSaving(true)
+    await onSave(name.trim(), isShared)
+    setSaving(false)
+    onClose()
+  }
+
+  return (
+    <Modal title="Save current view" subtitle="Save your current filters and sort as a reusable view" onClose={onClose} width={420}>
+      <div style={{ padding: '12px 0' }}>
+        <label style={{ fontSize: 11, fontWeight: 600, color: '#4a4742', display: 'block', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.4px' }}>View Name</label>
+        <input value={name} onChange={e => setName(e.target.value)} autoFocus
+          onKeyDown={e => { if (e.key === 'Enter') handleSave() }}
+          placeholder="e.g. Active Engineering Candidates"
+          style={{ width: '100%', padding: '9px 12px', border: '0.5px solid #dcd8d0', borderRadius: 7, fontSize: 13, background: '#fff', color: '#14130f', boxSizing: 'border-box', outline: 'none' }} />
+      </div>
+      <div style={{ padding: '8px 0 12px' }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+          <input type="checkbox" checked={isShared} onChange={e => setIsShared(e.target.checked)}
+            style={{ accentColor: ACCENT, cursor: 'pointer' }} />
+          <span style={{ fontSize: 12, color: '#14130f' }}>Share with workspace</span>
+        </label>
+        <div style={{ fontSize: 11, color: '#9a958c', marginLeft: 24, marginTop: 4 }}>
+          Shared views are visible to all teammates. Only you can edit or delete them.
+        </div>
+      </div>
+      <div style={{ display: 'flex', gap: 10, paddingTop: 14, borderTop: '0.5px solid #f5f3ef' }}>
+        <Btn variant="ghost" onClick={onClose} style={{ flex: 1 }}>Cancel</Btn>
+        <Btn onClick={handleSave} disabled={!name.trim() || saving} style={{ flex: 2 }}>
+          {saving ? 'Saving...' : 'Save view'}
+        </Btn>
+      </div>
+    </Modal>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────
 // Bulk Stage Change Modal
 // ─────────────────────────────────────────────────────────────
 function BulkStageModal({ count, onConfirm, onClose }) {
@@ -735,7 +893,7 @@ export default function Contacts() {
   const [pageSize, setPageSize] = useState(50)
   const [density, setDensity] = useState('comfortable')
 
-  useEffect(() => { if (!token) return; load() }, [token])
+  useEffect(() => { if (!token) return; load(); loadViews() }, [token])
 
   async function load() {
     try {
@@ -743,6 +901,92 @@ export default function Contacts() {
       const data = await r.json()
       setContacts(Array.isArray(data) ? data : [])
     } catch {} finally { setLoading(false) }
+  }
+
+  async function loadViews() {
+    try {
+      const r = await fetch(`${API}/contact-views`, { headers: { Authorization: 'Bearer ' + token } })
+      if (!r.ok) return
+      const data = await r.json()
+      setViews(Array.isArray(data) ? data : [])
+    } catch {}
+  }
+
+  // Apply a saved view's config to the current table state.
+  // Null = reset to "All Contacts" defaults.
+  function applyView(view) {
+    if (!view) {
+      // Default: clear all filters and reset sort
+      clearAllFilters()
+      setSortBy('updated_at')
+      setSortDir('desc')
+      setActiveViewId(null)
+      return
+    }
+    const f = view.filters || {}
+    setFilterStages(new Set(f.stages || []))
+    setFilterTypes(new Set(f.types || []))
+    setFilterTags(new Set(f.tags || []))
+    setFilterPdpa(!!f.pdpa)
+    setFilterDnc(!!f.dnc)
+    setFilterOptedOut(!!f.opted_out)
+    setFilterHasPhone(!!f.has_phone)
+    setFilterHasEmail(!!f.has_email)
+    setFilterDateRange(f.date_range || 'all')
+    if (view.sort?.by) setSortBy(view.sort.by)
+    if (view.sort?.dir) setSortDir(view.sort.dir)
+    setActiveViewId(view.id)
+  }
+
+  // Snapshot current filter/sort state for saving as a view
+  function getCurrentViewConfig() {
+    return {
+      filters: {
+        stages: [...filterStages],
+        types: [...filterTypes],
+        tags: [...filterTags],
+        pdpa: filterPdpa,
+        dnc: filterDnc,
+        opted_out: filterOptedOut,
+        has_phone: filterHasPhone,
+        has_email: filterHasEmail,
+        date_range: filterDateRange,
+      },
+      sort: { by: sortBy, dir: sortDir },
+      columns: [],  // column visibility — not implemented yet, future use
+    }
+  }
+
+  async function saveView(name, isShared) {
+    const config = getCurrentViewConfig()
+    try {
+      const r = await fetch(`${API}/contact-views`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({ name, ...config, is_shared: isShared }),
+      })
+      if (!r.ok) { const d = await r.json(); alert(d.error || 'Failed to save view'); return }
+      const newView = await r.json()
+      setViews(prev => [newView, ...prev])
+      setActiveViewId(newView.id)
+    } catch (err) {
+      alert('Failed: ' + err.message)
+    }
+  }
+
+  async function deleteView(viewId) {
+    if (!confirm('Delete this saved view?')) return
+    try {
+      const r = await fetch(`${API}/contact-views/${viewId}`, {
+        method: 'DELETE',
+        headers: { Authorization: 'Bearer ' + token },
+      })
+      if (!r.ok) { const d = await r.json(); alert(d.error || 'Failed to delete'); return }
+      setViews(prev => prev.filter(v => v.id !== viewId))
+      if (activeViewId === viewId) setActiveViewId(null)
+    } catch (err) {
+      alert('Failed: ' + err.message)
+    }
   }
 
   async function deleteOne(c) {
@@ -792,6 +1036,11 @@ export default function Contacts() {
   const [filterHasPhone, setFilterHasPhone] = useState(false)
   const [filterHasEmail, setFilterHasEmail] = useState(false)
   const [showFilterDrawer, setShowFilterDrawer] = useState(false)
+
+  // Saved views state
+  const [views, setViews] = useState([])
+  const [activeViewId, setActiveViewId] = useState(null)  // null = "All Contacts" default
+  const [showSaveViewModal, setShowSaveViewModal] = useState(false)
 
   // Apply all filters together. Search is OR across fields; faceted filters
   // are AND with each other (must match all active filters).
@@ -981,6 +1230,61 @@ export default function Contacts() {
             </div>
           )}
         </div>
+      </div>
+
+      {/* Saved views tab strip */}
+      <div className="px-4 md:px-7" style={{
+        background: '#fff', borderBottom: '0.5px solid #dcd8d0',
+        display: 'flex', alignItems: 'center', gap: 4,
+        overflowX: 'auto', flexShrink: 0
+      }}>
+        <button
+          onClick={() => applyView(null)}
+          style={{
+            padding: '10px 14px', fontSize: 12, fontWeight: activeViewId === null ? 600 : 500,
+            border: 'none', background: 'transparent',
+            color: activeViewId === null ? ACCENT : '#6e6a63',
+            borderBottom: activeViewId === null ? `2px solid ${ACCENT}` : '2px solid transparent',
+            cursor: 'pointer', whiteSpace: 'nowrap',
+            transition: 'color .15s'
+          }}>
+          All Contacts
+          <span style={{ marginLeft: 6, fontSize: 10, color: activeViewId === null ? ACCENT : '#9a958c' }}>
+            {contacts.length}
+          </span>
+        </button>
+        {views.map(v => {
+          const isActive = activeViewId === v.id
+          const isOwner = v.user_id === user?.id
+          return (
+            <SavedViewTab
+              key={v.id}
+              view={v}
+              isActive={isActive}
+              isOwner={isOwner}
+              onClick={() => applyView(v)}
+              onDelete={() => deleteView(v.id)}
+            />
+          )
+        })}
+        {canManage && activeFilterCount > 0 && (
+          <button
+            onClick={() => setShowSaveViewModal(true)}
+            style={{
+              marginLeft: 'auto',
+              padding: '6px 12px', fontSize: 11, fontWeight: 500,
+              border: `0.5px dashed ${ACCENT}`, borderRadius: 6,
+              background: ACCENT_LIGHT, color: ACCENT,
+              cursor: 'pointer', whiteSpace: 'nowrap',
+              display: 'inline-flex', alignItems: 'center', gap: 4
+            }}>
+            <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+              <line x1="6" y1="2" x2="6" y2="10"/>
+              <line x1="2" y1="6" x2="10" y2="6"/>
+            </svg>
+            Save view
+          </button>
+        )}
       </div>
 
       {/* Toolbar: search + density + page size */}
@@ -1249,6 +1553,14 @@ export default function Contacts() {
         clearAllFilters={clearAllFilters}
         activeFilterCount={activeFilterCount}
       />
+      
+      {showSaveViewModal && (
+        <SaveViewModal
+          onSave={saveView}
+          onClose={() => setShowSaveViewModal(false)}
+        />
+      )}
+
       {showBulkStage && (
         <BulkStageModal
           count={selected.size}

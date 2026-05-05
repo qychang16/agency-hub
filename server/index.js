@@ -3280,9 +3280,23 @@ app.get('/broadcasts/:id', auth, async (req, res) => {
 app.post('/broadcasts', auth, requirePermission('manage_broadcasts'), async (req, res) => {
   try {
     const wsId = await getWorkspaceId(req.user.id)
-    const { name, template_id, phone_number_id, variables, target_filters, scheduled_at } = req.body
+    const {
+      name, template_id, phone_number_id, variables, target_filters, scheduled_at,
+      quiet_hours_enabled, quiet_hours_start_hour, quiet_hours_end_hour,
+      force_send_outside_hours, consecutive_fail_limit
+    } = req.body
     if (!name || !name.trim()) {
       return res.status(400).json({ error: 'Broadcast name is required' })
+    }
+    // Validate quiet hours range if provided
+    if (quiet_hours_start_hour !== undefined && (quiet_hours_start_hour < 0 || quiet_hours_start_hour > 23)) {
+      return res.status(400).json({ error: 'quiet_hours_start_hour must be 0-23' })
+    }
+    if (quiet_hours_end_hour !== undefined && (quiet_hours_end_hour < 0 || quiet_hours_end_hour > 23)) {
+      return res.status(400).json({ error: 'quiet_hours_end_hour must be 0-23' })
+    }
+    if (consecutive_fail_limit !== undefined && consecutive_fail_limit < 1) {
+      return res.status(400).json({ error: 'consecutive_fail_limit must be at least 1' })
     }
     const cleanName = name.trim()
     // Validate template if provided
@@ -3311,14 +3325,21 @@ app.post('/broadcasts', auth, requirePermission('manage_broadcasts'), async (req
     const r = await pool.query(`
       INSERT INTO broadcasts (
         workspace_id, name, template_id, phone_number_id, created_by,
-        variables, target_filters, scheduled_at, status
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'draft')
+        variables, target_filters, scheduled_at, status,
+        quiet_hours_enabled, quiet_hours_start_hour, quiet_hours_end_hour,
+        force_send_outside_hours, consecutive_fail_limit
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'draft', $9, $10, $11, $12, $13)
       RETURNING *
     `, [
       wsId, cleanName, template_id || null, phone_number_id || null, req.user.id,
       JSON.stringify(variables || {}),
       JSON.stringify(target_filters || {}),
-      scheduled_at || null
+      scheduled_at || null,
+      quiet_hours_enabled !== undefined ? quiet_hours_enabled : true,
+      quiet_hours_start_hour !== undefined ? quiet_hours_start_hour : 22,
+      quiet_hours_end_hour !== undefined ? quiet_hours_end_hour : 8,
+      force_send_outside_hours !== undefined ? force_send_outside_hours : false,
+      consecutive_fail_limit !== undefined ? consecutive_fail_limit : 5
     ])
     res.json(r.rows[0])
   } catch (err) {
@@ -3340,7 +3361,21 @@ app.patch('/broadcasts/:id', auth, requirePermission('manage_broadcasts'), async
     if (current.rows[0].status !== 'draft') {
       return res.status(409).json({ error: `Cannot edit a broadcast in status "${current.rows[0].status}". Only drafts can be edited.` })
     }
-    const { name, template_id, phone_number_id, variables, target_filters, scheduled_at } = req.body
+    const {
+      name, template_id, phone_number_id, variables, target_filters, scheduled_at,
+      quiet_hours_enabled, quiet_hours_start_hour, quiet_hours_end_hour,
+      force_send_outside_hours, consecutive_fail_limit
+    } = req.body
+    // Validate quiet hours range if provided
+    if (quiet_hours_start_hour !== undefined && (quiet_hours_start_hour < 0 || quiet_hours_start_hour > 23)) {
+      return res.status(400).json({ error: 'quiet_hours_start_hour must be 0-23' })
+    }
+    if (quiet_hours_end_hour !== undefined && (quiet_hours_end_hour < 0 || quiet_hours_end_hour > 23)) {
+      return res.status(400).json({ error: 'quiet_hours_end_hour must be 0-23' })
+    }
+    if (consecutive_fail_limit !== undefined && consecutive_fail_limit < 1) {
+      return res.status(400).json({ error: 'consecutive_fail_limit must be at least 1' })
+    }
     // Re-validate template if changed
     if (template_id !== undefined && template_id !== null) {
       const tpl = await pool.query(
@@ -3370,6 +3405,11 @@ app.patch('/broadcasts/:id', auth, requirePermission('manage_broadcasts'), async
     if (variables !== undefined) { sets.push(`variables = $${p++}`); params.push(JSON.stringify(variables)) }
     if (target_filters !== undefined) { sets.push(`target_filters = $${p++}`); params.push(JSON.stringify(target_filters)) }
     if (scheduled_at !== undefined) { sets.push(`scheduled_at = $${p++}`); params.push(scheduled_at) }
+    if (quiet_hours_enabled !== undefined) { sets.push(`quiet_hours_enabled = $${p++}`); params.push(quiet_hours_enabled) }
+    if (quiet_hours_start_hour !== undefined) { sets.push(`quiet_hours_start_hour = $${p++}`); params.push(quiet_hours_start_hour) }
+    if (quiet_hours_end_hour !== undefined) { sets.push(`quiet_hours_end_hour = $${p++}`); params.push(quiet_hours_end_hour) }
+    if (force_send_outside_hours !== undefined) { sets.push(`force_send_outside_hours = $${p++}`); params.push(force_send_outside_hours) }
+    if (consecutive_fail_limit !== undefined) { sets.push(`consecutive_fail_limit = $${p++}`); params.push(consecutive_fail_limit) }
     if (sets.length === 0) {
       return res.status(400).json({ error: 'No fields to update' })
     }

@@ -228,7 +228,8 @@ const ALL_PERMISSIONS_TRUE = {
   manage_workspace_settings: true, manage_staff: true,
   manage_role_permissions: true,
   manage_quick_replies: true,
-  manage_calendar: true
+  manage_calendar: true,
+  manage_broadcasts: true
 }
 const ALL_PERMISSIONS_FALSE = {
   send_messages: false, write_notes: false, manage_conversations: false,
@@ -238,7 +239,8 @@ const ALL_PERMISSIONS_FALSE = {
   manage_workspace_settings: false, manage_staff: false,
   manage_role_permissions: false,
   manage_quick_replies: false,
-  manage_calendar: false
+  manage_calendar: false,
+  manage_broadcasts: false
 }
 const DEFAULT_ROLE_PERMISSIONS = {
   manager: {
@@ -252,7 +254,7 @@ const DEFAULT_ROLE_PERMISSIONS = {
       send_messages: true, write_notes: true, manage_conversations: true,
       manage_contacts: true, manage_project_members: true,
       manage_templates: true, manage_scheduled_messages: true,
-      manage_quick_replies: true
+      manage_quick_replies: true, manage_broadcasts: true
     }
   },
   senior_consultant: {
@@ -262,7 +264,7 @@ const DEFAULT_ROLE_PERMISSIONS = {
       send_messages: true, write_notes: true, manage_conversations: true,
       manage_contacts: true,
       manage_templates: true, manage_scheduled_messages: true,
-      manage_quick_replies: true
+      manage_quick_replies: true, manage_broadcasts: true
     }
   },
   consultant: {
@@ -383,6 +385,7 @@ async function setupDatabase() {
     await runChunk13bCalendarPermissionJsonbMigration()
     await runChunk14EventRemindersMigration()
     await runChunk15BroadcastsMigration()
+    await runChunk16BroadcastsPermissionMigration()
   } catch (err) {
     await client.query('ROLLBACK')
     console.error('�?DB setup error:', err.message)
@@ -796,6 +799,63 @@ async function runTemplateLibrarySeedsMigration() {
         if (r.rowCount > 0) inserted++
       }
       console.log(`   inserted ${inserted} of ${templates.length} library templates`)
+
+      await client.query(`INSERT INTO _migrations (id) VALUES ($1)`, [MIGRATION_ID])
+      await client.query('COMMIT')
+      console.log(`Migration ${MIGRATION_ID} complete`)
+    } catch (err) {
+      await client.query('ROLLBACK')
+      throw err
+    } finally {
+      client.release()
+    }
+  } catch (err) {
+    console.error(`Migration ${MIGRATION_ID} FAILED:`, err.message)
+    throw err
+  }
+}
+
+// ============================================================
+// Chunk 16 Broadcasts Permission v1
+// Backfills the manage_broadcasts permission key into existing role_permissions
+// rows for all workspaces that pre-date the broadcasts feature. Sets to false
+// by default for safety. Mirrors the existing manage_scheduled_messages gate
+// for parity (mass outbound = same risk profile). Director is unaffected
+// because directors bypass the role_permissions check via ALL_PERMISSIONS_TRUE.
+async function runChunk16BroadcastsPermissionMigration() {
+  const MIGRATION_ID = 'chunk_16_broadcasts_permission_v1'
+  try {
+    const applied = await pool.query('SELECT id FROM _migrations WHERE id=$1', [MIGRATION_ID])
+    if (applied.rows.length > 0) {
+      console.log(`Migration ${MIGRATION_ID} already applied, skipping`)
+      return
+    }
+    console.log(`Running migration ${MIGRATION_ID}...`)
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+
+      // Roles that should default to true match the existing manage_scheduled_messages
+      // gate: manager, supervisor, senior_consultant. All others default false.
+      const ROLES_TRUE = ['manager', 'supervisor', 'senior_consultant']
+
+      // Use jsonb concat to add the key. If the key already exists (someone
+      // was on a fresh seed), the OR condition skips the row.
+      const trueResult = await client.query(`
+        UPDATE role_permissions
+        SET permissions = permissions || '{"manage_broadcasts": true}'::jsonb
+        WHERE role = ANY($1::text[])
+          AND NOT (permissions ? 'manage_broadcasts')
+      `, [ROLES_TRUE])
+      console.log(`   set manage_broadcasts=true on ${trueResult.rowCount} rows (manager/supervisor/senior_consultant)`)
+
+      const falseResult = await client.query(`
+        UPDATE role_permissions
+        SET permissions = permissions || '{"manage_broadcasts": false}'::jsonb
+        WHERE NOT (role = ANY($1::text[]))
+          AND NOT (permissions ? 'manage_broadcasts')
+      `, [ROLES_TRUE])
+      console.log(`   set manage_broadcasts=false on ${falseResult.rowCount} rows (other roles)`)
 
       await client.query(`INSERT INTO _migrations (id) VALUES ($1)`, [MIGRATION_ID])
       await client.query('COMMIT')

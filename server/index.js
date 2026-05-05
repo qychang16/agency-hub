@@ -3224,13 +3224,16 @@ app.post('/contacts', auth, requirePermission('manage_contacts'), async (req, re
       name, phone, email, type, pipeline_stage,
       tags, notes, source, candidate_role, current_company,
       expected_salary, notice_period, linkedin_url,
-      pdpa_consented, dnc, dnc_reason, opted_out
+      pdpa_consented, dnc, dnc_reason, opted_out,
+      // PDPA auto-log fields — optional, only used if pdpa_consented is true
+      pdpa_method, pdpa_notes, pdpa_expires_in_months,
     } = req.body
     if (!name || !name.trim()) return res.status(400).json({ error: 'Contact name is required' })
     if (phone) {
       const dup = await pool.query('SELECT id, name FROM contacts WHERE phone=$1 AND workspace_id=$2', [phone, wsId])
       if (dup.rows.length > 0) return res.status(409).json({ error: `Duplicate: ${phone} already exists as ${dup.rows[0].name}`, existing_id: dup.rows[0].id })
     }
+    const now = new Date()
     const r = await pool.query(`
       INSERT INTO contacts (
         workspace_id, name, phone, email, type, pipeline_stage,
@@ -3250,10 +3253,25 @@ app.post('/contacts', auth, requirePermission('manage_contacts'), async (req, re
         candidate_role || null, current_company || null,
         expected_salary || null, notice_period || null, linkedin_url || null,
         pdpa_consented || false,
-        pdpa_consented ? new Date() : null,
+        pdpa_consented ? now : null,
         dnc || false, dnc_reason || null, opted_out || false
       ]
     )
+
+    // Auto-log a PDPA record if consent was captured during contact creation.
+    // The PDPA tab's "manual entry" workflow goes through here too — anywhere
+    // the consent flag flips on, we want an audit-trail row in pdpa_records.
+    if (pdpa_consented) {
+      const months = parseInt(pdpa_expires_in_months) || 24
+      const expires = new Date(now)
+      expires.setMonth(expires.getMonth() + months)
+      await pool.query(`
+        INSERT INTO pdpa_records
+          (workspace_id, contact_id, status, method, consented_at, expires_at, collected_by, notes)
+        VALUES ($1, $2, 'consented', $3, $4, $5, $6, $7)
+      `, [wsId, r.rows[0].id, pdpa_method || 'manual', now, expires, req.user.id, pdpa_notes || null])
+    }
+
     await logAudit(wsId, req.user.id, 'create_contact', 'contact', r.rows[0].id, null, req.body)
     res.json(r.rows[0])
   } catch (err) {
@@ -3361,10 +3379,62 @@ app.post('/contacts/bulk', auth, requirePermission('manage_contacts'), async (re
 app.patch('/contacts/:id', auth, requirePermission('manage_contacts'), async (req, res) => {
   try {
     const wsId = await getWorkspaceId(req.user.id)
-    const { name, phone, email, type, pipeline_stage, pdpa_consented, dnc, dnc_reason, opted_out, tags, notes, expected_salary, notice_period, linkedin_url, current_role, current_company } = req.body
-    const r = await pool.query(`UPDATE contacts SET name=$1, phone=$2, email=$3, type=$4, pipeline_stage=$5, pdpa_consented=$6, dnc=$7, dnc_reason=$8, opted_out=$9, tags=$10, notes=$11, expected_salary=$12, notice_period=$13, linkedin_url=$14, candidate_role=$15, current_company=$16, updated_at=NOW() WHERE id=$17 AND workspace_id=$18 RETURNING *`, [name, phone, email, type, pipeline_stage, pdpa_consented, dnc, dnc_reason, opted_out, JSON.stringify(tags), notes, expected_salary, notice_period, linkedin_url, current_role, current_company, req.params.id, wsId])
+    const {
+      name, phone, email, type, pipeline_stage,
+      pdpa_consented, dnc, dnc_reason, opted_out,
+      tags, notes, expected_salary, notice_period, linkedin_url,
+      current_role, current_company,
+      // PDPA auto-log fields — only used if pdpa_consented transitions on/off
+      pdpa_method, pdpa_notes, pdpa_expires_in_months,
+    } = req.body
+
+    // Read current consent state to detect transitions. We auto-log a record
+    // when consent flips: false→true (consented) or true→false (withdrawn).
+    // Edits that don't touch the flag don't generate spurious records.
+    const before = await pool.query(
+      'SELECT pdpa_consented FROM contacts WHERE id=$1 AND workspace_id=$2',
+      [req.params.id, wsId]
+    )
+    if (before.rows.length === 0) {
+      return res.status(404).json({ error: 'Contact not found' })
+    }
+    const wasConsented = before.rows[0].pdpa_consented === true
+    const willBeConsented = pdpa_consented === true
+    const consentJustGiven    = !wasConsented && willBeConsented
+    const consentJustWithdrawn = wasConsented && pdpa_consented === false
+
+    const r = await pool.query(
+      `UPDATE contacts SET name=$1, phone=$2, email=$3, type=$4, pipeline_stage=$5, pdpa_consented=$6, dnc=$7, dnc_reason=$8, opted_out=$9, tags=$10, notes=$11, expected_salary=$12, notice_period=$13, linkedin_url=$14, candidate_role=$15, current_company=$16, pdpa_consented_at=CASE WHEN $6=true AND pdpa_consented_at IS NULL THEN NOW() WHEN $6=false THEN NULL ELSE pdpa_consented_at END, updated_at=NOW() WHERE id=$17 AND workspace_id=$18 RETURNING *`,
+      [name, phone, email, type, pipeline_stage, pdpa_consented, dnc, dnc_reason, opted_out, JSON.stringify(tags), notes, expected_salary, notice_period, linkedin_url, current_role, current_company, req.params.id, wsId]
+    )
+
+    // Auto-log the PDPA transition. Note that PATCH-driven consent is
+    // typically the editor's "I'm just toggling this" path, not the PDPA
+    // tab's deliberate Record-Consent flow (which goes through POST
+    // /pdpa/records directly). Both paths produce the same audit-trail row.
+    if (consentJustGiven) {
+      const now = new Date()
+      const months = parseInt(pdpa_expires_in_months) || 24
+      const expires = new Date(now)
+      expires.setMonth(expires.getMonth() + months)
+      await pool.query(`
+        INSERT INTO pdpa_records
+          (workspace_id, contact_id, status, method, consented_at, expires_at, collected_by, notes)
+        VALUES ($1, $2, 'consented', $3, $4, $5, $6, $7)
+      `, [wsId, req.params.id, pdpa_method || 'manual', now, expires, req.user.id, pdpa_notes || null])
+    } else if (consentJustWithdrawn) {
+      await pool.query(`
+        INSERT INTO pdpa_records
+          (workspace_id, contact_id, status, method, withdrawn_at, collected_by, notes)
+        VALUES ($1, $2, 'withdrawn', $3, NOW(), $4, $5)
+      `, [wsId, req.params.id, pdpa_method || 'manual', req.user.id, pdpa_notes || null])
+    }
+
     res.json(r.rows[0])
-  } catch (err) { res.status(500).json({ error: err.message }) }
+  } catch (err) {
+    console.error('PATCH /contacts/:id error:', err)
+    res.status(500).json({ error: err.message })
+  }
 })
 
 app.delete('/contacts/:id', auth, requirePermission('manage_contacts'), async (req, res) => {

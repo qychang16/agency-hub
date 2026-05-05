@@ -375,6 +375,15 @@ export default function Agents() {
   const [showEdit, setShowEdit] = useState(null)
   const [showReset, setShowReset] = useState(null)
   const [showPermissions, setShowPermissions] = useState(null)
+  // Switch to card layout below 768px — table swiping is too painful on phones.
+  // Same breakpoint as Settings.jsx mobile detection for consistency.
+  const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.innerWidth < 768)
+
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth < 768)
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
 
   useEffect(() => { if (!token) return; load() }, [token])
 
@@ -478,7 +487,77 @@ export default function Agents() {
           <div style={{ fontSize: 13, fontWeight: 500, color: '#6e6a63', marginBottom: 4 }}>No agents found</div>
           <div style={{ fontSize: 12, color: '#9a958c' }}>Try adjusting your search or filters</div>
         </div>
+      ) : isMobile ? (
+        // ─── Mobile: card list ───────────────────────────────────────────
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {filtered.map(a => {
+            const rc = getRoleColor(a.role)
+            return (
+              <div key={a.id} style={{ background: '#fff', borderRadius: 12, border: '0.5px solid #dcd8d0', padding: 16, opacity: a.active ? 1 : 0.55 }}>
+                {/* Top row: avatar + name + email */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+                  <div style={{ width: 40, height: 40, borderRadius: 10, background: rc.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 700, color: rc.color, flexShrink: 0 }}>
+                    {a.name?.[0]?.toUpperCase()}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: '#14130f', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                      {a.name}
+                      {a.id === user?.id && <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 4, background: ACCENT_LIGHT, color: ACCENT, fontWeight: 600 }}>You</span>}
+                      {a.is_super_admin && <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 4, background: '#fef3c7', color: '#92400e', fontWeight: 600 }}>Super Admin</span>}
+                    </div>
+                    <div style={{ fontSize: 12, color: '#9a958c', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.email}</div>
+                  </div>
+                </div>
+
+                {/* Meta row: role + team + status */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', marginBottom: 12, paddingBottom: 12, borderBottom: '0.5px solid #f5f3ef' }}>
+                  <RoleBadge role={a.role} />
+                  {a.team_name && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: a.team_color || '#9a958c' }} />
+                      <span style={{ fontSize: 11, color: '#4a4742' }}>{a.team_name}</span>
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <StatusDot status={a.active ? (a.status || 'offline') : 'offline'} />
+                    <span style={{ fontSize: 11, color: '#6e6a63', textTransform: 'capitalize' }}>
+                      {!a.active ? 'Inactive' : (a.status || 'offline')}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Capacity row */}
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#9a958c', marginBottom: 4, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                    <span>Capacity</span>
+                    <span>{a.capacity}</span>
+                  </div>
+                  <div style={{ height: 4, background: '#f5f3ef', borderRadius: 2, overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${Math.min(100, (a.capacity / 50) * 100)}%`, background: ACCENT, borderRadius: 2 }} />
+                  </div>
+                </div>
+
+                {/* Actions */}
+                {hasPermission('manage_staff') && (
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    <Btn variant="ghost" size="sm" onClick={() => setShowEdit(a)} style={{ flex: '1 1 auto' }}>Edit</Btn>
+                    <Btn variant="ghost" size="sm" onClick={() => setShowReset(a)} style={{ flex: '1 1 auto' }}>Reset PW</Btn>
+                    {a.id !== user?.id && !a.is_super_admin && (
+                      <Btn variant={a.active ? 'danger' : 'success'} size="sm" onClick={() => {
+                        if (!confirm(`${a.active ? 'Deactivate' : 'Reactivate'} ${a.name}?`)) return
+                        toggleActive(a)
+                      }} style={{ flex: '1 1 auto' }}>
+                        {a.active ? 'Deactivate' : 'Reactivate'}
+                      </Btn>
+                    )}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
       ) : (
+        // ─── Desktop: table ─────────────────────────────────────────────
         <div style={{ background: '#fff', borderRadius: 12, border: '0.5px solid #dcd8d0', overflowX: 'auto', overflowY: 'hidden' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 720 }}>
             <thead>

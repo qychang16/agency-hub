@@ -386,6 +386,7 @@ async function setupDatabase() {
     await runChunk14EventRemindersMigration()
     await runChunk15BroadcastsMigration()
     await runChunk16BroadcastsPermissionMigration()
+    await runChunk17BroadcastSafetyMigration()
   } catch (err) {
     await client.query('ROLLBACK')
     console.error('�?DB setup error:', err.message)
@@ -799,6 +800,59 @@ async function runTemplateLibrarySeedsMigration() {
         if (r.rowCount > 0) inserted++
       }
       console.log(`   inserted ${inserted} of ${templates.length} library templates`)
+
+      await client.query(`INSERT INTO _migrations (id) VALUES ($1)`, [MIGRATION_ID])
+      await client.query('COMMIT')
+      console.log(`Migration ${MIGRATION_ID} complete`)
+    } catch (err) {
+      await client.query('ROLLBACK')
+      throw err
+    } finally {
+      client.release()
+    }
+  } catch (err) {
+    console.error(`Migration ${MIGRATION_ID} FAILED:`, err.message)
+    throw err
+  }
+}
+
+// ============================================================
+// Chunk 17 Broadcast Safety v1
+// Adds safety configuration to broadcasts: quiet hours window, force-send
+// override, and a circuit-breaker fail limit. The worker (chunk_18, next
+// session) reads these to protect WhatsApp account quality.
+async function runChunk17BroadcastSafetyMigration() {
+  const MIGRATION_ID = 'chunk_17_broadcast_safety_v1'
+  try {
+    const applied = await pool.query('SELECT id FROM _migrations WHERE id=$1', [MIGRATION_ID])
+    if (applied.rows.length > 0) {
+      console.log(`Migration ${MIGRATION_ID} already applied, skipping`)
+      return
+    }
+    console.log(`Running migration ${MIGRATION_ID}...`)
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+
+      // Quiet hours window. Default is "10pm to 8am" expressed as integers
+      // (hours of day, 0-23). Stored as integers not TIME because we want
+      // simple hour-of-day comparison without timezone gymnastics. The worker
+      // applies these in the recipient's workspace timezone (workspaces.timezone).
+      await client.query(`ALTER TABLE broadcasts ADD COLUMN IF NOT EXISTS quiet_hours_enabled BOOLEAN DEFAULT true`)
+      await client.query(`ALTER TABLE broadcasts ADD COLUMN IF NOT EXISTS quiet_hours_start_hour INTEGER DEFAULT 22 CHECK (quiet_hours_start_hour >= 0 AND quiet_hours_start_hour <= 23)`)
+      await client.query(`ALTER TABLE broadcasts ADD COLUMN IF NOT EXISTS quiet_hours_end_hour INTEGER DEFAULT 8 CHECK (quiet_hours_end_hour >= 0 AND quiet_hours_end_hour <= 23)`)
+      console.log(`   added quiet hours config (default 22:00 to 08:00, enabled)`)
+
+      // Override flag for marketing campaigns user explicitly wants to send
+      // outside business hours. Defaults false; user has to consciously enable.
+      await client.query(`ALTER TABLE broadcasts ADD COLUMN IF NOT EXISTS force_send_outside_hours BOOLEAN DEFAULT false`)
+      console.log(`   added force_send_outside_hours flag`)
+
+      // Circuit breaker: if N consecutive recipients fail to send, the worker
+      // pauses the entire broadcast and marks it 'failed' to prevent burning
+      // through Meta API quota with broken sends. Default 5 = conservative.
+      await client.query(`ALTER TABLE broadcasts ADD COLUMN IF NOT EXISTS consecutive_fail_limit INTEGER DEFAULT 5 CHECK (consecutive_fail_limit > 0)`)
+      console.log(`   added consecutive_fail_limit (default 5)`)
 
       await client.query(`INSERT INTO _migrations (id) VALUES ($1)`, [MIGRATION_ID])
       await client.query('COMMIT')

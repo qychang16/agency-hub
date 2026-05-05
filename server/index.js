@@ -2943,7 +2943,11 @@ app.post('/contacts/bulk', auth, requirePermission('manage_contacts'), async (re
         results.errors.push({ row: rowNum, reason: 'Missing name' })
         continue
       }
-      const phone = (row.phone || '').trim() || null
+      // Normalize phone: strip all non-digits, then re-prepend + if length > 0.
+      // This handles Excel stripping + signs and inconsistent CSV formats.
+      const phoneRaw = (row.phone || '').trim()
+      const phoneDigits = phoneRaw.replace(/\D/g, '')
+      const phone = phoneDigits ? '+' + phoneDigits : null
       // Dedup against DB and against earlier rows in this batch
       if (phone) {
         if (existingPhones.has(phone)) {

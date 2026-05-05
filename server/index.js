@@ -2863,15 +2863,138 @@ app.get('/contacts', auth, async (req, res) => {
 app.post('/contacts', auth, requirePermission('manage_contacts'), async (req, res) => {
   try {
     const wsId = await getWorkspaceId(req.user.id)
-    const { name, phone, email, type, pipeline_stage } = req.body
+    const {
+      name, phone, email, type, pipeline_stage,
+      tags, notes, source, candidate_role, current_company,
+      expected_salary, notice_period, linkedin_url,
+      pdpa_consented, dnc, dnc_reason, opted_out
+    } = req.body
+    if (!name || !name.trim()) return res.status(400).json({ error: 'Contact name is required' })
     if (phone) {
       const dup = await pool.query('SELECT id, name FROM contacts WHERE phone=$1 AND workspace_id=$2', [phone, wsId])
       if (dup.rows.length > 0) return res.status(409).json({ error: `Duplicate: ${phone} already exists as ${dup.rows[0].name}`, existing_id: dup.rows[0].id })
     }
-    const r = await pool.query(`INSERT INTO contacts (workspace_id, name, phone, email, type, pipeline_stage) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`, [wsId, name, phone, email, type || 'candidate', pipeline_stage || 'new'])
+    const r = await pool.query(`
+      INSERT INTO contacts (
+        workspace_id, name, phone, email, type, pipeline_stage,
+        tags, notes, source, candidate_role, current_company,
+        expected_salary, notice_period, linkedin_url,
+        pdpa_consented, pdpa_consented_at, dnc, dnc_reason, opted_out
+      ) VALUES (
+        $1, $2, $3, $4, $5, $6,
+        $7, $8, $9, $10, $11,
+        $12, $13, $14,
+        $15, $16, $17, $18, $19
+      ) RETURNING *`,
+      [
+        wsId, name.trim(), phone || null, email || null,
+        type || 'candidate', pipeline_stage || 'new',
+        JSON.stringify(tags || []), notes || null, source || null,
+        candidate_role || null, current_company || null,
+        expected_salary || null, notice_period || null, linkedin_url || null,
+        pdpa_consented || false,
+        pdpa_consented ? new Date() : null,
+        dnc || false, dnc_reason || null, opted_out || false
+      ]
+    )
     await logAudit(wsId, req.user.id, 'create_contact', 'contact', r.rows[0].id, null, req.body)
     res.json(r.rows[0])
-  } catch (err) { res.status(500).json({ error: err.message }) }
+  } catch (err) {
+    console.error('POST /contacts error:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+// Bulk import contacts from a parsed CSV. Frontend parses the CSV and POSTs an
+// array of row objects; we validate, dedupe, and insert. Returns per-row results
+// so the UI can display "23 imported, 4 duplicates, 1 invalid".
+app.post('/contacts/bulk', auth, requirePermission('manage_contacts'), async (req, res) => {
+  const client = await pool.connect()
+  try {
+    const wsId = await getWorkspaceId(req.user.id)
+    const { rows } = req.body
+    if (!Array.isArray(rows)) {
+      return res.status(400).json({ error: 'rows must be an array' })
+    }
+    if (rows.length === 0) {
+      return res.status(400).json({ error: 'No rows to import' })
+    }
+    if (rows.length > 5000) {
+      return res.status(400).json({ error: 'Maximum 5000 rows per import. Split into smaller batches.' })
+    }
+
+    // Pre-fetch existing phones in this workspace for dedup
+    const existing = await client.query(
+      `SELECT phone FROM contacts WHERE workspace_id=$1 AND phone IS NOT NULL`,
+      [wsId]
+    )
+    const existingPhones = new Set(existing.rows.map(r => r.phone))
+    // Track in-batch duplicates too (CSV with same phone twice)
+    const batchPhones = new Set()
+
+    await client.query('BEGIN')
+    const results = { imported: 0, duplicates: 0, invalid: 0, errors: [] }
+
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i]
+      const rowNum = i + 1
+      // Validate required fields
+      if (!row.name || !row.name.trim()) {
+        results.invalid++
+        results.errors.push({ row: rowNum, reason: 'Missing name' })
+        continue
+      }
+      const phone = (row.phone || '').trim() || null
+      // Dedup against DB and against earlier rows in this batch
+      if (phone) {
+        if (existingPhones.has(phone)) {
+          results.duplicates++
+          results.errors.push({ row: rowNum, reason: `Phone ${phone} already exists in workspace` })
+          continue
+        }
+        if (batchPhones.has(phone)) {
+          results.duplicates++
+          results.errors.push({ row: rowNum, reason: `Phone ${phone} appears more than once in CSV` })
+          continue
+        }
+        batchPhones.add(phone)
+      }
+      try {
+        await client.query(`
+          INSERT INTO contacts (
+            workspace_id, name, phone, email, type, pipeline_stage,
+            notes, source, candidate_role, current_company
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        `, [
+          wsId,
+          row.name.trim(),
+          phone,
+          row.email?.trim() || null,
+          row.type?.trim() || 'candidate',
+          row.pipeline_stage?.trim() || 'new',
+          row.notes?.trim() || null,
+          row.source?.trim() || 'csv_import',
+          row.candidate_role?.trim() || null,
+          row.current_company?.trim() || null,
+        ])
+        results.imported++
+      } catch (err) {
+        results.invalid++
+        results.errors.push({ row: rowNum, reason: err.message?.slice(0, 200) || 'insert failed' })
+      }
+    }
+
+    await client.query('COMMIT')
+    await logAudit(wsId, req.user.id, 'bulk_import_contacts', 'contact', null, null, {
+      total: rows.length, imported: results.imported, duplicates: results.duplicates, invalid: results.invalid
+    })
+    res.json(results)
+  } catch (err) {
+    await client.query('ROLLBACK')
+    console.error('POST /contacts/bulk error:', err)
+    res.status(500).json({ error: err.message })
+  } finally {
+    client.release()
+  }
 })
 
 app.patch('/contacts/:id', auth, requirePermission('manage_contacts'), async (req, res) => {

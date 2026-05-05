@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../../../context/AuthContext'
+import { useApiSave } from '../../../hooks/useApiSave'
 import { useWorkspace } from '../../../context/WorkspaceContext'
 import { API } from '../../../utils/constants'
 import { ACCENT, ACCENT_LIGHT, NAVY } from '../../../utils/designTokens'
@@ -111,10 +112,10 @@ export default function WhatsAppAPI() {
   const [showToken, setShowToken] = useState(false)
   const [testing, setTesting] = useState(false)
   const [testResult, setTestResult] = useState(null)
-  const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [activeStep, setActiveStep] = useState(null)
   const [phoneNumbers, setPhoneNumbers] = useState([])
+  const { save: apiSave, saving, error } = useApiSave(token)
 
   const webhookUrl = `${API}/webhook/whatsapp`
   const verifyToken = 'telcloud_webhook_2026'
@@ -138,16 +139,10 @@ export default function WhatsAppAPI() {
   }
 
   async function save() {
-    setSaving(true)
-    try {
-      await fetch(`${API}/workspace`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-        body: JSON.stringify(form)
-      })
-      setSaved(true)
-      setTimeout(() => setSaved(false), 2000)
-    } catch {} finally { setSaving(false) }
+    const result = await apiSave(`${API}/workspace`, { method: 'PATCH', body: form })
+    if (!result.ok) return  // hook already set error state
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
   }
 
   function testConnection() {
@@ -252,6 +247,12 @@ export default function WhatsAppAPI() {
                 {saving ? 'Saving…' : <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline', verticalAlign: '-2px', marginRight: 6 }}><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>Save Credentials</>}
               </Btn>
             </div>
+
+            {error && (
+              <div style={{ marginTop: 10, padding: '8px 12px', background: '#fef2f2', border: '0.5px solid #fecaca', borderRadius: 8, fontSize: 12, color: '#dc2626' }}>
+                {error}
+              </div>
+            )}
 
             {saved && (
               <div style={{ marginTop: 10, padding: '8px 12px', background: '#f0fdf4', border: '0.5px solid #86efac', borderRadius: 8, fontSize: 12, color: '#16a34a' }}>

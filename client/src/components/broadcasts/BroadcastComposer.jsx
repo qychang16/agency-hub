@@ -339,8 +339,26 @@ function StepRecipients({ form, setForm, contacts, contactsLoading }) {
 // ─────────────────────────────────────────────────────────────
 function StepSchedule({ form, setForm }) {
   const isSendNow = form.send_mode === 'now'
+
+  // Format hour for display (e.g. 22 -> "10:00 PM", 8 -> "8:00 AM")
+  const fmtHour = (h) => {
+    const ampm = h >= 12 ? 'PM' : 'AM'
+    const display = h === 0 ? 12 : h > 12 ? h - 12 : h
+    return `${display}:00 ${ampm}`
+  }
+
+  // Detect if current quiet hours window means right now is quiet.
+  // This drives the "Send Now might wait" warning.
+  const nowH = new Date().getHours()
+  const inQuietNow = form.quiet_hours_enabled && (
+    form.quiet_hours_start_hour < form.quiet_hours_end_hour
+      ? (nowH >= form.quiet_hours_start_hour && nowH < form.quiet_hours_end_hour)
+      : (nowH >= form.quiet_hours_start_hour || nowH < form.quiet_hours_end_hour)
+  )
+
   return (
     <div>
+      {/* Send timing cards */}
       <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
         <div
           onClick={() => setForm({ ...form, send_mode: 'now', scheduled_at_local: '' })}
@@ -363,8 +381,9 @@ function StepSchedule({ form, setForm }) {
           <div style={{ fontSize: 11, color: '#9a958c' }}>Pick a date and time</div>
         </div>
       </div>
+
       {!isSendNow && (
-        <div>
+        <div style={{ marginBottom: 20 }}>
           <label style={{ fontSize: 11, fontWeight: 600, color: '#4a4742', display: 'block', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.4px' }}>
             Send At <span style={{ color: '#ef4444' }}>*</span>
           </label>
@@ -378,6 +397,100 @@ function StepSchedule({ form, setForm }) {
           </div>
         </div>
       )}
+
+      {/* Safety configuration */}
+      <div style={{ padding: 14, background: '#faf9f7', borderRadius: 10, border: '0.5px solid #dcd8d0' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: '#14130f' }}>WhatsApp Safety</div>
+            <div style={{ fontSize: 10, color: '#9a958c', marginTop: 2 }}>Protects your account quality rating from suspension risk</div>
+          </div>
+        </div>
+
+        {/* Quiet hours toggle */}
+        <div style={{ marginBottom: 12 }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={form.quiet_hours_enabled}
+              onChange={e => setForm({ ...form, quiet_hours_enabled: e.target.checked })}
+              style={{ accentColor: ACCENT }} />
+            <span style={{ fontSize: 12, fontWeight: 500, color: '#14130f' }}>Respect quiet hours</span>
+            <span style={{ fontSize: 10, color: '#9a958c' }}>(don't send to recipients between these hours)</span>
+          </label>
+        </div>
+
+        {form.quiet_hours_enabled && (
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 12, paddingLeft: 24 }}>
+            <div style={{ flex: 1 }}>
+              <label style={{ fontSize: 10, color: '#6e6a63', display: 'block', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.4px' }}>Start (no sends after)</label>
+              <select
+                value={form.quiet_hours_start_hour}
+                onChange={e => setForm({ ...form, quiet_hours_start_hour: parseInt(e.target.value) })}
+                style={{ width: '100%', padding: '7px 10px', border: '0.5px solid #dcd8d0', borderRadius: 7, fontSize: 12, background: '#fff', color: '#14130f' }}>
+                {Array.from({ length: 24 }).map((_, h) => (
+                  <option key={h} value={h}>{fmtHour(h)}</option>
+                ))}
+              </select>
+            </div>
+            <div style={{ flex: 1 }}>
+              <label style={{ fontSize: 10, color: '#6e6a63', display: 'block', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.4px' }}>End (sends resume at)</label>
+              <select
+                value={form.quiet_hours_end_hour}
+                onChange={e => setForm({ ...form, quiet_hours_end_hour: parseInt(e.target.value) })}
+                style={{ width: '100%', padding: '7px 10px', border: '0.5px solid #dcd8d0', borderRadius: 7, fontSize: 12, background: '#fff', color: '#14130f' }}>
+                {Array.from({ length: 24 }).map((_, h) => (
+                  <option key={h} value={h}>{fmtHour(h)}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+        )}
+
+        {/* Quiet-hours-now warning */}
+        {form.quiet_hours_enabled && isSendNow && inQuietNow && !form.force_send_outside_hours && (
+          <div style={{ padding: '8px 10px', background: '#fef3c7', border: '0.5px solid #fde68a', borderRadius: 6, fontSize: 11, color: '#92400e', marginBottom: 12 }}>
+            It's currently within your quiet hours window ({fmtHour(form.quiet_hours_start_hour)} to {fmtHour(form.quiet_hours_end_hour)}). Sends will pause until {fmtHour(form.quiet_hours_end_hour)} unless you enable Force Send below.
+          </div>
+        )}
+
+        {/* Force send override */}
+        <div style={{ marginBottom: 12 }}>
+          <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={form.force_send_outside_hours}
+              onChange={e => setForm({ ...form, force_send_outside_hours: e.target.checked })}
+              style={{ accentColor: ACCENT, marginTop: 2 }} />
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 500, color: '#14130f' }}>Force send outside quiet hours</div>
+              <div style={{ fontSize: 10, color: '#9a958c', marginTop: 1 }}>
+                Override the quiet hours block. Use only for urgent transactional messages. Marketing sends outside business hours dramatically increase block rate.
+              </div>
+            </div>
+          </label>
+        </div>
+
+        {/* Circuit breaker */}
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+          <label style={{ fontSize: 12, fontWeight: 500, color: '#14130f', flex: 1 }}>
+            Stop broadcast after consecutive failures:
+          </label>
+          <input
+            type="number"
+            min="1"
+            max="50"
+            value={form.consecutive_fail_limit}
+            onChange={e => {
+              const v = parseInt(e.target.value)
+              if (!isNaN(v) && v >= 1) setForm({ ...form, consecutive_fail_limit: v })
+            }}
+            style={{ width: 70, padding: '6px 10px', border: '0.5px solid #dcd8d0', borderRadius: 6, fontSize: 12, background: '#fff', color: '#14130f', textAlign: 'center' }} />
+        </div>
+        <div style={{ fontSize: 10, color: '#9a958c', marginTop: 4, textAlign: 'right' }}>
+          Default 5. If this many recipients fail in a row, broadcast pauses to protect quota.
+        </div>
+      </div>
     </div>
   )
 }
@@ -395,6 +508,19 @@ function StepReview({ form, template, phone, contacts, sendable, skipped }) {
         })
       : '(not set)'
 
+  // Format hour for display in safety summary
+  const fmtHour = (h) => {
+    const ampm = h >= 12 ? 'PM' : 'AM'
+    const display = h === 0 ? 12 : h > 12 ? h - 12 : h
+    return `${display}:00 ${ampm}`
+  }
+
+  const safetyDescription = (() => {
+    if (!form.quiet_hours_enabled) return 'Quiet hours disabled (send anytime)'
+    if (form.force_send_outside_hours) return `Force send outside ${fmtHour(form.quiet_hours_start_hour)}-${fmtHour(form.quiet_hours_end_hour)} window`
+    return `Pause sends ${fmtHour(form.quiet_hours_start_hour)} to ${fmtHour(form.quiet_hours_end_hour)}`
+  })()
+
   const summary = [
     ['Name', form.name],
     ['Sender', phone ? `${phone.number}${phone.project_name ? ` (${phone.project_name})` : ''}` : '(not set)'],
@@ -403,6 +529,8 @@ function StepReview({ form, template, phone, contacts, sendable, skipped }) {
     ['Will send to', sendable],
     ['Will skip', skipped],
     ['Send time', sendTime],
+    ['Quiet hours', safetyDescription],
+    ['Stop after fails', `${form.consecutive_fail_limit} consecutive`],
   ]
 
   return (
@@ -447,6 +575,14 @@ export default function BroadcastComposer({ onClose, onSaved }) {
     contact_ids: [],
     send_mode: 'now',
     scheduled_at_local: '',
+    // Safety config — sensible defaults that protect WhatsApp account quality.
+    // The worker reads these at send time to skip recipients in quiet hours,
+    // honor the force-send override, and trip the consecutive-fail circuit-breaker.
+    quiet_hours_enabled: true,
+    quiet_hours_start_hour: 22,  // 10 PM
+    quiet_hours_end_hour: 8,     // 8 AM
+    force_send_outside_hours: false,
+    consecutive_fail_limit: 5,
   })
   const [phones, setPhones] = useState([])
   const [templates, setTemplates] = useState([])
@@ -521,6 +657,11 @@ export default function BroadcastComposer({ onClose, onSaved }) {
           template_id: form.template_id,
           phone_number_id: form.phone_number_id,
           scheduled_at,
+          quiet_hours_enabled: form.quiet_hours_enabled,
+          quiet_hours_start_hour: form.quiet_hours_start_hour,
+          quiet_hours_end_hour: form.quiet_hours_end_hour,
+          force_send_outside_hours: form.force_send_outside_hours,
+          consecutive_fail_limit: form.consecutive_fail_limit,
         }),
       })
       if (!createRes.ok) {

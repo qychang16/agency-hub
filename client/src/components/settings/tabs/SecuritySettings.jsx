@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../../../context/AuthContext'
+import { useApiSave } from '../../../hooks/useApiSave'
 import { API } from '../../../utils/constants'
 import { ACCENT } from '../../../utils/designTokens'
 
@@ -83,8 +84,8 @@ export default function SecuritySettings() {
     password_require_special: false,
   })
   const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const { save: apiSave, saving, error } = useApiSave(token)
   const [showChangePassword, setShowChangePassword] = useState(false)
   const [oldPassword, setOldPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
@@ -103,15 +104,10 @@ export default function SecuritySettings() {
   }, [])
 
   async function save() {
-    setSaving(true)
-    try {
-      await fetch(`${API}/security`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-        body: JSON.stringify(settings)
-      })
-      setSaved(true); setTimeout(() => setSaved(false), 2000)
-    } catch {} finally { setSaving(false) }
+    const result = await apiSave(`${API}/security`, { method: 'PATCH', body: settings })
+    if (!result.ok) return  // hook already set error state
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
   }
 
   function changePassword() {
@@ -315,12 +311,19 @@ export default function SecuritySettings() {
         </div>
       </div>
 
-      {/* Save — only Directors can save workspace security settings */}
+      {/* Save 鈥?only Directors can save workspace security settings */}
       {isDirector && (
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 4 }}>
-          {saved && <div style={{ fontSize: 12, color: '#16a34a', display: 'flex', alignItems: 'center', gap: 5 }}>✓ Security settings saved</div>}
-          <Btn onClick={save} disabled={saving}>{saving ? 'Saving…' : 'Save Security Settings'}</Btn>
-        </div>
+        <>
+          {error && (
+            <div style={{ padding: '10px 14px', background: '#fef2f2', border: '0.5px solid #fecaca', borderRadius: 8, fontSize: 12, color: '#dc2626', marginTop: 4, marginBottom: 8 }}>
+              {error}
+            </div>
+          )}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 4 }}>
+            {saved && <div style={{ fontSize: 12, color: '#16a34a', display: 'flex', alignItems: 'center', gap: 5 }}>✓ Security settings saved</div>}
+            <Btn onClick={save} disabled={saving}>{saving ? 'Saving…' : 'Save Security Settings'}</Btn>
+          </div>
+        </>
       )}
     </div>
   )

@@ -86,6 +86,8 @@ export default function PhoneNumbers() {
   const [form, setForm] = useState({ number: '', display_name: '', whatsapp_phone_id: '', is_primary: false, owner_user_id: '', project_id: '' })
   const [agents, setAgents] = useState([])
   const [projects, setProjects] = useState([])
+  const [saveError, setSaveError] = useState('')
+  const [saving, setSaving] = useState(false)
 
   useEffect(() => { load(); loadAgents(); loadProjects() }, [])
 
@@ -114,25 +116,77 @@ export default function PhoneNumbers() {
   }
 
   async function save() {
+    setSaveError('')
+    setSaving(true)
     try {
       const url = showEdit ? `${API}/phone-numbers/${showEdit.id}` : `${API}/phone-numbers`
       const method = showEdit ? 'PATCH' : 'POST'
-      await fetch(url, { method, headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }, body: JSON.stringify(form) })
+      const r = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify(form)
+      })
+      if (!r.ok) {
+        // Try to extract a useful error message from the backend response
+        let msg = `Server returned ${r.status}`
+        try {
+          const data = await r.json()
+          if (data?.error) msg = data.error
+          else if (data?.message) msg = data.message
+        } catch {
+          // Response wasn't JSON — fall back to status code
+        }
+        setSaveError(msg)
+        return  // Don't close modal — let user see error and retry
+      }
+      // Success: clear form and close
       setShowAdd(false); setShowEdit(null)
       setForm({ number: '', display_name: '', whatsapp_phone_id: '', is_primary: false, owner_user_id: '', project_id: '' })
       load()
-    } catch {}
+    } catch (err) {
+      // Network error or unexpected exception
+      setSaveError('Failed to save: ' + (err.message || 'unknown error'))
+    } finally {
+      setSaving(false)
+    }
   }
 
   async function remove(id) {
     if (!confirm('Remove this phone number? All conversation history will be preserved.')) return
-    await fetch(`${API}/phone-numbers/${id}`, { method: 'DELETE', headers: { Authorization: 'Bearer ' + token } })
-    load()
+    try {
+      const r = await fetch(`${API}/phone-numbers/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: 'Bearer ' + token }
+      })
+      if (!r.ok) {
+        let msg = `Server returned ${r.status}`
+        try { const d = await r.json(); if (d?.error) msg = d.error } catch {}
+        alert('Failed to remove: ' + msg)
+        return
+      }
+      load()
+    } catch (err) {
+      alert('Failed to remove: ' + (err.message || 'unknown error'))
+    }
   }
 
   async function setPrimary(id) {
-    await fetch(`${API}/phone-numbers/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }, body: JSON.stringify({ is_primary: true }) })
-    load()
+    try {
+      const r = await fetch(`${API}/phone-numbers/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({ is_primary: true })
+      })
+      if (!r.ok) {
+        let msg = `Server returned ${r.status}`
+        try { const d = await r.json(); if (d?.error) msg = d.error } catch {}
+        alert('Failed to set primary: ' + msg)
+        return
+      }
+      load()
+    } catch (err) {
+      alert('Failed to set primary: ' + (err.message || 'unknown error'))
+    }
   }
 
   return (
@@ -143,7 +197,7 @@ export default function PhoneNumbers() {
           <div style={{ fontSize: 15, fontWeight: 600, color: '#14130f' }}>Phone Numbers</div>
           <div style={{ fontSize: 12, color: '#9a958c', marginTop: 3 }}>Manage WhatsApp numbers connected to your workspace. No limit on numbers.</div>
         </div>
-        {hasPermission('manage_phone_numbers') && <Btn onClick={() => { setForm({ number: '', display_name: '', whatsapp_phone_id: '', is_primary: false, owner_user_id: '', project_id: '' }); setShowAdd(true) }}>+ Add Number</Btn>}
+        {hasPermission('manage_phone_numbers') && <Btn onClick={() => { setSaveError(''); setForm({ number: '', display_name: '', whatsapp_phone_id: '', is_primary: false, owner_user_id: '', project_id: '' }); setShowAdd(true) }}>+ Add Number</Btn>}
       </div>
 
       {/* Info banner */}
@@ -179,7 +233,7 @@ export default function PhoneNumbers() {
             <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#9a958c" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: 12 }}><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M12 18h.01"/></svg>
             <div style={{ fontSize: 13, fontWeight: 500, color: '#6e6a63', marginBottom: 4 }}>No phone numbers added yet</div>
             <div style={{ fontSize: 12, color: '#9a958c', marginBottom: 16 }}>Add your WhatsApp Business number to start receiving messages</div>
-            {hasPermission('manage_phone_numbers') && <Btn onClick={() => setShowAdd(true)}>+ Add First Number</Btn>}
+            {hasPermission('manage_phone_numbers') && <Btn onClick={() => { setSaveError(''); setShowAdd(true) }}>+ Add First Number</Btn>}
           </div>
         </Card>
       ) : (
@@ -239,6 +293,7 @@ export default function PhoneNumbers() {
                   <Btn variant="dark" size="sm" onClick={() => setPrimary(n.id)}>Set Primary</Btn>
                 )}
                 <Btn variant="ghost" size="sm" onClick={() => {
+                  setSaveError('')
                   setShowEdit(n)
                   setForm({ number: n.number, display_name: n.display_name || '', whatsapp_phone_id: n.whatsapp_phone_id || '', is_primary: n.is_primary, owner_user_id: n.owner_user_id || '', project_id: n.project_id || '' })
                 }}>Edit</Btn>
@@ -312,9 +367,20 @@ export default function PhoneNumbers() {
             After adding, go to <strong>WhatsApp API</strong> tab to configure the API token and webhook for this number.
           </div>
 
+          {saveError && (
+            <div style={{ padding: '10px 12px', background: '#fef2f2', border: '0.5px solid #fecaca', borderRadius: 8, fontSize: 12, color: '#dc2626', marginBottom: 12, display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: 1 }}>
+                <circle cx="8" cy="8" r="6.5"/>
+                <line x1="8" y1="5" x2="8" y2="9"/>
+                <circle cx="8" cy="11.5" r="0.5" fill="currentColor"/>
+              </svg>
+              <div>{saveError}</div>
+            </div>
+          )}
+
           <div style={{ display: 'flex', gap: 10 }}>
-            <Btn variant="ghost" onClick={() => { setShowAdd(false); setShowEdit(null) }} style={{ flex: 1 }}>Cancel</Btn>
-            <Btn onClick={save} style={{ flex: 2 }}>{showEdit ? 'Save Changes' : 'Add Number'}</Btn>
+            <Btn variant="ghost" onClick={() => { setSaveError(''); setShowAdd(false); setShowEdit(null) }} style={{ flex: 1 }}>Cancel</Btn>
+            <Btn onClick={save} disabled={saving} style={{ flex: 2 }}>{saving ? 'Saving...' : (showEdit ? 'Save Changes' : 'Add Number')}</Btn>
           </div>
         </Modal>
       )}

@@ -2534,15 +2534,49 @@ app.post('/phone-numbers', auth, requirePermission('manage_phone_numbers'), asyn
   try {
     const wsId = await getWorkspaceId(req.user.id)
     const { number, display_name, whatsapp_phone_id, is_primary, owner_user_id, project_id } = req.body
-    if (is_primary) await pool.query('UPDATE phone_numbers SET is_primary=false WHERE workspace_id=$1', [wsId])
+
+    // Required field check
+    if (!number || !number.trim()) {
+      return res.status(400).json({ error: 'Phone number is required' })
+    }
+    const cleaned = number.trim()
+
+    // Format validation: must start with + and contain only digits after.
+    // E.164 allows up to 15 digits. We're lenient on minimum length to allow
+    // for shortcodes / internal numbers, but enforce + prefix for clarity.
+    if (!/^\+\d{6,15}$/.test(cleaned)) {
+      return res.status(400).json({
+        error: 'Phone number must start with + followed by digits only (e.g. +6591234567)'
+      })
+    }
+
+    // Workspace-scoped duplicate check. Different workspaces can have the
+    // same number (multi-tenant), but a single workspace cannot.
+    const dup = await pool.query(
+      `SELECT id, display_name FROM phone_numbers WHERE number=$1 AND workspace_id=$2`,
+      [cleaned, wsId]
+    )
+    if (dup.rows.length > 0) {
+      const existing = dup.rows[0]
+      return res.status(409).json({
+        error: `This number is already registered as "${existing.display_name || cleaned}". Each number can only be added once per workspace.`
+      })
+    }
+
+    if (is_primary) {
+      await pool.query('UPDATE phone_numbers SET is_primary=false WHERE workspace_id=$1', [wsId])
+    }
     const r = await pool.query(
       `INSERT INTO phone_numbers
          (workspace_id, number, display_name, whatsapp_phone_id, is_primary, owner_user_id, project_id)
        VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
-      [wsId, number, display_name, whatsapp_phone_id, is_primary || false, owner_user_id || null, project_id || null]
+      [wsId, cleaned, display_name?.trim() || null, whatsapp_phone_id?.trim() || null, is_primary || false, owner_user_id || null, project_id || null]
     )
     res.json(r.rows[0])
-  } catch (err) { res.status(500).json({ error: err.message }) }
+  } catch (err) {
+    console.error('POST /phone-numbers error:', err)
+    res.status(500).json({ error: err.message })
+  }
 })
 
 app.patch('/phone-numbers/:id', auth, requirePermission('manage_phone_numbers'), async (req, res) => {

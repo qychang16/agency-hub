@@ -262,7 +262,7 @@ export default function ChatWindow({ activeConvoId, active, setActive, projects,
       fontFamily: fonts.body,
     }}>
       {/* Header */}
-      <div style={{
+      <div className="chat-window-header" style={{
         padding: `${space[3]}px ${space[4]}px`,
         borderBottom: border.subtle,
         display: 'flex', alignItems: 'center', gap: space[3],
@@ -327,7 +327,7 @@ export default function ChatWindow({ activeConvoId, active, setActive, projects,
                 )}
               </div>
             </div>
-            <div style={{ display: 'flex', gap: space[1], flexShrink: 0, position: 'relative' }}>
+            <div className="chat-window-actions" style={{ display: 'flex', gap: space[1], flexShrink: 0, position: 'relative' }}>
               {canManageConvos && (
               <div ref={projectMenuRef} style={{ position: 'relative' }}>
                 <GhostButton onClick={() => setShowProjectMenu(!showProjectMenu)} active={showProjectMenu} primary={!!currentProject} title="Assign to project">
@@ -885,6 +885,29 @@ export default function ChatWindow({ activeConvoId, active, setActive, projects,
           }}
         />
       )}
+
+      {/* Mobile: when the header runs out of horizontal space, wrap the
+          actions group below the info instead of squeezing the name into
+          two lines. The actions row keeps its own internal layout but now
+          gets its own row with horizontal scroll if it overflows. */}
+      <style>{`
+        @media (max-width: 640px) {
+          .chat-window-header {
+            flex-wrap: wrap;
+          }
+          .chat-window-actions {
+            width: 100%;
+            order: 99;
+            overflow-x: auto;
+            padding-top: 4px;
+            border-top: 0.5px solid #f5f3ef;
+            margin-top: 4px;
+          }
+          .chat-window-actions::-webkit-scrollbar {
+            height: 0;
+          }
+        }
+      `}</style>
     </div>
   )
 }

@@ -892,7 +892,14 @@ export default function Contacts() {
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(50)
   const [density, setDensity] = useState('comfortable')
-
+  // Card layout below 768px — table swiping is broken on mobile and there
+  // are too many columns to display anyway. Same breakpoint as Settings.jsx.
+  const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.innerWidth < 768)
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth < 768)
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
   useEffect(() => { if (!token) return; load(); loadViews() }, [token])
 
   async function load() {
@@ -1388,7 +1395,80 @@ export default function Contacts() {
               </div>
             )}
           </div>
+        ) : isMobile ? (
+          // ─── Mobile: card list ────────────────────────────────────────
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '8px 12px' }}>
+            {pageRows.map(c => {
+              const isSelected = selected.has(c.id)
+              const ts = TYPE_STYLES[c.type] || TYPE_STYLES.other
+              const ss = STAGE_STYLES[c.pipeline_stage] || STAGE_STYLES.new
+              return (
+                <div key={c.id}
+                  onClick={() => { setEditingContact(c); setShowEditor(true) }}
+                  style={{
+                    background: isSelected ? ACCENT_LIGHT : '#fff',
+                    border: `0.5px solid ${isSelected ? ACCENT : '#dcd8d0'}`,
+                    borderRadius: 10,
+                    padding: 14,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 8
+                  }}>
+                  {/* Top row: checkbox + avatar + name + flags */}
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                    {canManage && (
+                      <input type="checkbox" checked={isSelected}
+                        onClick={e => e.stopPropagation()}
+                        onChange={() => toggleOne(c.id)}
+                        style={{ accentColor: ACCENT, cursor: 'pointer', marginTop: 4, flexShrink: 0 }} />
+                    )}
+                    <div style={{ width: 32, height: 32, borderRadius: 8, background: '#faf9f7', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600, color: '#6e6a63', flexShrink: 0 }}>
+                      {(c.name || '?').slice(0, 1).toUpperCase()}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: '#14130f', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {c.name || '(no name)'}
+                      </div>
+                      {c.phone && (
+                        <div style={{ fontSize: 12, fontFamily: 'monospace', color: '#6e6a63', marginTop: 2 }}>
+                          {c.phone}
+                        </div>
+                      )}
+                    </div>
+                    {/* Flags column */}
+                    <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap', justifyContent: 'flex-end', flexShrink: 0 }}>
+                      {c.dnc && <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 4, background: '#fee2e2', color: '#dc2626', fontWeight: 600 }}>DNC</span>}
+                      {c.opted_out && <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 4, background: '#fff7ed', color: '#9a6a00', fontWeight: 600 }}>OPT</span>}
+                      {c.pdpa_consented && <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 4, background: '#dcfce7', color: '#16a34a', fontWeight: 600 }}>PDPA</span>}
+                    </div>
+                  </div>
+
+                  {/* Badge row: type + stage */}
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 5, background: ts.bg, color: ts.color, fontWeight: 600 }}>{ts.label}</span>
+                    <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 5, background: ss.bg, color: ss.color, fontWeight: 600, textTransform: 'capitalize' }}>{c.pipeline_stage || 'new'}</span>
+                  </div>
+
+                  {/* Optional context row: role at company OR email */}
+                  {(c.candidate_role || c.current_company || c.email) && (
+                    <div style={{ fontSize: 11, color: '#9a958c', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {c.candidate_role && c.current_company
+                        ? `${c.candidate_role} @ ${c.current_company}`
+                        : (c.candidate_role || c.current_company || c.email)}
+                    </div>
+                  )}
+
+                  {/* Updated timestamp */}
+                  <div style={{ fontSize: 10, color: '#c2bdb3', textTransform: 'uppercase', letterSpacing: '0.4px', fontWeight: 600 }}>
+                    Updated {fmtDate(c.updated_at)}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
         ) : (
+          // ─── Desktop: table ──────────────────────────────────────────
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: rowFontSize }}>
             <thead style={{ position: 'sticky', top: 0, background: '#fff', zIndex: 1, borderBottom: '0.5px solid #dcd8d0' }}>
               <tr>

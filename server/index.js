@@ -3150,6 +3150,212 @@ app.post('/api/meta-library/install', auth, async (req, res) => {
   }
 })
 
+// ─── BROADCASTS ───────────────────────────────────────────────────────────────
+// List broadcasts in workspace with aggregated recipient stats. Stats are
+// computed via LEFT JOIN + GROUP BY so a list of 100 broadcasts costs one query
+// instead of 101. Recipient counts come from broadcast_recipients (source of
+// truth); the legacy recipient_count/sent_count/failed_count columns on the
+// broadcasts table are kept for backwards compatibility but not authoritative.
+app.get('/broadcasts', auth, async (req, res) => {
+  try {
+    const wsId = await getWorkspaceId(req.user.id)
+    const r = await pool.query(`
+      SELECT
+        b.*,
+        t.name AS template_name,
+        t.status AS template_status,
+        u.name AS created_by_name,
+        COALESCE(COUNT(br.id), 0)::int AS total_recipients,
+        COALESCE(SUM(CASE WHEN br.status = 'pending'  THEN 1 ELSE 0 END), 0)::int AS pending_recipients,
+        COALESCE(SUM(CASE WHEN br.status = 'sending'  THEN 1 ELSE 0 END), 0)::int AS sending_recipients,
+        COALESCE(SUM(CASE WHEN br.status = 'sent'     THEN 1 ELSE 0 END), 0)::int AS sent_recipients,
+        COALESCE(SUM(CASE WHEN br.status = 'failed'   THEN 1 ELSE 0 END), 0)::int AS failed_recipients,
+        COALESCE(SUM(CASE WHEN br.status = 'skipped'  THEN 1 ELSE 0 END), 0)::int AS skipped_recipients
+      FROM broadcasts b
+      LEFT JOIN templates t  ON t.id = b.template_id
+      LEFT JOIN users u      ON u.id = b.created_by
+      LEFT JOIN broadcast_recipients br ON br.broadcast_id = b.id
+      WHERE b.workspace_id = $1
+      GROUP BY b.id, t.name, t.status, u.name
+      ORDER BY b.created_at DESC
+    `, [wsId])
+    res.json(r.rows)
+  } catch (err) {
+    console.error('GET /broadcasts error:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+// Single broadcast with the same stats as the list view. No recipient list
+// here yet (paginated endpoint comes in v3); this is the detail-page header.
+app.get('/broadcasts/:id', auth, async (req, res) => {
+  try {
+    const wsId = await getWorkspaceId(req.user.id)
+    const r = await pool.query(`
+      SELECT
+        b.*,
+        t.name AS template_name,
+        t.status AS template_status,
+        t.body AS template_body,
+        t.buttons AS template_buttons,
+        u.name AS created_by_name,
+        cu.name AS cancelled_by_name,
+        COALESCE(COUNT(br.id), 0)::int AS total_recipients,
+        COALESCE(SUM(CASE WHEN br.status = 'pending'  THEN 1 ELSE 0 END), 0)::int AS pending_recipients,
+        COALESCE(SUM(CASE WHEN br.status = 'sending'  THEN 1 ELSE 0 END), 0)::int AS sending_recipients,
+        COALESCE(SUM(CASE WHEN br.status = 'sent'     THEN 1 ELSE 0 END), 0)::int AS sent_recipients,
+        COALESCE(SUM(CASE WHEN br.status = 'failed'   THEN 1 ELSE 0 END), 0)::int AS failed_recipients,
+        COALESCE(SUM(CASE WHEN br.status = 'skipped'  THEN 1 ELSE 0 END), 0)::int AS skipped_recipients
+      FROM broadcasts b
+      LEFT JOIN templates t  ON t.id = b.template_id
+      LEFT JOIN users u      ON u.id = b.created_by
+      LEFT JOIN users cu     ON cu.id = b.cancelled_by
+      LEFT JOIN broadcast_recipients br ON br.broadcast_id = b.id
+      WHERE b.id = $1 AND b.workspace_id = $2
+      GROUP BY b.id, t.name, t.status, t.body, t.buttons, u.name, cu.name
+    `, [req.params.id, wsId])
+    if (!r.rows.length) return res.status(404).json({ error: 'Broadcast not found' })
+    res.json(r.rows[0])
+  } catch (err) {
+    console.error('GET /broadcasts/:id error:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+// Create draft broadcast. Recipients and scheduling come via PATCH later.
+// Validates that any referenced template belongs to the workspace and is
+// approved (you cannot broadcast a draft or rejected template).
+app.post('/broadcasts', auth, requirePermission('manage_broadcasts'), async (req, res) => {
+  try {
+    const wsId = await getWorkspaceId(req.user.id)
+    const { name, template_id, phone_number_id, variables, target_filters, scheduled_at } = req.body
+    if (!name || !name.trim()) {
+      return res.status(400).json({ error: 'Broadcast name is required' })
+    }
+    const cleanName = name.trim()
+    // Validate template if provided
+    if (template_id) {
+      const tpl = await pool.query(
+        `SELECT id, status FROM templates WHERE id=$1 AND workspace_id=$2`,
+        [template_id, wsId]
+      )
+      if (!tpl.rows.length) {
+        return res.status(404).json({ error: 'Template not found in your workspace' })
+      }
+      if (tpl.rows[0].status !== 'approved') {
+        return res.status(400).json({ error: 'Only approved templates can be broadcast. Submit the template for approval first.' })
+      }
+    }
+    // Validate phone_number_id if provided
+    if (phone_number_id) {
+      const ph = await pool.query(
+        `SELECT id FROM phone_numbers WHERE id=$1 AND workspace_id=$2`,
+        [phone_number_id, wsId]
+      )
+      if (!ph.rows.length) {
+        return res.status(404).json({ error: 'Phone number not found in your workspace' })
+      }
+    }
+    const r = await pool.query(`
+      INSERT INTO broadcasts (
+        workspace_id, name, template_id, phone_number_id, created_by,
+        variables, target_filters, scheduled_at, status
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'draft')
+      RETURNING *
+    `, [
+      wsId, cleanName, template_id || null, phone_number_id || null, req.user.id,
+      JSON.stringify(variables || {}),
+      JSON.stringify(target_filters || {}),
+      scheduled_at || null
+    ])
+    res.json(r.rows[0])
+  } catch (err) {
+    console.error('POST /broadcasts error:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+// Update draft broadcast. Locked to status='draft' to prevent retroactive
+// edits to broadcasts that are already scheduled, sending, or completed.
+// Use PATCH /broadcasts/:id/cancel (v3) to stop a broadcast in flight.
+app.patch('/broadcasts/:id', auth, requirePermission('manage_broadcasts'), async (req, res) => {
+  try {
+    const wsId = await getWorkspaceId(req.user.id)
+    const current = await pool.query(
+      `SELECT id, status FROM broadcasts WHERE id=$1 AND workspace_id=$2`,
+      [req.params.id, wsId]
+    )
+    if (!current.rows.length) return res.status(404).json({ error: 'Broadcast not found' })
+    if (current.rows[0].status !== 'draft') {
+      return res.status(409).json({ error: `Cannot edit a broadcast in status "${current.rows[0].status}". Only drafts can be edited.` })
+    }
+    const { name, template_id, phone_number_id, variables, target_filters, scheduled_at } = req.body
+    // Re-validate template if changed
+    if (template_id !== undefined && template_id !== null) {
+      const tpl = await pool.query(
+        `SELECT id, status FROM templates WHERE id=$1 AND workspace_id=$2`,
+        [template_id, wsId]
+      )
+      if (!tpl.rows.length) return res.status(404).json({ error: 'Template not found in your workspace' })
+      if (tpl.rows[0].status !== 'approved') {
+        return res.status(400).json({ error: 'Only approved templates can be broadcast.' })
+      }
+    }
+    // Re-validate phone if changed
+    if (phone_number_id !== undefined && phone_number_id !== null) {
+      const ph = await pool.query(
+        `SELECT id FROM phone_numbers WHERE id=$1 AND workspace_id=$2`,
+        [phone_number_id, wsId]
+      )
+      if (!ph.rows.length) return res.status(404).json({ error: 'Phone number not found in your workspace' })
+    }
+    // Build dynamic SET clause from provided fields
+    const sets = []
+    const params = []
+    let p = 1
+    if (name !== undefined) { sets.push(`name = $${p++}`); params.push(name.trim()) }
+    if (template_id !== undefined) { sets.push(`template_id = $${p++}`); params.push(template_id) }
+    if (phone_number_id !== undefined) { sets.push(`phone_number_id = $${p++}`); params.push(phone_number_id) }
+    if (variables !== undefined) { sets.push(`variables = $${p++}`); params.push(JSON.stringify(variables)) }
+    if (target_filters !== undefined) { sets.push(`target_filters = $${p++}`); params.push(JSON.stringify(target_filters)) }
+    if (scheduled_at !== undefined) { sets.push(`scheduled_at = $${p++}`); params.push(scheduled_at) }
+    if (sets.length === 0) {
+      return res.status(400).json({ error: 'No fields to update' })
+    }
+    sets.push(`updated_at = NOW()`)
+    params.push(req.params.id, wsId)
+    const r = await pool.query(
+      `UPDATE broadcasts SET ${sets.join(', ')} WHERE id=$${p++} AND workspace_id=$${p++} RETURNING *`,
+      params
+    )
+    res.json(r.rows[0])
+  } catch (err) {
+    console.error('PATCH /broadcasts/:id error:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+// Hard delete. Director-only by policy: even an empty draft is intent +
+// audit trail. Managers should use cancel (v3) instead. Recipient rows
+// cascade-delete via FK.
+app.delete('/broadcasts/:id', auth, requirePermission('manage_broadcasts'), async (req, res) => {
+  try {
+    if (req.user.role !== 'director') {
+      return res.status(403).json({ error: 'Only directors can delete broadcasts. Use cancel to stop a broadcast in flight.' })
+    }
+    const wsId = await getWorkspaceId(req.user.id)
+    const current = await pool.query(
+      `SELECT id, status FROM broadcasts WHERE id=$1 AND workspace_id=$2`,
+      [req.params.id, wsId]
+    )
+    if (!current.rows.length) return res.status(404).json({ error: 'Broadcast not found' })
+    if (current.rows[0].status !== 'draft') {
+      return res.status(409).json({ error: `Cannot delete a broadcast in status "${current.rows[0].status}". Only drafts can be deleted.` })
+    }
+    await pool.query(`DELETE FROM broadcasts WHERE id=$1 AND workspace_id=$2`, [req.params.id, wsId])
+    res.json({ success: true })
+  } catch (err) {
+    console.error('DELETE /broadcasts/:id error:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
 // ─── SCHEDULED MESSAGES ────────────────────────────────────────────────────────
 app.get('/scheduled', auth, async (req, res) => {
   try {

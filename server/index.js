@@ -4824,6 +4824,343 @@ function startScheduledMessageWorker() {
   setInterval(pollScheduledMessages, WORKER_INTERVAL_MS)
 }
 
+// ============================================================
+// BROADCAST WORKER (chunk 18)
+// ============================================================
+// Sends one broadcast at a time end-to-end. Each broadcast iterates its
+// recipients sequentially, with a rate limit and 6 protections (A-F) to
+// preserve WhatsApp account quality:
+//   A. Tier limit pre-check (24h send window vs phone_numbers.daily_limit)
+//   B. Live PDPA recheck per recipient (opted_out, dnc, phone presence)
+//   C. Rate-limit pacing with jitter (5/sec target, 200ms +/- 10ms)
+//   D. Quiet hours enforcement (in workspace timezone, unless force_send)
+//   E. Per-recipient consecutive failure circuit-breaker
+//   F. Per-recipient logging (whatsapp_message_id, failed_reason, sent_at)
+// ============================================================
+
+const BROADCAST_WORKER_INTERVAL_MS = 60 * 1000
+const BROADCAST_RATE_LIMIT_MS = 200          // 5 messages per second
+const BROADCAST_RATE_JITTER_MS = 10          // +/- jitter to look human
+const BROADCAST_RECIPIENT_BATCH_SIZE = 1000  // safety cap per cycle per broadcast
+
+// Sleep helper. Used between sends to enforce rate limit.
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)) }
+
+// Compute current hour in a workspace's timezone. Returns 0-23.
+// Falls back to UTC if timezone string is invalid (extremely rare).
+function currentHourInTimezone(timezone) {
+  try {
+    const fmt = new Intl.DateTimeFormat('en-US', {
+      timeZone: timezone || 'Asia/Singapore',
+      hour: 'numeric',
+      hour12: false
+    })
+    return parseInt(fmt.format(new Date()), 10)
+  } catch {
+    return new Date().getUTCHours()
+  }
+}
+
+// Determine if a given hour falls within a quiet-hours window.
+// Window can wrap midnight (e.g. start=22, end=8 means 22:00-23:59 + 00:00-07:59).
+function isQuietHour(hour, startHour, endHour) {
+  if (startHour === endHour) return false
+  if (startHour < endHour) {
+    return hour >= startHour && hour < endHour
+  }
+  // wraps midnight
+  return hour >= startHour || hour < endHour
+}
+
+// Check 24h tier limit for a phone number. Returns { sent24h, limit, allowed }.
+// "sent24h" counts both successful broadcast sends and successful scheduled_messages
+// sends from the same phone, so we don't blow past Meta's per-number tier.
+async function checkTierLimit(client, phoneNumberId) {
+  const phRes = await client.query(
+    `SELECT daily_limit FROM phone_numbers WHERE id = $1`,
+    [phoneNumberId]
+  )
+  const limit = phRes.rows[0]?.daily_limit || 1000
+  // Count broadcast sends in last 24h (recipient.status='sent')
+  const brCount = await client.query(
+    `SELECT COUNT(*)::int AS c FROM broadcast_recipients br
+     JOIN broadcasts b ON b.id = br.broadcast_id
+     WHERE b.phone_number_id = $1
+       AND br.status = 'sent'
+       AND br.sent_at > NOW() - INTERVAL '24 hours'`,
+    [phoneNumberId]
+  )
+  // Count direct scheduled_messages sends in last 24h
+  const smCount = await client.query(
+    `SELECT COUNT(*)::int AS c FROM scheduled_messages
+     WHERE phone_number_id = $1
+       AND status = 'sent'
+       AND sent_at > NOW() - INTERVAL '24 hours'`,
+    [phoneNumberId]
+  )
+  const sent24h = (brCount.rows[0]?.c || 0) + (smCount.rows[0]?.c || 0)
+  return { sent24h, limit, allowed: sent24h < limit, remaining: Math.max(0, limit - sent24h) }
+}
+
+// Render a template body with per-recipient variable substitution.
+// Falls back to template defaults for variables not in per-recipient overrides.
+function renderBroadcastBody(templateBody, templateVars, recipientVars) {
+  if (!templateBody) return ''
+  const defaults = (templateVars && templateVars.defaults) || {}
+  const overrides = recipientVars || {}
+  return templateBody.replace(/\{\{\s*([a-z][a-z0-9_]{0,29})\s*\}\}/gi, (match, name) => {
+    if (overrides[name] !== undefined) return overrides[name]
+    if (defaults[name] !== undefined) return defaults[name]
+    return match  // leave {{name}} as-is if no value provided
+  })
+}
+
+// Process one broadcast end-to-end. Atomic claim, then iterate recipients.
+async function processBroadcast(broadcast) {
+  const client = await pool.connect()
+  let claimed = null
+  try {
+    // ─── ATOMIC CLAIM ──────────────────────────────────────
+    // Transition status from 'scheduled' to 'sending'. If another worker
+    // beat us, the UPDATE returns no rows and we silently skip.
+    await client.query('BEGIN')
+    const claimRes = await client.query(
+      `UPDATE broadcasts
+       SET status = 'sending', started_at = NOW(), updated_at = NOW()
+       WHERE id = $1 AND status = 'scheduled'
+       RETURNING *`,
+      [broadcast.id]
+    )
+    if (claimRes.rows.length === 0) {
+      await client.query('COMMIT')
+      return { skipped: true, reason: 'already_claimed' }
+    }
+    claimed = claimRes.rows[0]
+    await client.query('COMMIT')
+    console.log(`[broadcast worker] Claimed broadcast ${claimed.id} "${claimed.name}"`)
+
+    // ─── PROTECTION A: TIER LIMIT PRE-CHECK ────────────────
+    const tierCheck = await checkTierLimit(client, claimed.phone_number_id)
+    // Count pending recipients to know if this broadcast would blow the tier
+    const pendingCount = await client.query(
+      `SELECT COUNT(*)::int AS c FROM broadcast_recipients
+       WHERE broadcast_id = $1 AND status = 'pending'`,
+      [claimed.id]
+    )
+    const wouldSend = pendingCount.rows[0]?.c || 0
+    if (wouldSend > tierCheck.remaining) {
+      const errorMsg = `Would exceed daily tier limit (${tierCheck.sent24h} already sent, ${tierCheck.remaining} remaining, ${wouldSend} pending). Wait or split the broadcast.`
+      await pool.query(
+        `UPDATE broadcasts SET status = 'failed', error_summary = $1, updated_at = NOW()
+         WHERE id = $2`,
+        [errorMsg, claimed.id]
+      )
+      console.warn(`[broadcast worker] Broadcast ${claimed.id} BLOCKED by tier limit: ${errorMsg}`)
+      return { failed: true, reason: 'tier_limit', error: errorMsg }
+    }
+
+    // ─── LOAD TEMPLATE + WORKSPACE TIMEZONE ────────────────
+    const tplRes = await client.query(
+      `SELECT body, buttons, variables FROM templates WHERE id = $1 AND workspace_id = $2`,
+      [claimed.template_id, claimed.workspace_id]
+    )
+    if (tplRes.rows.length === 0) {
+      const errorMsg = 'Template no longer exists in workspace'
+      await pool.query(
+        `UPDATE broadcasts SET status = 'failed', error_summary = $1, updated_at = NOW()
+         WHERE id = $2`,
+        [errorMsg, claimed.id]
+      )
+      return { failed: true, reason: 'template_missing' }
+    }
+    const template = tplRes.rows[0]
+    const wsRes = await client.query(
+      `SELECT timezone FROM workspaces WHERE id = $1`,
+      [claimed.workspace_id]
+    )
+    const workspaceTz = wsRes.rows[0]?.timezone || 'Asia/Singapore'
+
+    // ─── ITERATE RECIPIENTS ────────────────────────────────
+    const recRes = await client.query(
+      `SELECT id, contact_id, variables FROM broadcast_recipients
+       WHERE broadcast_id = $1 AND status = 'pending'
+       ORDER BY id ASC
+       LIMIT $2`,
+      [claimed.id, BROADCAST_RECIPIENT_BATCH_SIZE]
+    )
+    const recipients = recRes.rows
+
+    let sentCount = 0
+    let failedCount = 0
+    let skippedCount = 0
+    let consecutiveFails = 0
+    let circuitTripped = false
+
+    for (const rec of recipients) {
+      // ─── PROTECTION D: QUIET HOURS ──────────────────────
+      // Check at every iteration because broadcasts can span hours.
+      // If quiet hours are enabled AND we're in the window AND force_send is off,
+      // pause the entire broadcast until later.
+      if (claimed.quiet_hours_enabled && !claimed.force_send_outside_hours) {
+        const currentHour = currentHourInTimezone(workspaceTz)
+        if (isQuietHour(currentHour, claimed.quiet_hours_start_hour, claimed.quiet_hours_end_hour)) {
+          // Don't fail the broadcast - just stop this cycle and reset to scheduled.
+          // The next poll cycle will pick it up again and re-check.
+          await pool.query(
+            `UPDATE broadcasts SET status = 'scheduled', updated_at = NOW()
+             WHERE id = $1`,
+            [claimed.id]
+          )
+          console.log(`[broadcast worker] Broadcast ${claimed.id} paused for quiet hours (current hour ${currentHour}, window ${claimed.quiet_hours_start_hour}-${claimed.quiet_hours_end_hour})`)
+          return { paused: true, reason: 'quiet_hours', sent: sentCount, failed: failedCount, skipped: skippedCount }
+        }
+      }
+
+      // ─── PROTECTION B: LIVE PDPA RECHECK ────────────────
+      // Re-query the contact at send time. If they opted out between compose
+      // and now, mark as skipped and don't send.
+      const contactRes = await client.query(
+        `SELECT id, phone, name, opted_out, dnc FROM contacts
+         WHERE id = $1 AND workspace_id = $2`,
+        [rec.contact_id, claimed.workspace_id]
+      )
+      if (contactRes.rows.length === 0) {
+        await pool.query(
+          `UPDATE broadcast_recipients
+           SET status = 'skipped', skipped_reason = $1, updated_at = NOW()
+           WHERE id = $2`,
+          ['Contact deleted before send', rec.id]
+        )
+        skippedCount++
+        continue
+      }
+      const contact = contactRes.rows[0]
+      let skipReason = null
+      if (contact.opted_out) skipReason = 'Contact opted out before send'
+      else if (contact.dnc) skipReason = 'Contact on DNC list at send time'
+      else if (!contact.phone || !contact.phone.trim()) skipReason = 'Contact has no phone number'
+      if (skipReason) {
+        await pool.query(
+          `UPDATE broadcast_recipients
+           SET status = 'skipped', skipped_reason = $1, updated_at = NOW()
+           WHERE id = $2`,
+          [skipReason, rec.id]
+        )
+        skippedCount++
+        continue
+      }
+
+      // ─── ATTEMPT SEND ───────────────────────────────────
+      // Mark recipient as sending right before the API call so we can detect
+      // worker crashes mid-broadcast. If recovery is needed in a future poll,
+      // these stuck-in-sending rows can be reset (Chunk D will add a recovery query).
+      await pool.query(
+        `UPDATE broadcast_recipients SET status = 'sending', updated_at = NOW() WHERE id = $1`,
+        [rec.id]
+      )
+      const renderedBody = renderBroadcastBody(template.body, template.variables, rec.variables)
+      try {
+        const waMessageId = await sendWhatsAppMessage(contact.phone, renderedBody)
+        await pool.query(
+          `UPDATE broadcast_recipients
+           SET status = 'sent', sent_at = NOW(), whatsapp_message_id = $1, updated_at = NOW()
+           WHERE id = $2`,
+          [waMessageId, rec.id]
+        )
+        sentCount++
+        consecutiveFails = 0  // reset circuit breaker on success
+      } catch (err) {
+        const errorText = (err.message || 'Unknown error').slice(0, 500)
+        await pool.query(
+          `UPDATE broadcast_recipients
+           SET status = 'failed', failed_reason = $1, updated_at = NOW()
+           WHERE id = $2`,
+          [errorText, rec.id]
+        )
+        failedCount++
+        consecutiveFails++
+        console.error(`[broadcast worker] Recipient ${rec.id} failed: ${errorText}`)
+
+        // ─── PROTECTION E: CIRCUIT BREAKER ────────────────
+        if (consecutiveFails >= claimed.consecutive_fail_limit) {
+          circuitTripped = true
+          break
+        }
+      }
+
+      // ─── PROTECTION C: RATE LIMIT WITH JITTER ──────────
+      const jitter = Math.floor((Math.random() - 0.5) * 2 * BROADCAST_RATE_JITTER_MS)
+      await sleep(BROADCAST_RATE_LIMIT_MS + jitter)
+    }
+
+    // ─── FINALIZE BROADCAST STATUS ─────────────────────────
+    let finalStatus = 'completed'
+    let errorSummary = null
+    if (circuitTripped) {
+      finalStatus = 'failed'
+      errorSummary = `Circuit breaker tripped: ${claimed.consecutive_fail_limit} consecutive recipients failed. Broadcast paused to protect quota. Investigate failures and create a new broadcast for remaining recipients.`
+    } else if (sentCount === 0 && failedCount > 0) {
+      finalStatus = 'failed'
+      errorSummary = `All ${failedCount} send attempts failed. No messages delivered.`
+    }
+    await pool.query(
+      `UPDATE broadcasts
+       SET status = $1, sent_at = NOW(), error_summary = $2,
+           sent_count = (SELECT COUNT(*) FROM broadcast_recipients WHERE broadcast_id = $3 AND status = 'sent'),
+           failed_count = (SELECT COUNT(*) FROM broadcast_recipients WHERE broadcast_id = $3 AND status = 'failed'),
+           updated_at = NOW()
+       WHERE id = $3`,
+      [finalStatus, errorSummary, claimed.id]
+    )
+
+    console.log(`[broadcast worker] Broadcast ${claimed.id} ${finalStatus.toUpperCase()}: ${sentCount} sent, ${failedCount} failed, ${skippedCount} skipped`)
+    return { completed: true, status: finalStatus, sent: sentCount, failed: failedCount, skipped: skippedCount }
+
+  } catch (err) {
+    // Catastrophic failure: try to mark broadcast as failed with diagnostic info
+    console.error(`[broadcast worker] Catastrophic failure on broadcast ${broadcast.id}:`, err.message)
+    try { await client.query('ROLLBACK') } catch {}
+    try {
+      await pool.query(
+        `UPDATE broadcasts SET status = 'failed', error_summary = $1, updated_at = NOW()
+         WHERE id = $2 AND status IN ('scheduled', 'sending')`,
+        [`Worker error: ${err.message?.slice(0, 400) || 'unknown'}`, broadcast.id]
+      )
+    } catch {}
+    return { failed: true, error: err.message }
+  } finally {
+    client.release()
+  }
+}
+
+// Main poll loop. Picks up broadcasts that are due, handles them sequentially.
+// Sequential processing (not parallel) keeps total send rate manageable across
+// broadcasts and simplifies tier-limit reasoning.
+async function pollBroadcasts() {
+  try {
+    const res = await pool.query(
+      `SELECT id, name FROM broadcasts
+       WHERE status = 'scheduled' AND scheduled_at <= NOW()
+       ORDER BY scheduled_at ASC
+       LIMIT 5`
+    )
+    if (res.rows.length === 0) return
+
+    console.log(`[broadcast worker] Processing ${res.rows.length} due broadcast(s)`)
+    for (const b of res.rows) {
+      await processBroadcast(b)
+    }
+  } catch (err) {
+    console.error('[broadcast worker] Poll cycle error:', err.message)
+  }
+}
+
+function startBroadcastWorker() {
+  console.log(`[broadcast worker] Broadcast worker starting (poll every ${BROADCAST_WORKER_INTERVAL_MS / 1000}s)`)
+  pollBroadcasts()
+  setInterval(pollBroadcasts, BROADCAST_WORKER_INTERVAL_MS)
+}
+
 // ─── START ──────────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 4000
 setupDatabase().then(() => {
@@ -4831,5 +5168,6 @@ setupDatabase().then(() => {
     console.log(`🚀 Tel-Cloud server running on port ${PORT}`)
     console.log(`📧 Super admin login: superadmin@tel-cloud.com / admin123`)
     startScheduledMessageWorker()
+    startBroadcastWorker()
   })
 })

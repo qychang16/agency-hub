@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../../../context/AuthContext'
+import { useApiSave } from '../../../hooks/useApiSave'
 import { API } from '../../../utils/constants'
 import { ACCENT, ACCENT_LIGHT } from '../../../utils/designTokens'
 
@@ -56,9 +57,9 @@ export default function BusinessHours() {
     }))
   )
   const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [hoveredDay, setHoveredDay] = useState(null)
+  const { save: apiSave, saving, error } = useApiSave(token)
 
   useEffect(() => { if (!token) return; load() }, [token])
 
@@ -76,16 +77,10 @@ export default function BusinessHours() {
   }
 
   async function save() {
-    setSaving(true)
-    try {
-      await fetch(`${API}/business-hours`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-        body: JSON.stringify({ hours })
-      })
-      setSaved(true)
-      setTimeout(() => setSaved(false), 2000)
-    } catch {} finally { setSaving(false) }
+    const result = await apiSave(`${API}/business-hours`, { method: 'PATCH', body: { hours } })
+    if (!result.ok) return  // hook already set error state
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
   }
 
   function update(day, field, val) {
@@ -299,6 +294,12 @@ export default function BusinessHours() {
         🌙 <strong>After-hours routing:</strong> When a message arrives outside business hours, Tel-Cloud follows the after-hours action set in <strong>Routing Rules → After-Hours Action</strong>.
         Configure whether to send an auto-reply, queue for next business day, or assign to an on-call agent.
       </div>
+
+      {error && (
+        <div style={{ padding: '10px 14px', background: '#fef2f2', border: '0.5px solid #fecaca', borderRadius: 8, fontSize: 12, color: '#dc2626', marginBottom: 12 }}>
+          {error}
+        </div>
+      )}
 
       {/* Save */}
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>

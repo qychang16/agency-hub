@@ -2712,16 +2712,56 @@ app.post('/agents', auth, requirePermission('manage_staff'), async (req, res) =>
 app.patch('/agents/:id', auth, requirePermission('manage_staff'), async (req, res) => {
   try {
     const wsId = await getWorkspaceId(req.user.id)
-    const { name, email, role, team_id, capacity, status, active, permissions } = req.body
-    const teamIdValue = (team_id === '' || team_id === null || team_id === undefined) ? null : parseInt(team_id)
-    const capacityValue = (capacity === '' || capacity === null || capacity === undefined) ? null : parseInt(capacity)
-    const r = await pool.query(`UPDATE users SET name=$1, email=$2, role=$3, team_id=$4, capacity=$5, status=$6, active=$7, permissions=$8, updated_at=NOW() WHERE id=$9 AND workspace_id=$10 RETURNING *`, [name, email, role, teamIdValue, capacityValue, status, active, JSON.stringify(permissions), req.params.id, wsId])
-    if (teamIdValue) {
-      await pool.query('DELETE FROM team_members WHERE user_id=$1', [req.params.id])
-      await pool.query('INSERT INTO team_members (team_id, user_id) VALUES ($1,$2) ON CONFLICT DO NOTHING', [teamIdValue, req.params.id])
+
+    // Whitelist of updateable user fields. Frontend may send a partial body
+    // (e.g. AgentModal sends 5 fields, PermissionsModal sends 1, toggleActive
+    // sends a full clone). All must work without nulling out the rest.
+    const ALLOWED = ['name', 'email', 'role', 'team_id', 'capacity', 'status', 'active', 'permissions']
+
+    const updates = []
+    const values = []
+    let idx = 1
+    for (const field of ALLOWED) {
+      if (!Object.prototype.hasOwnProperty.call(req.body, field)) continue
+
+      let val = req.body[field]
+      if (field === 'team_id') {
+        val = (val === '' || val === null || val === undefined) ? null : parseInt(val)
+      } else if (field === 'capacity') {
+        val = (val === '' || val === null || val === undefined) ? null : parseInt(val)
+      } else if (field === 'permissions') {
+        val = JSON.stringify(val || [])
+      }
+
+      updates.push(`${field}=$${idx++}`)
+      values.push(val)
     }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'No valid fields provided to update' })
+    }
+
+    updates.push(`updated_at=NOW()`)
+    values.push(req.params.id, wsId)
+    const sql = `UPDATE users SET ${updates.join(', ')} WHERE id=$${idx} AND workspace_id=$${idx + 1} RETURNING *`
+    const r = await pool.query(sql, values)
+
+    // Side-effect: keep team_members in sync if team_id was updated
+    if (Object.prototype.hasOwnProperty.call(req.body, 'team_id')) {
+      const teamIdValue = (req.body.team_id === '' || req.body.team_id === null || req.body.team_id === undefined)
+        ? null
+        : parseInt(req.body.team_id)
+      await pool.query('DELETE FROM team_members WHERE user_id=$1', [req.params.id])
+      if (teamIdValue) {
+        await pool.query('INSERT INTO team_members (team_id, user_id) VALUES ($1,$2) ON CONFLICT DO NOTHING', [teamIdValue, req.params.id])
+      }
+    }
+
     res.json({ ...r.rows[0], password_hash: undefined })
-  } catch (err) { res.status(500).json({ error: err.message }) }
+  } catch (err) {
+    console.error('PATCH /agents/:id error:', err)
+    res.status(500).json({ error: err.message })
+  }
 })
 
 app.post('/agents/:id/reset-password', auth, requirePermission('manage_staff'), async (req, res) => {

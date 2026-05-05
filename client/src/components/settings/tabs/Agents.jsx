@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../../../context/AuthContext'
+import { useApiSave } from '../../../hooks/useApiSave'
 import { API } from '../../../utils/constants'
 import { ACCENT, ACCENT_LIGHT, ACCENT_MID, NAVY } from '../../../utils/designTokens'
 import { getRoleColor, getRoleLabel } from '../../../utils/permissions'
@@ -141,7 +142,7 @@ function PermissionsModal({ agent, onClose, onSave }) {
   const { token } = useAuth()
   const basePerms = ROLE_DEFAULTS[agent.role] || []
   const [perms, setPerms] = useState(agent.permissions || basePerms)
-  const [saving, setSaving] = useState(false)
+  const { save: apiSave, saving, error } = useApiSave(token)
   const categories = [...new Set(PERMISSIONS_LIST.map(p => p.category))]
 
   function toggle(key) {
@@ -154,16 +155,13 @@ function PermissionsModal({ agent, onClose, onSave }) {
   }
 
   async function save() {
-    setSaving(true)
-    try {
-      await fetch(`${API}/agents/${agent.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-        body: JSON.stringify({ ...agent, permissions: perms })
-      })
-      onSave()
-      onClose()
-    } catch {} finally { setSaving(false) }
+    const result = await apiSave(`${API}/agents/${agent.id}`, {
+      method: 'PATCH',
+      body: { ...agent, permissions: perms }
+    })
+    if (!result.ok) return  // hook already set error state
+    onSave()
+    onClose()
   }
 
   const isCustomised = JSON.stringify([...perms].sort()) !== JSON.stringify([...(ROLE_DEFAULTS[agent.role] || [])].sort())
@@ -215,6 +213,12 @@ function PermissionsModal({ agent, onClose, onSave }) {
         </div>
       ))}
 
+      {error && (
+        <div style={{ padding: '10px 12px', background: '#fef2f2', border: '0.5px solid #fecaca', borderRadius: 8, fontSize: 12, color: '#dc2626', marginBottom: 12 }}>
+          {error}
+        </div>
+      )}
+
       <div style={{ display: 'flex', gap: 10, paddingTop: 12, borderTop: '0.5px solid #f5f3ef', position: 'sticky', bottom: 0, background: '#fff' }}>
         <Btn variant="ghost" onClick={onClose} style={{ flex: 1 }}>Cancel</Btn>
         <Btn onClick={save} disabled={saving} style={{ flex: 2 }}>{saving ? 'Saving…' : 'Save Permissions'}</Btn>
@@ -234,35 +238,23 @@ function AgentModal({ agent, teams, onClose, onSave }) {
     capacity: agent?.capacity || 20,
     password: 'Welcome@123',
   })
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
+  const { save: apiSave, saving, error, setError, clearError } = useApiSave(token)
   const [showPassword, setShowPassword] = useState(false)
   const isEdit = !!agent
 
   async function save() {
-    setError('')
+    clearError()
+    // Local validation runs before hitting the network
     if (!form.name.trim()) { setError('Name is required'); return }
     if (!form.email.trim() || !/\S+@\S+\.\S+/.test(form.email)) { setError('Valid email is required'); return }
     if (!isEdit && !form.password.trim()) { setError('Temporary password is required'); return }
-    setSaving(true)
-    try {
-      const url = isEdit ? `${API}/agents/${agent.id}` : `${API}/agents`
-      const method = isEdit ? 'PATCH' : 'POST'
-      const r = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-        body: JSON.stringify(form)
-      })
-      if (!r.ok) {
-        const d = await r.json()
-        setError(d.error || 'Failed to save')
-        return
-      }
-      onSave()
-      onClose()
-    } catch {
-      setError('Failed to save. Please try again.')
-    } finally { setSaving(false) }
+
+    const url = isEdit ? `${API}/agents/${agent.id}` : `${API}/agents`
+    const method = isEdit ? 'PATCH' : 'POST'
+    const result = await apiSave(url, { method, body: form })
+    if (!result.ok) return  // hook already set error state from server response
+    onSave()
+    onClose()
   }
 
   return (
@@ -319,21 +311,18 @@ function ResetPasswordModal({ agent, onClose }) {
   const { token } = useAuth()
   const [password, setPassword] = useState('Welcome@123')
   const [showPassword, setShowPassword] = useState(false)
-  const [saving, setSaving] = useState(false)
   const [done, setDone] = useState(false)
+  const { save: apiSave, saving, error } = useApiSave(token)
 
   async function save() {
     if (!password.trim()) return
-    setSaving(true)
-    try {
-      await fetch(`${API}/agents/${agent.id}/reset-password`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-        body: JSON.stringify({ password })
-      })
-      setDone(true)
-      setTimeout(() => onClose(), 2000)
-    } catch {} finally { setSaving(false) }
+    const result = await apiSave(`${API}/agents/${agent.id}/reset-password`, {
+      method: 'POST',
+      body: { password }
+    })
+    if (!result.ok) return  // hook already set error state
+    setDone(true)
+    setTimeout(() => onClose(), 2000)
   }
 
   return (
@@ -358,6 +347,11 @@ function ResetPasswordModal({ agent, onClose }) {
           <div style={{ padding: '10px 12px', background: '#fef3c7', border: '0.5px solid #fde68a', borderRadius: 8, fontSize: 11, color: '#92400e', marginBottom: 16, lineHeight: 1.5 }}>
             ⚠️ Send the temporary password to <strong>{agent.name}</strong> via a secure channel. They must change it on first login.
           </div>
+          {error && (
+            <div style={{ padding: '10px 12px', background: '#fef2f2', border: '0.5px solid #fecaca', borderRadius: 8, fontSize: 12, color: '#dc2626', marginBottom: 12 }}>
+              {error}
+            </div>
+          )}
           <div style={{ display: 'flex', gap: 10 }}>
             <Btn variant="ghost" onClick={onClose} style={{ flex: 1 }}>Cancel</Btn>
             <Btn onClick={save} disabled={saving} style={{ flex: 2 }}>{saving ? 'Resetting…' : 'Reset Password'}</Btn>
@@ -396,12 +390,22 @@ export default function Agents() {
   }
 
   async function toggleActive(agent) {
-    await fetch(`${API}/agents/${agent.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-      body: JSON.stringify({ ...agent, active: !agent.active })
-    })
-    load()
+    try {
+      const r = await fetch(`${API}/agents/${agent.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({ ...agent, active: !agent.active })
+      })
+      if (!r.ok) {
+        let msg = `Server returned ${r.status}`
+        try { const d = await r.json(); if (d?.error) msg = d.error } catch {}
+        alert('Failed to update agent: ' + msg)
+        return
+      }
+      load()
+    } catch (err) {
+      alert('Failed to update agent: ' + (err.message || 'unknown error'))
+    }
   }
 
   const filtered = agents.filter(a => {

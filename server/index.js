@@ -6028,9 +6028,67 @@ app.post('/webhook', async (req, res) => {
           const waMessageId = msg.id
           let contactRow = await pool.query(`SELECT id, name FROM contacts WHERE phone=$1 AND workspace_id=$2 LIMIT 1`, [fromPhone, wsId])
           let contactId = contactRow.rows[0]?.id
+          let isNewContact = false
           if (!contactId) {
-            const newContact = await pool.query(`INSERT INTO contacts (workspace_id, name, phone, type, pipeline_stage) VALUES ($1, $2, $3, 'candidate', 'new') RETURNING id, name`, [wsId, fromPhone, fromPhone])
+            // Auto-create contact AND mark them as PDPA-consented from the
+            // get-go. When a contact initiates WhatsApp contact with us,
+            // PDPA permits us to respond — they've effectively given implied
+            // consent to receive a reply. We sync the contacts.pdpa_consented
+            // flag too so existing UI (broadcasts safety check, contact list
+            // PDPA pill) reflects this.
+            const consentNow = new Date()
+            const consentExpires = new Date(consentNow)
+            consentExpires.setMonth(consentExpires.getMonth() + 24)
+            const newContact = await pool.query(`
+              INSERT INTO contacts
+                (workspace_id, name, phone, type, pipeline_stage, source, pdpa_consented, pdpa_consented_at)
+              VALUES ($1, $2, $3, 'candidate', 'new', 'inbound_whatsapp', true, $4)
+              RETURNING id, name
+            `, [wsId, fromPhone, fromPhone, consentNow])
             contactId = newContact.rows[0].id
+            isNewContact = true
+            // Audit-trail row in pdpa_records. Note we don't have a user-id
+            // for "collected_by" since this is system-initiated, so we leave
+            // it null (the FK we added in chunk_21 is ON DELETE SET NULL,
+            // null is permitted).
+            await pool.query(`
+              INSERT INTO pdpa_records
+                (workspace_id, contact_id, status, method, consented_at, expires_at, collected_by, notes)
+              VALUES ($1, $2, 'consented', 'inbound_whatsapp', $3, $4, NULL, $5)
+            `, [
+              wsId, contactId, consentNow, consentExpires,
+              `Auto-logged: contact initiated WhatsApp conversation on ${consentNow.toISOString().slice(0, 10)} (msg: "${text.slice(0, 80).replace(/"/g, "'")}"${text.length > 80 ? '...' : ''}")`,
+            ])
+            console.log(`📝 Auto-logged PDPA consent for new contact ${fromPhone} (inbound WhatsApp)`)
+          } else {
+            // Existing contact: check if they have ANY pdpa_records yet.
+            // Zero records = never logged either way, this inbound message
+            // is the first signal of consent. We auto-log to fix that.
+            // Records already exist (consented OR withdrawn) = consent state
+            // is already established, do nothing — including the case where
+            // they explicitly withdrew, we don't want to silently re-consent.
+            const recordsCheck = await pool.query(
+              `SELECT id FROM pdpa_records WHERE contact_id=$1 LIMIT 1`,
+              [contactId]
+            )
+            if (recordsCheck.rows.length === 0) {
+              const consentNow = new Date()
+              const consentExpires = new Date(consentNow)
+              consentExpires.setMonth(consentExpires.getMonth() + 24)
+              await pool.query(`
+                INSERT INTO pdpa_records
+                  (workspace_id, contact_id, status, method, consented_at, expires_at, collected_by, notes)
+                VALUES ($1, $2, 'consented', 'inbound_whatsapp', $3, $4, NULL, $5)
+              `, [
+                wsId, contactId, consentNow, consentExpires,
+                `Auto-logged: first inbound WhatsApp from existing contact on ${consentNow.toISOString().slice(0, 10)} (msg: "${text.slice(0, 80).replace(/"/g, "'")}"${text.length > 80 ? '...' : ''}")`,
+              ])
+              await pool.query(
+                `UPDATE contacts SET pdpa_consented=true, pdpa_consented_at=$1 WHERE id=$2`,
+                [consentNow, contactId]
+              )
+              console.log(`📝 Auto-logged PDPA consent for existing contact ${fromPhone} (first inbound WhatsApp)`)
+            }
           }
           let convoRow = await pool.query(`SELECT id FROM conversations WHERE contact_id=$1 AND workspace_id=$2 AND status='open' LIMIT 1`, [contactId, wsId])
           let convoId = convoRow.rows[0]?.id

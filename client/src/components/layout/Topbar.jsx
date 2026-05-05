@@ -11,7 +11,6 @@ const NAV_ITEMS = [
   { key: 'broadcasts',  label: 'Broadcasts' },
   { key: 'templates',   label: 'Templates' },
   { key: 'analytics',   label: 'Analytics' },
-  { key: 'pipeline',    label: 'Pipeline' },
   { key: 'contacts',    label: 'Contacts' },
   { key: 'pdpa',        label: 'PDPA' },
   { key: 'settings',    label: 'Settings' },

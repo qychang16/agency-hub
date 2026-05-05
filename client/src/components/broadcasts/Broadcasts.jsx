@@ -4,6 +4,7 @@ import { API } from '../../utils/constants'
 import { ACCENT, ACCENT_LIGHT, NAVY } from '../../utils/designTokens'
 import Btn from '../ui/Btn'
 import Modal from '../ui/Modal'
+import BroadcastComposer from './BroadcastComposer'
 
 // Status visual styles. Mirrors the Scheduled Messages convention so users
 // learn one vocabulary across both surfaces.
@@ -112,26 +113,6 @@ function BroadcastCard({ b, isDirector, onOpen, onDelete }) {
         )}
       </div>
     </div>
-  )
-}
-
-// Placeholder modal shown when user clicks + New Broadcast. The actual
-// composer (template picker + recipient picker + scheduling) ships in v2.
-function PlaceholderComposerModal({ onClose }) {
-  return (
-    <Modal title="New Broadcast" subtitle="Composer ships in the next session" onClose={onClose}>
-      <div style={{ padding: '20px 0', textAlign: 'center', color: '#6e6a63' }}>
-        <div style={{ fontSize: 13, marginBottom: 12 }}>
-          The broadcast composer is being built next.
-        </div>
-        <div style={{ fontSize: 12, color: '#9a958c', maxWidth: 360, margin: '0 auto' }}>
-          You'll be able to pick an approved template, select recipients from your contacts list with PDPA filtering, set variable values, and schedule the send time.
-        </div>
-      </div>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 20, paddingTop: 16, borderTop: '0.5px solid #f5f3ef' }}>
-        <Btn variant="ghost" onClick={onClose}>Close</Btn>
-      </div>
-    </Modal>
   )
 }
 
@@ -293,7 +274,7 @@ export default function Broadcasts() {
         )}
       </div>
 
-      {showComposer && <PlaceholderComposerModal onClose={() => setShowComposer(false)} />}
+      {showComposer && <BroadcastComposer onClose={() => setShowComposer(false)} onSaved={load} />}
     </div>
   )
 }

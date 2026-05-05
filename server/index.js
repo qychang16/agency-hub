@@ -3356,6 +3356,174 @@ app.delete('/broadcasts/:id', auth, requirePermission('manage_broadcasts'), asyn
   }
 })
 
+// Bulk-add recipients to a draft broadcast. Replaces any existing recipients
+// (idempotent for the composer's "save and continue" flow). Server-side PDPA
+// filtering: contacts with opted_out=true or dnc=true are auto-skipped with
+// the reason recorded. Contacts without phone are also skipped. This endpoint
+// only works on drafts; once scheduled, recipients are locked.
+app.post('/broadcasts/:id/recipients', auth, requirePermission('manage_broadcasts'), async (req, res) => {
+  const client = await pool.connect()
+  try {
+    const wsId = await getWorkspaceId(req.user.id)
+    const { contact_ids, per_recipient_variables } = req.body
+    if (!Array.isArray(contact_ids)) {
+      return res.status(400).json({ error: 'contact_ids must be an array' })
+    }
+    // Verify broadcast belongs to this workspace and is editable
+    const bcheck = await client.query(
+      `SELECT id, status FROM broadcasts WHERE id=$1 AND workspace_id=$2`,
+      [req.params.id, wsId]
+    )
+    if (!bcheck.rows.length) return res.status(404).json({ error: 'Broadcast not found' })
+    if (bcheck.rows[0].status !== 'draft') {
+      return res.status(409).json({ error: 'Recipients can only be modified on draft broadcasts' })
+    }
+    await client.query('BEGIN')
+    // Wipe existing recipients (idempotent re-save)
+    await client.query(`DELETE FROM broadcast_recipients WHERE broadcast_id=$1`, [req.params.id])
+    if (contact_ids.length === 0) {
+      await client.query(
+        `UPDATE broadcasts SET recipient_count=0, updated_at=NOW() WHERE id=$1`,
+        [req.params.id]
+      )
+      await client.query('COMMIT')
+      return res.json({ inserted: 0, skipped: 0, total: 0 })
+    }
+    // Pull all referenced contacts in one query, scoped to workspace.
+    // We get back: id, phone, opted_out, dnc, name. Used both for validation
+    // and for the skip-reason logic below.
+    const contactsResult = await client.query(
+      `SELECT id, phone, opted_out, dnc, name
+       FROM contacts
+       WHERE workspace_id=$1 AND id = ANY($2::int[])`,
+      [wsId, contact_ids]
+    )
+    const contactsById = new Map(contactsResult.rows.map(c => [c.id, c]))
+    let inserted = 0, skipped = 0
+    const perVars = per_recipient_variables || {}
+    for (const cid of contact_ids) {
+      const contact = contactsById.get(cid)
+      if (!contact) {
+        // Contact not in this workspace - silently drop (no row created)
+        continue
+      }
+      let status = 'pending'
+      let skippedReason = null
+      if (contact.opted_out) {
+        status = 'skipped'; skippedReason = 'Contact has opted out of communications'
+      } else if (contact.dnc) {
+        status = 'skipped'; skippedReason = 'Contact is on Do Not Contact list'
+      } else if (!contact.phone || !contact.phone.trim()) {
+        status = 'skipped'; skippedReason = 'Contact has no phone number'
+      }
+      const recipientVars = perVars[cid] || {}
+      await client.query(
+        `INSERT INTO broadcast_recipients (broadcast_id, workspace_id, contact_id, variables, status, skipped_reason)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [req.params.id, wsId, cid, JSON.stringify(recipientVars), status, skippedReason]
+      )
+      if (status === 'skipped') skipped++
+      else inserted++
+    }
+    // Update legacy recipient_count for parity with old broadcast schema
+    await client.query(
+      `UPDATE broadcasts SET recipient_count=$1, updated_at=NOW() WHERE id=$2`,
+      [inserted + skipped, req.params.id]
+    )
+    await client.query('COMMIT')
+    res.json({ inserted, skipped, total: inserted + skipped })
+  } catch (err) {
+    await client.query('ROLLBACK')
+    console.error('POST /broadcasts/:id/recipients error:', err)
+    res.status(500).json({ error: err.message })
+  } finally {
+    client.release()
+  }
+})
+// Get recipients for a broadcast. Paginated for large lists. Includes contact
+// name/phone joined in. Used by the detail view (Chunk D) and the composer's
+// "Review" step (Chunk A).
+app.get('/broadcasts/:id/recipients', auth, async (req, res) => {
+  try {
+    const wsId = await getWorkspaceId(req.user.id)
+    const limit = Math.min(parseInt(req.query.limit) || 100, 500)
+    const offset = parseInt(req.query.offset) || 0
+    // Verify broadcast belongs to workspace
+    const bcheck = await pool.query(
+      `SELECT id FROM broadcasts WHERE id=$1 AND workspace_id=$2`,
+      [req.params.id, wsId]
+    )
+    if (!bcheck.rows.length) return res.status(404).json({ error: 'Broadcast not found' })
+    const r = await pool.query(`
+      SELECT
+        br.id, br.broadcast_id, br.contact_id, br.status, br.sent_at,
+        br.failed_reason, br.skipped_reason, br.whatsapp_message_id,
+        br.variables, br.created_at,
+        c.name AS contact_name, c.phone AS contact_phone, c.type AS contact_type,
+        c.pipeline_stage AS contact_pipeline_stage
+      FROM broadcast_recipients br
+      LEFT JOIN contacts c ON c.id = br.contact_id
+      WHERE br.broadcast_id=$1 AND br.workspace_id=$2
+      ORDER BY br.id ASC
+      LIMIT $3 OFFSET $4
+    `, [req.params.id, wsId, limit, offset])
+    const totalResult = await pool.query(
+      `SELECT COUNT(*)::int AS total FROM broadcast_recipients WHERE broadcast_id=$1`,
+      [req.params.id]
+    )
+    res.json({
+      recipients: r.rows,
+      total: totalResult.rows[0].total,
+      limit, offset
+    })
+  } catch (err) {
+    console.error('GET /broadcasts/:id/recipients error:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+// Transition a draft broadcast to scheduled. Requires that the broadcast has
+// a template, a phone_number_id, and at least 1 non-skipped recipient. Worker
+// (Chunk C) will pick it up when scheduled_at <= NOW().
+app.patch('/broadcasts/:id/schedule', auth, requirePermission('manage_broadcasts'), async (req, res) => {
+  try {
+    const wsId = await getWorkspaceId(req.user.id)
+    const current = await pool.query(`
+      SELECT b.*, COALESCE(r.sendable, 0) AS sendable_count
+      FROM broadcasts b
+      LEFT JOIN (
+        SELECT broadcast_id, COUNT(*) FILTER (WHERE status = 'pending') AS sendable
+        FROM broadcast_recipients GROUP BY broadcast_id
+      ) r ON r.broadcast_id = b.id
+      WHERE b.id=$1 AND b.workspace_id=$2
+    `, [req.params.id, wsId])
+    if (!current.rows.length) return res.status(404).json({ error: 'Broadcast not found' })
+    const b = current.rows[0]
+    if (b.status !== 'draft') {
+      return res.status(409).json({ error: `Cannot schedule a broadcast in status "${b.status}"` })
+    }
+    if (!b.template_id) {
+      return res.status(400).json({ error: 'Cannot schedule: no template selected' })
+    }
+    if (!b.phone_number_id) {
+      return res.status(400).json({ error: 'Cannot schedule: no sender phone number selected' })
+    }
+    if (parseInt(b.sendable_count) === 0) {
+      return res.status(400).json({ error: 'Cannot schedule: no sendable recipients (all are opted-out, DNC, or missing phone)' })
+    }
+    if (!b.scheduled_at) {
+      return res.status(400).json({ error: 'Cannot schedule: no send time set' })
+    }
+    const r = await pool.query(
+      `UPDATE broadcasts SET status='scheduled', updated_at=NOW() WHERE id=$1 AND workspace_id=$2 RETURNING *`,
+      [req.params.id, wsId]
+    )
+    res.json(r.rows[0])
+  } catch (err) {
+    console.error('PATCH /broadcasts/:id/schedule error:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
 // ─── SCHEDULED MESSAGES ────────────────────────────────────────────────────────
 app.get('/scheduled', auth, async (req, res) => {
   try {

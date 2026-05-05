@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../../../context/AuthContext'
+import { useApiSave } from '../../../hooks/useApiSave'
 import { useWorkspace } from '../../../context/WorkspaceContext'
 import { API } from '../../../utils/constants'
 import { ACCENT, ACCENT_LIGHT, NAVY } from '../../../utils/designTokens'
@@ -90,9 +91,9 @@ export default function AgencyProfile() {
     name: '', email: '', phone: '', address: '',
     registration_number: '', timezone: 'Asia/Singapore',
   })
-  const [saving, setSaving] = useState(false)
+  const { save: apiSave, saving, error, clearError } = useApiSave(token)
   const [saved, setSaved] = useState(false)
-  const [error, setError] = useState('')
+  const [validationError, setValidationError] = useState('')
 
   useEffect(() => {
     if (workspace) {
@@ -108,22 +109,17 @@ export default function AgencyProfile() {
   }, [workspace])
 
   async function save() {
-    if (!form.name.trim()) { setError('Agency name is required'); return }
-    setError(''); setSaving(true)
-    try {
-      const r = await fetch(`${API}/workspace`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-        body: JSON.stringify(form)
-      })
-      if (r.ok) {
-        updateWorkspace(form)
-        setSaved(true)
-        setTimeout(() => setSaved(false), 2000)
-      }
-    } catch {
-      setError('Failed to save. Please try again.')
-    } finally { setSaving(false) }
+    setValidationError('')
+    if (!form.name.trim()) {
+      setValidationError('Agency name is required')
+      return
+    }
+    clearError()
+    const result = await apiSave(`${API}/workspace`, { method: 'PATCH', body: form })
+    if (!result.ok) return  // hook already set error state
+    updateWorkspace(form)
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
   }
 
   return (
@@ -217,9 +213,9 @@ export default function AgencyProfile() {
         </div>
       </div>
 
-      {error && (
+      {(error || validationError) && (
         <div style={{ padding: '10px 14px', background: '#fef2f2', border: '0.5px solid #fecaca', borderRadius: 8, fontSize: 12, color: '#dc2626', marginBottom: 12 }}>
-          ⚠ {error}
+          {validationError || error}
         </div>
       )}
 

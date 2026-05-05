@@ -212,6 +212,43 @@ export default function PDPA() {
   const [openContact, setOpenContact] = useState(null)
   const [openHistory, setOpenHistory] = useState([])
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.innerWidth < 768)
+  const [exporting, setExporting] = useState(false)
+
+  // Download all PDPA records as CSV. Uses fetch + Blob + manual link click
+  // to make the browser save the file with the server-provided filename.
+  // We can't just navigate to the URL because that doesn't carry the auth
+  // header — the browser would issue a no-auth GET and 401.
+  async function exportCsv() {
+    setExporting(true)
+    try {
+      const r = await fetch(`${API}/pdpa/export`, {
+        headers: { Authorization: 'Bearer ' + token }
+      })
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({ error: 'Export failed' }))
+        alert(err.error || 'Export failed')
+        return
+      }
+      // Honour the server's content-disposition filename if available;
+      // otherwise build a sensible default.
+      const disposition = r.headers.get('content-disposition') || ''
+      const match = disposition.match(/filename="([^"]+)"/)
+      const filename = match ? match[1] : `pdpa-records_${new Date().toISOString().slice(0, 10)}.csv`
+      const blob = await r.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      alert('Export failed: ' + err.message)
+    } finally {
+      setExporting(false)
+    }
+  }
 
   useEffect(() => {
     const onResize = () => setIsMobile(window.innerWidth < 768)
@@ -266,11 +303,32 @@ export default function PDPA() {
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#faf9f7' }}>
       {/* Header */}
-      <div style={{ padding: '20px 28px 16px', flexShrink: 0 }}>
-        <div style={{ fontSize: 22, fontWeight: 700, color: '#14130f', marginBottom: 4, letterSpacing: '-0.3px' }}>PDPA Compliance</div>
-        <div style={{ fontSize: 12, color: '#6e6a63' }}>
-          Track and audit consent for every contact in your workspace. Required for Singapore PDPA compliance.
+      <div style={{ padding: '20px 28px 16px', flexShrink: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap' }}>
+        <div style={{ flex: '1 1 auto', minWidth: 0 }}>
+          <div style={{ fontSize: 22, fontWeight: 700, color: '#14130f', marginBottom: 4, letterSpacing: '-0.3px' }}>PDPA Compliance</div>
+          <div style={{ fontSize: 12, color: '#6e6a63' }}>
+            Track and audit consent for every contact in your workspace. Required for Singapore PDPA compliance.
+          </div>
         </div>
+        {canManage && (
+          <button onClick={exportCsv} disabled={exporting}
+            style={{
+              padding: '9px 14px', borderRadius: 8,
+              border: '0.5px solid #dcd8d0', background: '#fff', color: '#4a4742',
+              cursor: exporting ? 'default' : 'pointer',
+              fontSize: 12, fontWeight: 500,
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              flexShrink: 0,
+              opacity: exporting ? 0.6 : 1,
+            }}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="7 10 12 15 17 10"/>
+              <line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            {exporting ? 'Exporting…' : 'Export Records'}
+          </button>
+        )}
       </div>
 
       {/* Scrollable body */}

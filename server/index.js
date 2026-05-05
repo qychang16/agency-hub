@@ -229,7 +229,8 @@ const ALL_PERMISSIONS_TRUE = {
   manage_role_permissions: true,
   manage_quick_replies: true,
   manage_calendar: true,
-  manage_broadcasts: true
+  manage_broadcasts: true,
+  manage_pdpa: true
 }
 const ALL_PERMISSIONS_FALSE = {
   send_messages: false, write_notes: false, manage_conversations: false,
@@ -240,7 +241,8 @@ const ALL_PERMISSIONS_FALSE = {
   manage_role_permissions: false,
   manage_quick_replies: false,
   manage_calendar: false,
-  manage_broadcasts: false
+  manage_broadcasts: false,
+  manage_pdpa: false
 }
 const DEFAULT_ROLE_PERMISSIONS = {
   manager: {
@@ -5215,6 +5217,102 @@ app.post('/pdpa/records', auth, requirePermission('manage_pdpa'), async (req, re
     res.json(r.rows[0])
   } catch (err) {
     console.error('POST /pdpa/records error:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// CSV export of all PDPA records for the workspace. Used for compliance
+// audits — Director can produce this on demand for PDPC inspection.
+// Returns text/csv with content-disposition so the browser downloads it
+// rather than rendering inline.
+//
+// CSV escaping: any field containing a comma, quote, or newline is
+// double-quoted, with internal quotes doubled. This is the RFC 4180
+// standard and what Excel / Google Sheets expect.
+function csvEscape(value) {
+  if (value === null || value === undefined) return ''
+  const str = String(value)
+  if (/[",\n\r]/.test(str)) {
+    return '"' + str.replace(/"/g, '""') + '"'
+  }
+  return str
+}
+
+app.get('/pdpa/export', auth, requirePermission('manage_pdpa'), async (req, res) => {
+  try {
+    const wsId = await getWorkspaceId(req.user.id)
+    const r = await pool.query(`
+      SELECT
+        c.id AS contact_id,
+        c.name AS contact_name,
+        c.phone AS contact_phone,
+        c.email AS contact_email,
+        p.id AS record_id,
+        p.status,
+        p.method,
+        p.consented_at,
+        p.expires_at,
+        p.withdrawn_at,
+        u.name AS collected_by_name,
+        p.notes,
+        p.created_at
+      FROM pdpa_records p
+      JOIN contacts c ON c.id = p.contact_id
+      LEFT JOIN users u ON u.id = p.collected_by
+      WHERE p.workspace_id = $1
+      ORDER BY c.name ASC, p.created_at DESC
+    `, [wsId])
+
+    const headers = [
+      'Contact ID', 'Contact Name', 'Contact Phone', 'Contact Email',
+      'Record ID', 'Status', 'Method',
+      'Consented At', 'Expires At', 'Withdrawn At',
+      'Recorded By', 'Notes', 'Created At'
+    ]
+    const lines = [headers.join(',')]
+
+    // Format timestamps in ISO 8601 with the SGT offset for unambiguous
+    // audit reading. PDPC inspectors will be in Singapore, so SGT is the
+    // expected reference frame.
+    function fmt(ts) {
+      if (!ts) return ''
+      const d = new Date(ts)
+      // toISOString gives UTC; convert to SGT (+08:00) for display
+      const utc = d.getTime()
+      const sgt = new Date(utc + 8 * 60 * 60 * 1000)
+      return sgt.toISOString().replace('Z', '+08:00')
+    }
+
+    for (const row of r.rows) {
+      lines.push([
+        csvEscape(row.contact_id),
+        csvEscape(row.contact_name),
+        csvEscape(row.contact_phone),
+        csvEscape(row.contact_email),
+        csvEscape(row.record_id),
+        csvEscape(row.status),
+        csvEscape(row.method),
+        csvEscape(fmt(row.consented_at)),
+        csvEscape(fmt(row.expires_at)),
+        csvEscape(fmt(row.withdrawn_at)),
+        csvEscape(row.collected_by_name),
+        csvEscape(row.notes),
+        csvEscape(fmt(row.created_at)),
+      ].join(','))
+    }
+
+    const csv = lines.join('\r\n')
+    const today = new Date().toISOString().slice(0, 10)
+    const wsName = await pool.query('SELECT name FROM workspaces WHERE id = $1', [wsId])
+    const safeName = (wsName.rows[0]?.name || 'workspace').replace(/[^a-zA-Z0-9-_]/g, '_')
+
+    // BOM prefix so Excel opens the file with UTF-8 encoding (otherwise it
+    // defaults to system charset and mangles non-ASCII characters in notes)
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8')
+    res.setHeader('Content-Disposition', `attachment; filename="pdpa-records_${safeName}_${today}.csv"`)
+    res.send('\uFEFF' + csv)
+  } catch (err) {
+    console.error('GET /pdpa/export error:', err)
     res.status(500).json({ error: err.message })
   }
 })

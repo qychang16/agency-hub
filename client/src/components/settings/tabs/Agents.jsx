@@ -479,8 +479,8 @@ export default function Agents() {
           <div style={{ fontSize: 12, color: '#9a958c' }}>Try adjusting your search or filters</div>
         </div>
       ) : (
-        <div style={{ background: '#fff', borderRadius: 12, border: '0.5px solid #dcd8d0', overflow: 'hidden' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <div style={{ background: '#fff', borderRadius: 12, border: '0.5px solid #dcd8d0', overflowX: 'auto', overflowY: 'hidden' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 720 }}>
             <thead>
               <tr style={{ background: '#faf9f7' }}>
                 {['Agent', 'Role', 'Team', 'Status', 'Capacity', 'Actions'].map(h => (

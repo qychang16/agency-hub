@@ -2504,10 +2504,49 @@ app.get('/workspace', auth, async (req, res) => {
 app.patch('/workspace', auth, requirePermission('manage_workspace_settings'), async (req, res) => {
   try {
     const wsId = await getWorkspaceId(req.user.id)
-    const { name, email, phone, address, registration_number, timezone } = req.body
-    const r = await pool.query(`UPDATE workspaces SET name=$1, email=$2, phone=$3, address=$4, registration_number=$5, timezone=$6, updated_at=NOW() WHERE id=$7 RETURNING *`, [name, email, phone, address, registration_number, timezone, wsId])
+
+    // Whitelist of fields that can be updated. Anything else in req.body is
+    // silently ignored — protects against accidental column overwrites and
+    // basic injection. Add new updateable workspace columns here.
+    const ALLOWED = [
+      'name', 'email', 'phone', 'address', 'registration_number', 'timezone',
+      'whatsapp_account_id', 'whatsapp_token'
+    ]
+
+    // Only build SET clauses for fields actually present in the request body.
+    // Frontend may send a partial form (e.g. WhatsApp tab only updates 2 fields,
+    // Profile tab updates 6); both must work without nulling out the others.
+    const updates = []
+    const values = []
+    let idx = 1
+    for (const field of ALLOWED) {
+      if (Object.prototype.hasOwnProperty.call(req.body, field)) {
+        updates.push(`${field}=$${idx++}`)
+        values.push(req.body[field])
+      }
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'No valid fields provided to update' })
+    }
+
+    // Validate name when present — it's NOT NULL in the schema
+    if (Object.prototype.hasOwnProperty.call(req.body, 'name')) {
+      const trimmed = (req.body.name || '').trim()
+      if (!trimmed) {
+        return res.status(400).json({ error: 'Workspace name cannot be empty' })
+      }
+    }
+
+    updates.push(`updated_at=NOW()`)
+    values.push(wsId)
+    const sql = `UPDATE workspaces SET ${updates.join(', ')} WHERE id=$${idx} RETURNING *`
+    const r = await pool.query(sql, values)
     res.json(r.rows[0])
-  } catch (err) { res.status(500).json({ error: err.message }) }
+  } catch (err) {
+    console.error('PATCH /workspace error:', err)
+    res.status(500).json({ error: err.message })
+  }
 })
 
 // ─── PHONE NUMBERS ─────────────────────────────────────────────────────────────

@@ -3082,6 +3082,226 @@ app.delete('/contacts/:id', auth, requirePermission('manage_contacts'), async (r
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
+// Bulk operations on contacts. Single endpoint with action discriminator
+// instead of N separate endpoints — keeps the API surface small as we add
+// more actions over time. Action types so far: delete, change_stage,
+// mark_opted_out, unmark_opted_out, mark_dnc, unmark_dnc, set_assigned_to.
+// Returns affected row count and per-id errors for transparency.
+app.post('/contacts/bulk-action', auth, requirePermission('manage_contacts'), async (req, res) => {
+  const client = await pool.connect()
+  try {
+    const wsId = await getWorkspaceId(req.user.id)
+    const { ids, action, payload } = req.body
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'ids must be a non-empty array' })
+    }
+    if (ids.length > 1000) {
+      return res.status(400).json({ error: 'Maximum 1000 contacts per bulk action' })
+    }
+    if (!action) return res.status(400).json({ error: 'action is required' })
+
+    await client.query('BEGIN')
+
+    let affected = 0
+    let result = null
+
+    switch (action) {
+      case 'delete': {
+        const r = await client.query(
+          `DELETE FROM contacts WHERE id = ANY($1::int[]) AND workspace_id = $2`,
+          [ids, wsId]
+        )
+        affected = r.rowCount
+        break
+      }
+      case 'change_stage': {
+        if (!payload?.pipeline_stage) {
+          await client.query('ROLLBACK')
+          return res.status(400).json({ error: 'payload.pipeline_stage required for change_stage' })
+        }
+        const r = await client.query(
+          `UPDATE contacts SET pipeline_stage = $1, updated_at = NOW()
+           WHERE id = ANY($2::int[]) AND workspace_id = $3`,
+          [payload.pipeline_stage, ids, wsId]
+        )
+        affected = r.rowCount
+        break
+      }
+      case 'mark_opted_out':
+      case 'unmark_opted_out': {
+        const value = action === 'mark_opted_out'
+        const r = await client.query(
+          `UPDATE contacts SET opted_out = $1, updated_at = NOW()
+           WHERE id = ANY($2::int[]) AND workspace_id = $3`,
+          [value, ids, wsId]
+        )
+        affected = r.rowCount
+        break
+      }
+      case 'mark_dnc':
+      case 'unmark_dnc': {
+        const value = action === 'mark_dnc'
+        const reason = payload?.dnc_reason || null
+        const r = await client.query(
+          `UPDATE contacts SET dnc = $1, dnc_reason = $2, updated_at = NOW()
+           WHERE id = ANY($3::int[]) AND workspace_id = $4`,
+          [value, reason, ids, wsId]
+        )
+        affected = r.rowCount
+        break
+      }
+      case 'set_assigned_to': {
+        // payload.assigned_to can be null (unassign) or a user_id
+        const r = await client.query(
+          `UPDATE contacts SET assigned_to = $1, updated_at = NOW()
+           WHERE id = ANY($2::int[]) AND workspace_id = $3`,
+          [payload?.assigned_to || null, ids, wsId]
+        )
+        affected = r.rowCount
+        break
+      }
+      case 'add_tag':
+      case 'remove_tag': {
+        if (!payload?.tag) {
+          await client.query('ROLLBACK')
+          return res.status(400).json({ error: 'payload.tag required' })
+        }
+        // Update tags as jsonb array. add_tag uses jsonb_set semantics with
+        // dedup; remove_tag filters the array. We do this row-by-row because
+        // SQL set-ops on jsonb arrays without unnest get messy.
+        const rows = await client.query(
+          `SELECT id, tags FROM contacts WHERE id = ANY($1::int[]) AND workspace_id = $2`,
+          [ids, wsId]
+        )
+        for (const row of rows.rows) {
+          const existing = Array.isArray(row.tags) ? row.tags : []
+          let next
+          if (action === 'add_tag') {
+            next = existing.includes(payload.tag) ? existing : [...existing, payload.tag]
+          } else {
+            next = existing.filter(t => t !== payload.tag)
+          }
+          await client.query(
+            `UPDATE contacts SET tags = $1, updated_at = NOW() WHERE id = $2 AND workspace_id = $3`,
+            [JSON.stringify(next), row.id, wsId]
+          )
+        }
+        affected = rows.rows.length
+        break
+      }
+      default:
+        await client.query('ROLLBACK')
+        return res.status(400).json({ error: `Unknown action: ${action}` })
+    }
+
+    await client.query('COMMIT')
+    await logAudit(wsId, req.user.id, `bulk_${action}_contacts`, 'contact', null, null, {
+      ids_count: ids.length, affected, payload
+    })
+    res.json({ affected, action })
+  } catch (err) {
+    await client.query('ROLLBACK')
+    console.error('POST /contacts/bulk-action error:', err)
+    res.status(500).json({ error: err.message })
+  } finally {
+    client.release()
+  }
+})
+// Saved views. Each user has private views; shared views are visible to
+// everyone in the same workspace but only the creator can edit/delete.
+app.get('/contact-views', auth, async (req, res) => {
+  try {
+    const wsId = await getWorkspaceId(req.user.id)
+    const r = await pool.query(`
+      SELECT cv.*, u.name AS creator_name
+      FROM contact_views cv
+      LEFT JOIN users u ON u.id = cv.user_id
+      WHERE cv.workspace_id = $1
+        AND (cv.user_id = $2 OR cv.is_shared = true)
+      ORDER BY cv.created_at DESC
+    `, [wsId, req.user.id])
+    res.json(r.rows)
+  } catch (err) {
+    console.error('GET /contact-views error:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+app.post('/contact-views', auth, requirePermission('manage_contacts'), async (req, res) => {
+  try {
+    const wsId = await getWorkspaceId(req.user.id)
+    const { name, filters, sort, columns, is_shared } = req.body
+    if (!name || !name.trim()) return res.status(400).json({ error: 'View name is required' })
+    const r = await pool.query(`
+      INSERT INTO contact_views (workspace_id, user_id, name, filters, sort, columns, is_shared)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      RETURNING *
+    `, [
+      wsId, req.user.id, name.trim(),
+      JSON.stringify(filters || {}),
+      JSON.stringify(sort || {}),
+      JSON.stringify(columns || []),
+      is_shared === true
+    ])
+    res.json(r.rows[0])
+  } catch (err) {
+    console.error('POST /contact-views error:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+app.patch('/contact-views/:id', auth, requirePermission('manage_contacts'), async (req, res) => {
+  try {
+    const wsId = await getWorkspaceId(req.user.id)
+    // Only creator can edit
+    const current = await pool.query(
+      `SELECT id, user_id FROM contact_views WHERE id=$1 AND workspace_id=$2`,
+      [req.params.id, wsId]
+    )
+    if (!current.rows.length) return res.status(404).json({ error: 'View not found' })
+    if (current.rows[0].user_id !== req.user.id) {
+      return res.status(403).json({ error: 'Only the creator can edit this view' })
+    }
+    const { name, filters, sort, columns, is_shared } = req.body
+    const sets = []
+    const params = []
+    let p = 1
+    if (name !== undefined) { sets.push(`name = $${p++}`); params.push(name.trim()) }
+    if (filters !== undefined) { sets.push(`filters = $${p++}`); params.push(JSON.stringify(filters)) }
+    if (sort !== undefined) { sets.push(`sort = $${p++}`); params.push(JSON.stringify(sort)) }
+    if (columns !== undefined) { sets.push(`columns = $${p++}`); params.push(JSON.stringify(columns)) }
+    if (is_shared !== undefined) { sets.push(`is_shared = $${p++}`); params.push(is_shared === true) }
+    if (sets.length === 0) return res.status(400).json({ error: 'No fields to update' })
+    sets.push(`updated_at = NOW()`)
+    params.push(req.params.id, wsId)
+    const r = await pool.query(
+      `UPDATE contact_views SET ${sets.join(', ')} WHERE id=$${p++} AND workspace_id=$${p++} RETURNING *`,
+      params
+    )
+    res.json(r.rows[0])
+  } catch (err) {
+    console.error('PATCH /contact-views/:id error:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+app.delete('/contact-views/:id', auth, requirePermission('manage_contacts'), async (req, res) => {
+  try {
+    const wsId = await getWorkspaceId(req.user.id)
+    const current = await pool.query(
+      `SELECT id, user_id FROM contact_views WHERE id=$1 AND workspace_id=$2`,
+      [req.params.id, wsId]
+    )
+    if (!current.rows.length) return res.status(404).json({ error: 'View not found' })
+    if (current.rows[0].user_id !== req.user.id) {
+      return res.status(403).json({ error: 'Only the creator can delete this view' })
+    }
+    await pool.query(`DELETE FROM contact_views WHERE id=$1 AND workspace_id=$2`, [req.params.id, wsId])
+    res.json({ success: true })
+  } catch (err) {
+    console.error('DELETE /contact-views/:id error:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
 // ─── TEMPLATES ─────────────────────────────────────────────────────────────────
 app.get('/templates', auth, async (req, res) => {
   try {

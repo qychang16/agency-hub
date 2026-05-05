@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../../../context/AuthContext'
+import { useApiSave } from '../../../hooks/useApiSave'
 import { API } from '../../../utils/constants'
 import { ACCENT, ACCENT_LIGHT, NAVY } from '../../../utils/designTokens'
 
@@ -105,8 +106,8 @@ export default function Routing() {
     blackout_end: '08:00',
   })
   const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const { save: apiSave, saving, error } = useApiSave(token)
 
   useEffect(() => { if (!token) return; load() }, [token])
 
@@ -126,16 +127,18 @@ export default function Routing() {
   }
 
   async function save() {
-    setSaving(true)
-    try {
-      await fetch(`${API}/routing`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-        body: JSON.stringify(routing)
-      })
-      setSaved(true)
-      setTimeout(() => setSaved(false), 2000)
-    } catch {} finally { setSaving(false) }
+    // Coerce empty-string IDs to null before sending — Postgres rejects ""
+    // for integer columns. This is workspace-form data getting normalized
+    // for backend consumption.
+    const payload = {
+      ...routing,
+      candidate_team_id: routing.candidate_team_id || null,
+      client_team_id: routing.client_team_id || null,
+    }
+    const result = await apiSave(`${API}/routing`, { method: 'PATCH', body: payload })
+    if (!result.ok) return  // hook already set error state
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
   }
 
   function addStep() {
@@ -415,6 +418,12 @@ export default function Routing() {
           </Card>
         </div>
       </div>
+
+      {error && (
+        <div style={{ padding: '10px 14px', background: '#fef2f2', border: '0.5px solid #fecaca', borderRadius: 8, fontSize: 12, color: '#dc2626', marginTop: 12 }}>
+          {error}
+        </div>
+      )}
 
       {/* Save */}
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 4 }}>

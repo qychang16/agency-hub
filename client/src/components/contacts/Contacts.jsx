@@ -425,6 +425,269 @@ function CsvImportModal({ onClose, onImported }) {
 }
 
 // ─────────────────────────────────────────────────────────────
+// Small filter chip — name + remove button. Used in the active filter strip.
+// ─────────────────────────────────────────────────────────────
+function FilterChip({ label, onRemove }) {
+  return (
+    <span style={{
+      fontSize: 11, padding: '3px 4px 3px 9px', borderRadius: 14,
+      background: '#fff', border: `0.5px solid ${ACCENT}`, color: ACCENT,
+      display: 'inline-flex', alignItems: 'center', gap: 4, fontWeight: 500
+    }}>
+      {label}
+      <button onClick={onRemove} aria-label={`Remove ${label}`}
+        style={{
+          background: 'transparent', border: 'none', cursor: 'pointer',
+          padding: 0, color: ACCENT, display: 'inline-flex',
+          width: 16, height: 16, borderRadius: '50%',
+          alignItems: 'center', justifyContent: 'center'
+        }}
+        onMouseEnter={e => e.currentTarget.style.background = ACCENT_LIGHT}
+        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+        <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+          <line x1="3" y1="3" x2="9" y2="9"/>
+          <line x1="9" y1="3" x2="3" y2="9"/>
+        </svg>
+      </button>
+    </span>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────
+// Filter Drawer — slide-in panel from the left with all filter sections.
+// Each section is collapsible. State lives in the parent (Contacts) so
+// changes apply immediately without an "Apply" button.
+// ─────────────────────────────────────────────────────────────
+function FilterDrawer({
+  open, onClose,
+  contacts,
+  filterStages, setFilterStages,
+  filterTypes, setFilterTypes,
+  filterTags, setFilterTags,
+  filterPdpa, setFilterPdpa,
+  filterDnc, setFilterDnc,
+  filterOptedOut, setFilterOptedOut,
+  filterHasPhone, setFilterHasPhone,
+  filterHasEmail, setFilterHasEmail,
+  filterDateRange, setFilterDateRange,
+  toggleSetMember,
+  clearAllFilters,
+  activeFilterCount,
+}) {
+  // Compute available tags from current contacts (only show tags that exist)
+  const availableTags = useMemo(() => {
+    const tagSet = new Set()
+    contacts.forEach(c => {
+      if (Array.isArray(c.tags)) c.tags.forEach(t => tagSet.add(t))
+    })
+    return [...tagSet].sort()
+  }, [contacts])
+
+  // Stage counts for the filter UI — show how many contacts are in each stage
+  const stageCounts = useMemo(() => {
+    const counts = {}
+    contacts.forEach(c => {
+      const k = c.pipeline_stage || 'new'
+      counts[k] = (counts[k] || 0) + 1
+    })
+    return counts
+  }, [contacts])
+
+  const typeCounts = useMemo(() => {
+    const counts = {}
+    contacts.forEach(c => {
+      const k = c.type || 'other'
+      counts[k] = (counts[k] || 0) + 1
+    })
+    return counts
+  }, [contacts])
+
+  if (!open) return null
+
+  const sectionTitleStyle = {
+    fontSize: 10, fontWeight: 600, color: '#4a4742',
+    textTransform: 'uppercase', letterSpacing: '0.5px',
+    marginBottom: 8, paddingBottom: 6,
+    borderBottom: '0.5px solid #f5f3ef'
+  }
+
+  const checkboxRowStyle = {
+    display: 'flex', alignItems: 'center', gap: 8,
+    padding: '4px 0', cursor: 'pointer',
+    fontSize: 12, color: '#4a4742'
+  }
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div onClick={onClose} style={{
+        position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+        background: 'rgba(20,19,15,0.3)', zIndex: 50
+      }} />
+
+      {/* Drawer */}
+      <div style={{
+        position: 'fixed', top: 0, left: 0, bottom: 0,
+        width: 320, background: '#fff',
+        boxShadow: '4px 0 16px rgba(0,0,0,0.1)',
+        zIndex: 51,
+        display: 'flex', flexDirection: 'column',
+        animation: 'slideInLeft .2s ease-out'
+      }}>
+        <style>{`
+          @keyframes slideInLeft {
+            from { transform: translateX(-100%); }
+            to { transform: translateX(0); }
+          }
+        `}</style>
+
+        {/* Header */}
+        <div style={{
+          padding: '16px 20px', borderBottom: '0.5px solid #dcd8d0',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          flexShrink: 0
+        }}>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: '#14130f' }}>Filters</div>
+            <div style={{ fontSize: 11, color: '#9a958c', marginTop: 2 }}>
+              {activeFilterCount === 0 ? 'No filters active' : `${activeFilterCount} active filter${activeFilterCount !== 1 ? 's' : ''}`}
+            </div>
+          </div>
+          <button onClick={onClose}
+            style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: 4, color: '#9a958c' }}
+            aria-label="Close filters">
+            <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+              <line x1="4" y1="4" x2="12" y2="12"/>
+              <line x1="12" y1="4" x2="4" y2="12"/>
+            </svg>
+          </button>
+        </div>
+
+        {/* Body — scrollable filter sections */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px' }}>
+          {/* Pipeline Stage */}
+          <div style={{ marginBottom: 18 }}>
+            <div style={sectionTitleStyle}>Pipeline Stage</div>
+            {PIPELINE_STAGES.map(s => {
+              const checked = filterStages.has(s)
+              const count = stageCounts[s] || 0
+              return (
+                <label key={s} style={{ ...checkboxRowStyle, opacity: count === 0 ? 0.5 : 1 }}>
+                  <input type="checkbox" checked={checked} onChange={() => toggleSetMember(setFilterStages, s)}
+                    style={{ accentColor: ACCENT, cursor: 'pointer' }} />
+                  <span style={{ flex: 1 }}>{capitalize(s)}</span>
+                  <span style={{ fontSize: 10, color: '#9a958c' }}>{count}</span>
+                </label>
+              )
+            })}
+          </div>
+
+          {/* Type */}
+          <div style={{ marginBottom: 18 }}>
+            <div style={sectionTitleStyle}>Type</div>
+            {['candidate', 'client', 'vendor', 'other'].map(t => {
+              const checked = filterTypes.has(t)
+              const count = typeCounts[t] || 0
+              return (
+                <label key={t} style={{ ...checkboxRowStyle, opacity: count === 0 ? 0.5 : 1 }}>
+                  <input type="checkbox" checked={checked} onChange={() => toggleSetMember(setFilterTypes, t)}
+                    style={{ accentColor: ACCENT, cursor: 'pointer' }} />
+                  <span style={{ flex: 1 }}>{capitalize(t)}</span>
+                  <span style={{ fontSize: 10, color: '#9a958c' }}>{count}</span>
+                </label>
+              )
+            })}
+          </div>
+
+          {/* Tags */}
+          {availableTags.length > 0 && (
+            <div style={{ marginBottom: 18 }}>
+              <div style={sectionTitleStyle}>Tags</div>
+              <div style={{ maxHeight: 180, overflowY: 'auto' }}>
+                {availableTags.map(t => {
+                  const checked = filterTags.has(t)
+                  return (
+                    <label key={t} style={checkboxRowStyle}>
+                      <input type="checkbox" checked={checked} onChange={() => toggleSetMember(setFilterTags, t)}
+                        style={{ accentColor: ACCENT, cursor: 'pointer' }} />
+                      <span style={{ flex: 1 }}>{t}</span>
+                    </label>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Last Updated */}
+          <div style={{ marginBottom: 18 }}>
+            <div style={sectionTitleStyle}>Last Updated</div>
+            {[
+              { key: 'all',   label: 'Any time' },
+              { key: 'today', label: 'Today' },
+              { key: '7d',    label: 'Last 7 days' },
+              { key: '30d',   label: 'Last 30 days' },
+            ].map(opt => (
+              <label key={opt.key} style={checkboxRowStyle}>
+                <input type="radio" name="dateRange" checked={filterDateRange === opt.key}
+                  onChange={() => setFilterDateRange(opt.key)}
+                  style={{ accentColor: ACCENT, cursor: 'pointer' }} />
+                <span>{opt.label}</span>
+              </label>
+            ))}
+          </div>
+
+          {/* Compliance */}
+          <div style={{ marginBottom: 18 }}>
+            <div style={sectionTitleStyle}>Compliance</div>
+            <label style={checkboxRowStyle}>
+              <input type="checkbox" checked={filterPdpa} onChange={e => setFilterPdpa(e.target.checked)}
+                style={{ accentColor: ACCENT, cursor: 'pointer' }} />
+              <span>PDPA consented</span>
+            </label>
+            <label style={checkboxRowStyle}>
+              <input type="checkbox" checked={filterDnc} onChange={e => setFilterDnc(e.target.checked)}
+                style={{ accentColor: ACCENT, cursor: 'pointer' }} />
+              <span>On DNC list</span>
+            </label>
+            <label style={checkboxRowStyle}>
+              <input type="checkbox" checked={filterOptedOut} onChange={e => setFilterOptedOut(e.target.checked)}
+                style={{ accentColor: ACCENT, cursor: 'pointer' }} />
+              <span>Opted out of comms</span>
+            </label>
+          </div>
+
+          {/* Data completeness */}
+          <div style={{ marginBottom: 18 }}>
+            <div style={sectionTitleStyle}>Data Completeness</div>
+            <label style={checkboxRowStyle}>
+              <input type="checkbox" checked={filterHasPhone} onChange={e => setFilterHasPhone(e.target.checked)}
+                style={{ accentColor: ACCENT, cursor: 'pointer' }} />
+              <span>Has phone number</span>
+            </label>
+            <label style={checkboxRowStyle}>
+              <input type="checkbox" checked={filterHasEmail} onChange={e => setFilterHasEmail(e.target.checked)}
+                style={{ accentColor: ACCENT, cursor: 'pointer' }} />
+              <span>Has email address</span>
+            </label>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div style={{
+          padding: '12px 20px', borderTop: '0.5px solid #dcd8d0',
+          display: 'flex', gap: 10, flexShrink: 0
+        }}>
+          <Btn variant="ghost" onClick={clearAllFilters} disabled={activeFilterCount === 0} style={{ flex: 1 }}>
+            Clear all
+          </Btn>
+          <Btn onClick={onClose} style={{ flex: 1 }}>Done</Btn>
+        </div>
+      </div>
+    </>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────
 // Bulk Stage Change Modal
 // ─────────────────────────────────────────────────────────────
 function BulkStageModal({ count, onConfirm, onClose }) {
@@ -517,18 +780,91 @@ export default function Contacts() {
   const canManage = hasPermission('manage_contacts')
   const isDirector = user?.role === 'director'
 
-  // Filter (search only for now — Chunk B adds faceted filters)
+  // Faceted filter state. Sets for multi-select, plain values for single toggles.
+  // Default: empty filters means "show everything" (no constraint).
+  const [filterStages, setFilterStages] = useState(new Set())
+  const [filterTypes, setFilterTypes] = useState(new Set())
+  const [filterTags, setFilterTags] = useState(new Set())
+  const [filterPdpa, setFilterPdpa] = useState(false)        // only PDPA-consented
+  const [filterDnc, setFilterDnc] = useState(false)          // only on DNC
+  const [filterOptedOut, setFilterOptedOut] = useState(false) // only opted-out
+  const [filterDateRange, setFilterDateRange] = useState('all')   // all | today | 7d | 30d
+  const [filterHasPhone, setFilterHasPhone] = useState(false)
+  const [filterHasEmail, setFilterHasEmail] = useState(false)
+  const [showFilterDrawer, setShowFilterDrawer] = useState(false)
+
+  // Apply all filters together. Search is OR across fields; faceted filters
+  // are AND with each other (must match all active filters).
   const filtered = useMemo(() => {
-    if (!search) return contacts
-    const s = search.toLowerCase()
-    return contacts.filter(c =>
-      c.name?.toLowerCase().includes(s) ||
-      c.phone?.toLowerCase().includes(s) ||
-      c.email?.toLowerCase().includes(s) ||
-      c.candidate_role?.toLowerCase().includes(s) ||
-      c.current_company?.toLowerCase().includes(s)
-    )
-  }, [contacts, search])
+    const now = Date.now()
+    const dayMs = 24 * 60 * 60 * 1000
+    return contacts.filter(c => {
+      // Search
+      if (search) {
+        const s = search.toLowerCase()
+        const inSearch =
+          c.name?.toLowerCase().includes(s) ||
+          c.phone?.toLowerCase().includes(s) ||
+          c.email?.toLowerCase().includes(s) ||
+          c.candidate_role?.toLowerCase().includes(s) ||
+          c.current_company?.toLowerCase().includes(s)
+        if (!inSearch) return false
+      }
+      // Stage filter
+      if (filterStages.size > 0 && !filterStages.has(c.pipeline_stage)) return false
+      // Type filter
+      if (filterTypes.size > 0 && !filterTypes.has(c.type)) return false
+      // Tag filter — contact must have at least one of the selected tags
+      if (filterTags.size > 0) {
+        const cTags = Array.isArray(c.tags) ? c.tags : []
+        if (!cTags.some(t => filterTags.has(t))) return false
+      }
+      // Compliance toggles
+      if (filterPdpa && !c.pdpa_consented) return false
+      if (filterDnc && !c.dnc) return false
+      if (filterOptedOut && !c.opted_out) return false
+      // Data completeness toggles
+      if (filterHasPhone && !c.phone) return false
+      if (filterHasEmail && !c.email) return false
+      // Date range filter on updated_at
+      if (filterDateRange !== 'all' && c.updated_at) {
+        const updated = new Date(c.updated_at).getTime()
+        const cutoff =
+          filterDateRange === 'today' ? now - dayMs :
+          filterDateRange === '7d'    ? now - 7 * dayMs :
+          filterDateRange === '30d'   ? now - 30 * dayMs : 0
+        if (updated < cutoff) return false
+      }
+      return true
+    })
+  }, [contacts, search, filterStages, filterTypes, filterTags, filterPdpa, filterDnc, filterOptedOut, filterHasPhone, filterHasEmail, filterDateRange])
+
+  // Total count of active filters (for the badge on the Filters button)
+  const activeFilterCount =
+    filterStages.size + filterTypes.size + filterTags.size +
+    (filterPdpa ? 1 : 0) + (filterDnc ? 1 : 0) + (filterOptedOut ? 1 : 0) +
+    (filterHasPhone ? 1 : 0) + (filterHasEmail ? 1 : 0) +
+    (filterDateRange !== 'all' ? 1 : 0)
+
+  function clearAllFilters() {
+    setFilterStages(new Set())
+    setFilterTypes(new Set())
+    setFilterTags(new Set())
+    setFilterPdpa(false)
+    setFilterDnc(false)
+    setFilterOptedOut(false)
+    setFilterHasPhone(false)
+    setFilterHasEmail(false)
+    setFilterDateRange('all')
+  }
+
+  function toggleSetMember(setState, value) {
+    setState(prev => {
+      const next = new Set(prev)
+      if (next.has(value)) next.delete(value); else next.add(value)
+      return next
+    })
+  }
 
   // Sort
   const sorted = useMemo(() => {
@@ -656,6 +992,28 @@ export default function Contacts() {
           <input value={search} onChange={e => { setSearch(e.target.value); setPage(1) }} placeholder={`Search name, phone, email, role, company${'\u2026'}`}
             style={{ width: '100%', padding: '6px 10px 6px 26px', border: '0.5px solid #dcd8d0', borderRadius: 8, fontSize: 12, outline: 'none', background: '#faf9f7', color: '#14130f', boxSizing: 'border-box' }} />
         </div>
+        <button
+          onClick={() => setShowFilterDrawer(true)}
+          style={{
+            padding: '6px 12px', fontSize: 12,
+            border: `0.5px solid ${activeFilterCount > 0 ? ACCENT : '#dcd8d0'}`,
+            borderRadius: 8,
+            background: activeFilterCount > 0 ? ACCENT_LIGHT : '#fff',
+            color: activeFilterCount > 0 ? ACCENT : '#4a4742',
+            fontWeight: activeFilterCount > 0 ? 600 : 500,
+            cursor: 'pointer',
+            display: 'inline-flex', alignItems: 'center', gap: 6
+          }}>
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+            <polygon points="2 3 14 3 9.5 8.5 9.5 13 6.5 13 6.5 8.5 2 3"/>
+          </svg>
+          Filters
+          {activeFilterCount > 0 && (
+            <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 10, background: ACCENT, color: '#fff', fontWeight: 600 }}>
+              {activeFilterCount}
+            </span>
+          )}
+        </button>
         <div className="md:ml-auto" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <span style={{ fontSize: 11, color: '#9a958c' }}>Density:</span>
           {['compact', 'comfortable'].map(d => (
@@ -675,6 +1033,37 @@ export default function Contacts() {
           </select>
         </div>
       </div>
+
+      {/* Active filter chips */}
+      {activeFilterCount > 0 && (
+        <div className="px-4 md:px-7 py-2" style={{
+          background: '#faf9f7', borderBottom: '0.5px solid #dcd8d0',
+          display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', flexShrink: 0
+        }}>
+          <span style={{ fontSize: 11, color: '#9a958c', marginRight: 4 }}>Active:</span>
+          {[...filterStages].map(s => (
+            <FilterChip key={`stage-${s}`} label={`Stage: ${capitalize(s)}`} onRemove={() => toggleSetMember(setFilterStages, s)} />
+          ))}
+          {[...filterTypes].map(t => (
+            <FilterChip key={`type-${t}`} label={`Type: ${capitalize(t)}`} onRemove={() => toggleSetMember(setFilterTypes, t)} />
+          ))}
+          {[...filterTags].map(t => (
+            <FilterChip key={`tag-${t}`} label={`Tag: ${t}`} onRemove={() => toggleSetMember(setFilterTags, t)} />
+          ))}
+          {filterPdpa && <FilterChip label="PDPA Consented" onRemove={() => setFilterPdpa(false)} />}
+          {filterDnc && <FilterChip label="On DNC" onRemove={() => setFilterDnc(false)} />}
+          {filterOptedOut && <FilterChip label="Opted Out" onRemove={() => setFilterOptedOut(false)} />}
+          {filterHasPhone && <FilterChip label="Has Phone" onRemove={() => setFilterHasPhone(false)} />}
+          {filterHasEmail && <FilterChip label="Has Email" onRemove={() => setFilterHasEmail(false)} />}
+          {filterDateRange !== 'all' && <FilterChip
+            label={`Updated: ${filterDateRange === 'today' ? 'Today' : filterDateRange === '7d' ? 'Last 7 days' : 'Last 30 days'}`}
+            onRemove={() => setFilterDateRange('all')} />
+          }
+          <button onClick={clearAllFilters} style={{ marginLeft: 'auto', fontSize: 11, padding: '2px 8px', background: 'transparent', border: 'none', color: '#6e6a63', cursor: 'pointer', textDecoration: 'underline' }}>
+            Clear all
+          </button>
+        </div>
+      )}
 
       {/* Table */}
       <div style={{ flex: 1, overflow: 'auto', position: 'relative' }}>
@@ -843,6 +1232,23 @@ export default function Contacts() {
       {/* Modals */}
       {showEditor && <ContactEditor contact={editingContact} onClose={() => { setShowEditor(false); setEditingContact(null) }} onSaved={load} />}
       {showImport && <CsvImportModal onClose={() => setShowImport(false)} onImported={load} />}
+        <FilterDrawer
+        open={showFilterDrawer}
+        onClose={() => setShowFilterDrawer(false)}
+        contacts={contacts}
+        filterStages={filterStages} setFilterStages={setFilterStages}
+        filterTypes={filterTypes} setFilterTypes={setFilterTypes}
+        filterTags={filterTags} setFilterTags={setFilterTags}
+        filterPdpa={filterPdpa} setFilterPdpa={setFilterPdpa}
+        filterDnc={filterDnc} setFilterDnc={setFilterDnc}
+        filterOptedOut={filterOptedOut} setFilterOptedOut={setFilterOptedOut}
+        filterHasPhone={filterHasPhone} setFilterHasPhone={setFilterHasPhone}
+        filterHasEmail={filterHasEmail} setFilterHasEmail={setFilterHasEmail}
+        filterDateRange={filterDateRange} setFilterDateRange={setFilterDateRange}
+        toggleSetMember={toggleSetMember}
+        clearAllFilters={clearAllFilters}
+        activeFilterCount={activeFilterCount}
+      />
       {showBulkStage && (
         <BulkStageModal
           count={selected.size}

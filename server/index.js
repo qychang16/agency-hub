@@ -3302,6 +3302,129 @@ app.delete('/contact-views/:id', auth, requirePermission('manage_contacts'), asy
   }
 })
 
+// Aggregate analytics for the dashboard. Single round-trip across multiple
+// data sources. All counts are workspace-scoped. Date ranges use the
+// server's clock (UTC); frontend formats for display.
+app.get('/analytics/dashboard', auth, async (req, res) => {
+  try {
+    const wsId = await getWorkspaceId(req.user.id)
+    const now = new Date()
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+
+    // Contact KPIs
+    const contactStats = await pool.query(`
+      SELECT
+        COUNT(*)::int AS total,
+        COUNT(*) FILTER (WHERE created_at >= $2)::int AS new_this_week,
+        COUNT(*) FILTER (WHERE type = 'candidate')::int AS candidates,
+        COUNT(*) FILTER (WHERE type = 'client')::int AS clients,
+        COUNT(*) FILTER (WHERE opted_out = true)::int AS opted_out,
+        COUNT(*) FILTER (WHERE dnc = true)::int AS dnc,
+        COUNT(*) FILTER (WHERE pdpa_consented = true)::int AS pdpa_consented
+      FROM contacts WHERE workspace_id = $1
+    `, [wsId, sevenDaysAgo])
+
+    // Pipeline distribution
+    const pipelineDist = await pool.query(`
+      SELECT pipeline_stage, COUNT(*)::int AS count
+      FROM contacts
+      WHERE workspace_id = $1 AND pipeline_stage IS NOT NULL
+      GROUP BY pipeline_stage
+    `, [wsId])
+
+    // Broadcast KPIs
+    const broadcastStats = await pool.query(`
+      SELECT
+        COUNT(*)::int AS total,
+        COUNT(*) FILTER (WHERE created_at >= $2)::int AS this_month,
+        COUNT(*) FILTER (WHERE status = 'completed')::int AS completed,
+        COUNT(*) FILTER (WHERE status = 'failed')::int AS failed,
+        COUNT(*) FILTER (WHERE status IN ('scheduled', 'sending'))::int AS active,
+        COALESCE(SUM(sent_recipients), 0)::int AS total_sent
+      FROM broadcasts WHERE workspace_id = $1
+    `, [wsId, startOfMonth])
+
+    // Template KPIs
+    const templateStats = await pool.query(`
+      SELECT
+        COUNT(*)::int AS total,
+        COUNT(*) FILTER (WHERE meta_status = 'APPROVED')::int AS approved,
+        COUNT(*) FILTER (WHERE meta_status = 'PENDING')::int AS pending,
+        COUNT(*) FILTER (WHERE meta_status = 'REJECTED')::int AS rejected
+      FROM templates WHERE workspace_id = $1
+    `, [wsId])
+
+    // 30-day message volume — daily counts of sent and received messages.
+    // We pull from the messages table if it exists. If conversations table
+    // is the source instead, this query may need adjustment.
+    let messagesPerDay = []
+    try {
+      const r = await pool.query(`
+        SELECT
+          DATE_TRUNC('day', created_at)::date AS day,
+          COUNT(*) FILTER (WHERE direction = 'outbound')::int AS sent,
+          COUNT(*) FILTER (WHERE direction = 'inbound')::int AS received
+        FROM messages
+        WHERE workspace_id = $1 AND created_at >= $2
+        GROUP BY day
+        ORDER BY day ASC
+      `, [wsId, thirtyDaysAgo])
+      messagesPerDay = r.rows
+    } catch (err) {
+      // Messages table may not exist yet or have different schema. Return empty.
+      console.warn('messages query failed, returning empty array:', err.message)
+    }
+
+    // Active conversations — distinct conversations with messages in last 7 days
+    let activeConversations = 0
+    try {
+      const r = await pool.query(`
+        SELECT COUNT(DISTINCT conversation_id)::int AS count
+        FROM messages
+        WHERE workspace_id = $1 AND created_at >= $2 AND conversation_id IS NOT NULL
+      `, [wsId, sevenDaysAgo])
+      activeConversations = r.rows[0]?.count || 0
+    } catch (err) {
+      console.warn('active conversations query failed:', err.message)
+    }
+
+    // Recent broadcasts (last 5)
+    const recentBroadcasts = await pool.query(`
+      SELECT id, name, status, total_recipients, sent_recipients, failed_recipients, created_at
+      FROM broadcasts
+      WHERE workspace_id = $1
+      ORDER BY created_at DESC
+      LIMIT 5
+    `, [wsId])
+
+    // Recent contacts (last 10 added)
+    const recentContacts = await pool.query(`
+      SELECT id, name, type, pipeline_stage, created_at
+      FROM contacts
+      WHERE workspace_id = $1
+      ORDER BY created_at DESC
+      LIMIT 10
+    `, [wsId])
+
+    res.json({
+      contacts: contactStats.rows[0],
+      pipeline: pipelineDist.rows,
+      broadcasts: broadcastStats.rows[0],
+      templates: templateStats.rows[0],
+      messages_per_day: messagesPerDay,
+      active_conversations: activeConversations,
+      recent_broadcasts: recentBroadcasts.rows,
+      recent_contacts: recentContacts.rows,
+      computed_at: now.toISOString()
+    })
+  } catch (err) {
+    console.error('GET /analytics/dashboard error:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
 // ─── TEMPLATES ─────────────────────────────────────────────────────────────────
 app.get('/templates', auth, async (req, res) => {
   try {

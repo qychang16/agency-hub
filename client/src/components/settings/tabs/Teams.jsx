@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../../../context/AuthContext'
+import { useApiSave } from '../../../hooks/useApiSave'
 import { API } from '../../../utils/constants'
 import { ACCENT, ACCENT_LIGHT, NAVY } from '../../../utils/designTokens'
 import { getRoleColor, getRoleLabel } from '../../../utils/permissions'
@@ -92,8 +93,7 @@ function TeamModal({ team, agents, onClose, onSave }) {
     description: team?.description || '',
     members: (team?.members || []).map(m => m.id || m),
   })
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
+  const { save: apiSave, saving, error, setError, clearError } = useApiSave(token)
   const [memberSearch, setMemberSearch] = useState('')
   const isEdit = !!team
 
@@ -107,21 +107,21 @@ function TeamModal({ team, agents, onClose, onSave }) {
   }
 
   async function save() {
-    setError('')
+    clearError()
     if (!form.name.trim()) { setError('Team name is required'); return }
-    setSaving(true)
-    try {
-      const url = isEdit ? `${API}/teams/${team.id}` : `${API}/teams`
-      const method = isEdit ? 'PATCH' : 'POST'
-      const r = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-        body: JSON.stringify({ ...form, key: form.name.toLowerCase().replace(/\s+/g, '_') })
-      })
-      if (!r.ok) { const d = await r.json(); setError(d.error || 'Failed to save'); return }
-      onSave(); onClose()
-    } catch { setError('Failed to save. Please try again.') }
-    finally { setSaving(false) }
+    const url = isEdit ? `${API}/teams/${team.id}` : `${API}/teams`
+    const method = isEdit ? 'PATCH' : 'POST'
+    // Coerce empty-string lead_user_id to null — Postgres rejects "" for
+    // integer FK columns. Same fix we applied in Routing.
+    const payload = {
+      ...form,
+      lead_user_id: form.lead_user_id || null,
+      key: form.name.toLowerCase().replace(/\s+/g, '_')
+    }
+    const result = await apiSave(url, { method, body: payload })
+    if (!result.ok) return  // hook already set error state
+    onSave()
+    onClose()
   }
 
   const filteredAgents = agents.filter(a =>
@@ -264,8 +264,21 @@ export default function Teams() {
 
   async function deleteTeam(team) {
     if (!confirm(`Delete "${team.name}"? Agents will be unassigned but not deleted. Conversation history is preserved.`)) return
-    await fetch(`${API}/teams/${team.id}`, { method: 'DELETE', headers: { Authorization: 'Bearer ' + token } })
-    load()
+    try {
+      const r = await fetch(`${API}/teams/${team.id}`, {
+        method: 'DELETE',
+        headers: { Authorization: 'Bearer ' + token }
+      })
+      if (!r.ok) {
+        let msg = `Server returned ${r.status}`
+        try { const d = await r.json(); if (d?.error) msg = d.error } catch {}
+        alert('Failed to delete team: ' + msg)
+        return
+      }
+      load()
+    } catch (err) {
+      alert('Failed to delete team: ' + (err.message || 'unknown error'))
+    }
   }
 
   const totalAgentsInTeams = [...new Set(teams.flatMap(t => (t.members || []).map(m => m.id || m)))].length

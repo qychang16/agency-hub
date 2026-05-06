@@ -4,7 +4,7 @@ import { GoogleLogin } from '@react-oauth/google'
 import { WorkspaceProvider, useWorkspace } from './context/WorkspaceContext'
 import Topbar from './components/layout/Topbar'
 import { API } from './utils/constants'
-import { ACCENT, NAVY } from './utils/designTokens'
+import { ink, accent, fonts, textWeight, space, radius, border, shadow } from './utils/designTokens'
 
 // Lazy loaded components — loads only when navigated to
 const InboxList = lazy(() => import('./components/inbox/InboxList'))
@@ -57,53 +57,117 @@ function LoginScreen() {
     setLoading(false)
   }
 
+  const inputStyle = (hasError) => ({
+    width: '100%',
+    padding: '10px 12px',
+    border: `0.5px solid ${hasError ? '#8e2a2a' : ink[300]}`,
+    borderRadius: radius.md,
+    fontSize: '13px',
+    fontFamily: fonts.body,
+    outline: 'none',
+    background: ink[50],
+    color: ink[800],
+    boxSizing: 'border-box',
+    transition: 'border-color .15s, box-shadow .15s',
+  })
+
   return (
-    <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #1a2332 0%, #1e3a5f 60%, #1e40af 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-      <div style={{ width: '100%', maxWidth: 400 }}>
-        <div style={{ textAlign: 'center', marginBottom: 32 }}>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
-            <svg width="44" height="44" viewBox="0 0 34 34" fill="none">
-              <rect width="34" height="34" rx="9" fill="rgba(255,255,255,0.1)"/>
-              <circle cx="13" cy="17" r="6.5" stroke="#60a5fa" strokeWidth="1.8"/>
-              <circle cx="21" cy="17" r="6.5" stroke="#fff" strokeWidth="1.8"/>
-              <path d="M17 11.2c1.8 1.5 1.8 7.1 0 11.6" stroke="rgba(255,255,255,0.1)" strokeWidth="3.5"/>
-              <path d="M17 11.2c-1.8 1.5-1.8 7.1 0 11.6" stroke="rgba(255,255,255,0.1)" strokeWidth="3.5"/>
-              <path d="M17 11.2c1.8 1.5 1.8 7.1 0 11.6" stroke="#93c5fd" strokeWidth="1.2"/>
-              <path d="M17 11.2c-1.8 1.5-1.8 7.1 0 11.6" stroke="#93c5fd" strokeWidth="1.2"/>
-            </svg>
-            <div style={{ textAlign: 'left' }}>
-              <div style={{ fontSize: 22, fontWeight: 700, color: '#fff', letterSpacing: '-0.5px' }}>Tel-Cloud</div>
-              <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '1.5px' }}>Recruitment Platform</div>
-            </div>
-          </div>
+    <div style={{
+      minHeight: '100vh',
+      background: ink[50],
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: space[4],
+      fontFamily: fonts.body,
+      position: 'relative',
+      overflow: 'hidden',
+    }}>
+      <div style={{ position: 'absolute', top: '-200px', left: '-200px', width: '500px', height: '500px', background: 'radial-gradient(circle, rgba(45,42,122,0.08) 0%, transparent 70%)', pointerEvents: 'none' }} />
+      <div style={{ position: 'absolute', bottom: '-200px', right: '-200px', width: '500px', height: '500px', background: 'radial-gradient(circle, rgba(45,42,122,0.06) 0%, transparent 70%)', pointerEvents: 'none' }} />
+
+      <div style={{ width: '100%', maxWidth: 400, position: 'relative', zIndex: 1 }}>
+
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: space[2], marginBottom: space[8] }}>
+          <svg width="56" height="56" viewBox="0 0 34 34" fill="none" style={{ filter: 'drop-shadow(0 2px 6px rgba(10, 9, 7, 0.18))' }}>
+            <defs>
+              <radialGradient id="login-tc-indigo-ring" cx="11" cy="14" r="11" gradientUnits="userSpaceOnUse">
+                <stop offset="0" stopColor="#8a87ff"/>
+                <stop offset="0.5" stopColor="#3d3a9e"/>
+                <stop offset="1" stopColor="#14134a"/>
+              </radialGradient>
+              <radialGradient id="login-tc-indigo-hl" cx="10" cy="13" r="4" gradientUnits="userSpaceOnUse">
+                <stop offset="0" stopColor="#ffffff" stopOpacity="0.9"/>
+                <stop offset="1" stopColor="#ffffff" stopOpacity="0"/>
+              </radialGradient>
+              <radialGradient id="login-tc-white-ring" cx="19" cy="14" r="11" gradientUnits="userSpaceOnUse">
+                <stop offset="0" stopColor="#ffffff"/>
+                <stop offset="0.5" stopColor="#b8b6cf"/>
+                <stop offset="1" stopColor="#4a4760"/>
+              </radialGradient>
+              <radialGradient id="login-tc-white-hl" cx="18" cy="13" r="4" gradientUnits="userSpaceOnUse">
+                <stop offset="0" stopColor="#ffffff" stopOpacity="1"/>
+                <stop offset="1" stopColor="#ffffff" stopOpacity="0"/>
+              </radialGradient>
+            </defs>
+            <circle cx="13" cy="17" r="6.5" stroke="url(#login-tc-indigo-ring)" strokeWidth="2.8" fill="none"/>
+            <circle cx="13" cy="17" r="6.5" stroke="url(#login-tc-indigo-hl)" strokeWidth="2.8" fill="none"/>
+            <circle cx="21" cy="17" r="6.5" stroke="url(#login-tc-white-ring)" strokeWidth="2.8" fill="none"/>
+            <circle cx="21" cy="17" r="6.5" stroke="url(#login-tc-white-hl)" strokeWidth="2.8" fill="none"/>
+          </svg>
+          <span style={{
+            fontFamily: fonts.display,
+            fontSize: '24px',
+            fontWeight: textWeight.bold,
+            color: ink[900],
+            letterSpacing: '-0.6px',
+            lineHeight: 1,
+          }}>Tel-Cloud</span>
         </div>
 
-        <div style={{ background: '#fff', borderRadius: 16, padding: '32px 28px', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
-          <div style={{ fontSize: 18, fontWeight: 600, color: '#111827', marginBottom: 4 }}>Welcome back</div>
-          <div style={{ fontSize: 13, color: '#9ca3af', marginBottom: 24 }}>Sign in to your Tel-Cloud account</div>
+        <div style={{
+          background: '#fff',
+          borderRadius: radius.lg,
+          padding: 'clamp(20px, 5vw, 32px) clamp(16px, 4vw, 28px)',
+          border: `0.5px solid ${ink[300]}`,
+          boxShadow: shadow.floating,
+        }}>
+          <div style={{
+            fontFamily: fonts.display,
+            fontSize: '20px',
+            fontWeight: textWeight.semibold,
+            color: ink[900],
+            letterSpacing: '-0.3px',
+            marginBottom: space[1],
+          }}>Welcome back</div>
+          <div style={{ fontSize: '13px', color: ink[600], marginBottom: space[6] }}>Sign in to your Tel-Cloud account</div>
 
-          <div style={{ marginBottom: 16 }}>
-            <label style={{ fontSize: 11, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.4px' }}>Email address</label>
-            <div style={{ position: 'relative' }}>
-              <input
-                type="email"
-                value={email}
-                onChange={e => { setEmail(e.target.value); setEmailError('') }}
-                onKeyDown={e => e.key === 'Enter' && validateAndLogin()}
-                placeholder="you@company.com"
-                style={{ width: '100%', padding: '10px 12px 10px 36px', border: `1.5px solid ${emailError ? '#ef4444' : '#e5e7eb'}`, borderRadius: 8, fontSize: 13, outline: 'none', background: '#f9fafb', color: '#111827', boxSizing: 'border-box', transition: 'border-color .2s' }}
-                onFocus={e => e.target.style.borderColor = emailError ? '#ef4444' : '#2563eb'}
-                onBlur={e => e.target.style.borderColor = emailError ? '#ef4444' : '#e5e7eb'}
-              />
-              <svg style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', width: 14, height: 14, color: '#9ca3af', pointerEvents: 'none' }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-            </div>
-            {emailError && <div style={{ fontSize: 11, color: '#ef4444', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}><span>⚠</span> {emailError}</div>}
+          <div style={{ marginBottom: space[4] }}>
+            <label style={{
+              fontSize: '10px', fontWeight: textWeight.semibold, color: ink[700],
+              display: 'block', marginBottom: space[1],
+              textTransform: 'uppercase', letterSpacing: '1.2px',
+            }}>Email address</label>
+            <input
+              type="email"
+              value={email}
+              onChange={e => { setEmail(e.target.value); setEmailError('') }}
+              onKeyDown={e => e.key === 'Enter' && validateAndLogin()}
+              placeholder="you@company.com"
+              style={inputStyle(emailError)}
+              onFocus={e => { e.target.style.borderColor = accent.DEFAULT; e.target.style.boxShadow = '0 0 0 3px rgba(45,42,122,0.08)' }}
+              onBlur={e => { e.target.style.borderColor = emailError ? '#8e2a2a' : ink[300]; e.target.style.boxShadow = 'none' }}
+            />
+            {emailError && <div style={{ fontSize: '11px', color: '#8e2a2a', marginTop: space[1] }}>{emailError}</div>}
           </div>
 
-          <div style={{ marginBottom: 20 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
-              <label style={{ fontSize: 11, fontWeight: 600, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Password</label>
-              <button style={{ fontSize: 11, color: '#2563eb', background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }}>Forgot password?</button>
+          <div style={{ marginBottom: space[5] }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: space[1] }}>
+              <label style={{
+                fontSize: '10px', fontWeight: textWeight.semibold, color: ink[700],
+                textTransform: 'uppercase', letterSpacing: '1.2px',
+              }}>Password</label>
+              <button style={{ fontSize: '11px', color: accent.DEFAULT, background: 'transparent', border: 'none', cursor: 'pointer', padding: 0, fontWeight: textWeight.medium }}>Forgot password?</button>
             </div>
             <div style={{ position: 'relative' }}>
               <input
@@ -112,50 +176,57 @@ function LoginScreen() {
                 onChange={e => { setPassword(e.target.value); setPasswordError('') }}
                 onKeyDown={e => e.key === 'Enter' && validateAndLogin()}
                 placeholder="Enter your password"
-                style={{ width: '100%', padding: '10px 40px 10px 36px', border: `1.5px solid ${passwordError ? '#ef4444' : '#e5e7eb'}`, borderRadius: 8, fontSize: 13, outline: 'none', background: '#f9fafb', color: '#111827', boxSizing: 'border-box', transition: 'border-color .2s' }}
-                onFocus={e => e.target.style.borderColor = passwordError ? '#ef4444' : '#2563eb'}
-                onBlur={e => e.target.style.borderColor = passwordError ? '#ef4444' : '#e5e7eb'}
+                style={{ ...inputStyle(passwordError), paddingRight: '36px' }}
+                onFocus={e => { e.target.style.borderColor = accent.DEFAULT; e.target.style.boxShadow = '0 0 0 3px rgba(45,42,122,0.08)' }}
+                onBlur={e => { e.target.style.borderColor = passwordError ? '#8e2a2a' : ink[300]; e.target.style.boxShadow = 'none' }}
               />
-              <svg style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', width: 14, height: 14, color: '#9ca3af', pointerEvents: 'none' }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', cursor: 'pointer', padding: 4, color: '#9ca3af', display: 'flex', alignItems: 'center' }}>
+                style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', cursor: 'pointer', padding: 4, color: ink[500], display: 'flex', alignItems: 'center' }}>
                 {showPassword ? (
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
                 ) : (
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                 )}
               </button>
             </div>
-            {passwordError && <div style={{ fontSize: 11, color: '#ef4444', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}><span>⚠</span> {passwordError}</div>}
+            {passwordError && <div style={{ fontSize: '11px', color: '#8e2a2a', marginTop: space[1] }}>{passwordError}</div>}
           </div>
 
           {error && (
-            <div style={{ marginBottom: 16, padding: '10px 12px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, fontSize: 12, color: '#dc2626', display: 'flex', alignItems: 'center', gap: 8 }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> {error}
-            </div>
+            <div style={{
+              marginBottom: space[4], padding: '10px 12px',
+              background: '#f0dfdf', border: '0.5px solid #8e2a2a',
+              borderRadius: radius.md, fontSize: '12px', color: '#8e2a2a',
+            }}>{error}</div>
           )}
 
           <button
             onClick={validateAndLogin}
             disabled={loading}
-            style={{ width: '100%', padding: '11px', background: loading ? '#9ca3af' : 'linear-gradient(135deg, #2563eb, #1e40af)', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: loading ? 'default' : 'pointer', letterSpacing: '0.3px', transition: 'opacity .2s' }}>
-            {loading ? (
-              <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" style={{ animation: 'spin 1s linear infinite' }}><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
-                Signing in…
-              </span>
-            ) : 'Sign in →'}
+            style={{
+              width: '100%', padding: '11px',
+              background: loading ? ink[400] : accent.DEFAULT,
+              color: '#fff', border: 'none', borderRadius: radius.md,
+              fontSize: '13px', fontWeight: textWeight.semibold,
+              fontFamily: fonts.body,
+              cursor: loading ? 'default' : 'pointer',
+              letterSpacing: '0.2px',
+              transition: 'background .15s',
+            }}
+            onMouseEnter={e => { if (!loading) e.target.style.background = accent.hover }}
+            onMouseLeave={e => { if (!loading) e.target.style.background = accent.DEFAULT }}>
+            {loading ? 'Signing in...' : 'Sign in'}
           </button>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '18px 0 14px' }}>
-            <div style={{ flex: 1, height: 1, background: '#e5e7eb' }} />
-            <div style={{ fontSize: 10, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.6px' }}>or</div>
-            <div style={{ flex: 1, height: 1, background: '#e5e7eb' }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: space[2], margin: `${space[5]}px 0 ${space[3]}px` }}>
+            <div style={{ flex: 1, height: 1, background: ink[200] }} />
+            <span style={{ fontSize: '10px', color: ink[500], textTransform: 'uppercase', letterSpacing: '0.6px', fontWeight: textWeight.medium }}>or</span>
+            <div style={{ flex: 1, height: 1, background: ink[200] }} />
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'center' }}>
+          <div style={{ display: 'flex', justifyContent: 'center', overflow: 'hidden' }}>
             <GoogleLogin
               onSuccess={async (cred) => {
                 setError(''); setEmailError(''); setPasswordError('')
@@ -172,24 +243,17 @@ function LoginScreen() {
               size="large"
               text="signin_with"
               shape="rectangular"
-              width="320"
             />
           </div>
-
-          <div style={{ marginTop: 20, textAlign: 'center', fontSize: 11, color: '#9ca3af' }}>
-            Powered by <strong style={{ color: '#374151' }}>Tel-Cloud</strong> · Recruitment Platform
-          </div>
         </div>
 
-        <div style={{ textAlign: 'center', marginTop: 16, fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>
-          v2.0.0 · © 2026 Tel-Cloud
+        <div style={{
+          textAlign: 'center', marginTop: space[5],
+          fontSize: '11px', color: ink[500], letterSpacing: '0.2px',
+        }}>
+          v2.0.0 &middot; &copy; 2026 <strong style={{ color: ink[700], fontWeight: textWeight.semibold }}>Tel-Cloud</strong>
         </div>
       </div>
-
-      <style>{`
-        @keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }
-        input::placeholder { color: #d1d5db }
-      `}</style>
     </div>
   )
 }

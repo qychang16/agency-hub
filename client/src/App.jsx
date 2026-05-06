@@ -1,5 +1,6 @@
 import { useState, useEffect, lazy, Suspense } from 'react'
 import { AuthProvider, useAuth } from './context/AuthContext'
+import { GoogleLogin } from '@react-oauth/google'
 import { WorkspaceProvider, useWorkspace } from './context/WorkspaceContext'
 import Topbar from './components/layout/Topbar'
 import { API } from './utils/constants'
@@ -27,7 +28,7 @@ const AdminPanel = lazy(() => import('./components/admin/AdminPanel'))
 
 // ─── LOGIN SCREEN ──────────────────────────────────────────────────────────────
 function LoginScreen() {
-  const { login } = useAuth()
+  const { login, loginWithGoogle } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -147,6 +148,33 @@ function LoginScreen() {
               </span>
             ) : 'Sign in →'}
           </button>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '18px 0 14px' }}>
+            <div style={{ flex: 1, height: 1, background: '#e5e7eb' }} />
+            <div style={{ fontSize: 10, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.6px' }}>or</div>
+            <div style={{ flex: 1, height: 1, background: '#e5e7eb' }} />
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'center' }}>
+            <GoogleLogin
+              onSuccess={async (cred) => {
+                setError(''); setEmailError(''); setPasswordError('')
+                setLoading(true)
+                try {
+                  await loginWithGoogle(cred.credential)
+                } catch (e) {
+                  setError(e.message || 'Google sign-in failed')
+                }
+                setLoading(false)
+              }}
+              onError={() => setError('Google sign-in was cancelled or failed')}
+              theme="outline"
+              size="large"
+              text="signin_with"
+              shape="rectangular"
+              width="320"
+            />
+          </div>
 
           <div style={{ marginTop: 20, textAlign: 'center', fontSize: 11, color: '#9ca3af' }}>
             Powered by <strong style={{ color: '#374151' }}>Tel-Cloud</strong> · Recruitment Platform

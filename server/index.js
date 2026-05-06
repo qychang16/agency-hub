@@ -2364,6 +2364,101 @@ function reconcileVariablesWithBody(variables, body) {
 }
 
 // ─── AUTH ──────────────────────────────────────────────────────────────────────
+// ─── CHUNK 22: Google Sign-In ──────────────────────────────────────────────
+// Invite-driven: only signs in users whose email already exists in our DB.
+// Verifies Google ID token server-side, links google_id to user on first use.
+// Domain allowlist enforced in code.
+const { OAuth2Client } = require('google-auth-library')
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID)
+
+// Domains permitted to use Google Sign-In. Update when onboarding new tenants.
+const GOOGLE_ALLOWED_DOMAINS = ['tel-cloud.sg']
+
+app.post('/auth/google', async (req, res) => {
+  try {
+    const { idToken } = req.body
+    if (!idToken) return res.status(400).json({ error: 'Missing idToken' })
+
+    const ticket = await googleClient.verifyIdToken({
+      idToken,
+      audience: process.env.GOOGLE_CLIENT_ID
+    })
+    const payload = ticket.getPayload()
+    const googleEmail = (payload.email || '').toLowerCase()
+    const googleSub = payload.sub
+    const emailVerified = payload.email_verified === true
+
+    if (!emailVerified) return res.status(401).json({ error: 'Google email not verified' })
+    if (!googleEmail || !googleSub) return res.status(401).json({ error: 'Invalid Google token' })
+
+    // Domain allowlist check.
+    const emailDomain = googleEmail.split('@')[1]
+    if (!GOOGLE_ALLOWED_DOMAINS.includes(emailDomain)) {
+      return res.status(401).json({ error: 'This Google account is not permitted. Contact your administrator.' })
+    }
+
+    // Look up by email. Invite-driven: no auto-create.
+    const r = await pool.query(
+      `SELECT u.*, w.name as workspace_name, w.billing_exempt, w.plan, w.workspace_type
+       FROM users u JOIN workspaces w ON w.id = u.workspace_id
+       WHERE LOWER(u.email)=$1 AND u.active=true`,
+      [googleEmail]
+    )
+    if (!r.rows.length) {
+      return res.status(401).json({ error: 'Email not registered. Contact your administrator.' })
+    }
+    const user = r.rows[0]
+
+    if (user.locked_until && new Date(user.locked_until) > new Date()) {
+      return res.status(401).json({ error: 'Account temporarily locked. Try again later.' })
+    }
+
+    if (!user.google_id) {
+      const newProvider = user.password_hash ? 'both' : 'google'
+      await pool.query(
+        `UPDATE users SET google_id=$1, auth_provider=$2 WHERE id=$3`,
+        [googleSub, newProvider, user.id]
+      )
+    } else if (user.google_id !== googleSub) {
+      return res.status(401).json({ error: 'Google account mismatch. Contact your administrator.' })
+    }
+
+    await pool.query(
+      `UPDATE users SET last_login_at=NOW(), failed_login_attempts=0, locked_until=NULL WHERE id=$1`,
+      [user.id]
+    )
+
+    const token = jwt.sign(
+      { id: user.id, email: user.email, name: user.name, role: user.role,
+        workspace_id: user.workspace_id, is_super_admin: user.is_super_admin },
+      JWT_SECRET,
+      { expiresIn: '24h' }
+    )
+
+    await logAudit(user.workspace_id, user.id, 'login_google', 'user', user.id, null, { email: user.email })
+
+    const permsConfig = await getRolePermissions(user.workspace_id, user.role)
+
+    res.json({
+      token,
+      user: {
+        id: user.id, name: user.name, email: user.email, role: user.role,
+        workspace_id: user.workspace_id, workspace_name: user.workspace_name,
+        is_super_admin: user.is_super_admin, billing_exempt: user.billing_exempt,
+        plan: user.plan, permissions: user.permissions,
+        send_behaviour: user.send_behaviour || 'enter',
+        force_password_change: false,
+        permissions_resolved: permsConfig.permissions,
+        scope: permsConfig.scope
+      }
+    })
+  } catch (err) {
+    console.error('Google login error:', err)
+    res.status(401).json({ error: 'Google sign-in failed' })
+  }
+})
+// ─── End Google Sign-In ────────────────────────────────────────────────────
+
 app.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body

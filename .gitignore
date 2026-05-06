@@ -2,3 +2,7 @@
 eque-initial-passwords.txt
 
 client/.env.local
+
+.env
+.env.production
+node_modules/

@@ -6119,11 +6119,60 @@ app.post('/webhook', async (req, res) => {
       for (const change of entry.changes || []) {
         if (change.field !== 'messages') continue
         const value = change.value || {}
-        const wsRow = await pool.query(`SELECT id FROM workspaces WHERE workspace_type='internal' OR plan='enterprise' ORDER BY id ASC LIMIT 1`)
-        const wsId = wsRow.rows[0]?.id
-        if (!wsId) { console.warn('No workspace found for webhook'); continue }
-        const phoneRow = await pool.query(`SELECT id FROM phone_numbers WHERE workspace_id=$1 ORDER BY is_primary DESC, id ASC LIMIT 1`, [wsId])
-        const phoneId = phoneRow.rows[0]?.id
+
+        // Multi-tenant routing: figure out which workspace owns the phone
+        // number that received this message. Meta gives us two identifiers
+        // in value.metadata — phone_number_id (Meta's GUID) and
+        // display_phone_number (the E.164 number). We try the GUID first
+        // (precise, won't drift), and fall back to the E.164 match for
+        // workspaces that haven't populated whatsapp_phone_id yet.
+        const metaPhoneId = value.metadata?.phone_number_id
+        const metaDisplayPhone = value.metadata?.display_phone_number
+        const displayPhoneE164 = metaDisplayPhone
+          ? (metaDisplayPhone.startsWith('+') ? metaDisplayPhone : '+' + metaDisplayPhone)
+          : null
+
+        let phoneRow = { rows: [] }
+        if (metaPhoneId) {
+          phoneRow = await pool.query(
+            `SELECT id, workspace_id FROM phone_numbers WHERE whatsapp_phone_id = $1 LIMIT 1`,
+            [metaPhoneId]
+          )
+        }
+        if (phoneRow.rows.length === 0 && displayPhoneE164) {
+          phoneRow = await pool.query(
+            `SELECT id, workspace_id FROM phone_numbers WHERE number = $1 LIMIT 1`,
+            [displayPhoneE164]
+          )
+        }
+
+        let wsId, phoneId
+        if (phoneRow.rows.length > 0) {
+          wsId = phoneRow.rows[0].workspace_id
+          phoneId = phoneRow.rows[0].id
+        } else if (process.env.TELCLOUD_DEV_FALLBACK_WORKSPACE) {
+          // Dev escape hatch: in local dev we don't have real Meta
+          // phone_number_ids yet. Setting this env var routes orphan
+          // webhooks to a known workspace so simulated tests can run.
+          // NEVER set this in production — it would let a malicious
+          // sender spoof phone_number_id and inject messages into a
+          // tenant's workspace.
+          wsId = parseInt(process.env.TELCLOUD_DEV_FALLBACK_WORKSPACE)
+          const fallbackPhone = await pool.query(
+            `SELECT id FROM phone_numbers WHERE workspace_id=$1 ORDER BY is_primary DESC, id ASC LIMIT 1`,
+            [wsId]
+          )
+          phoneId = fallbackPhone.rows[0]?.id
+          console.warn(`[webhook] Using dev fallback workspace ${wsId} (phone_number_id="${metaPhoneId || 'none'}", display="${metaDisplayPhone || 'none'}")`)
+        } else {
+          console.warn(`[webhook] No phone_numbers row matches phone_number_id="${metaPhoneId || 'none'}" or display="${metaDisplayPhone || 'none'}". Message dropped.`)
+          continue
+        }
+
+        if (!phoneId) {
+          console.warn(`[webhook] Workspace ${wsId} has no phone_numbers rows. Message dropped.`)
+          continue
+        }
         for (const msg of value.messages || []) {
           const fromPhone = '+' + msg.from
           const text = msg.text?.body || msg.button?.text || `[${msg.type} message]`

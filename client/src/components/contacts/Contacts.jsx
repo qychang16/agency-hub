@@ -995,7 +995,7 @@ function BulkStageModal({ count, onConfirm, onClose }) {
 // ─────────────────────────────────────────────────────────────
 // Main page
 // ─────────────────────────────────────────────────────────────
-export default function Contacts() {
+export default function Contacts({ onNavigate }) {
   const { token, user, hasPermission } = useAuth()
   const [contacts, setContacts] = useState([])
   const [loading, setLoading] = useState(true)
@@ -1020,12 +1020,31 @@ export default function Contacts() {
   // Card layout below 768px — table swiping is broken on mobile and there
   // are too many columns to display anyway. Same breakpoint as Settings.jsx.
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.innerWidth < 768)
+  // PDPA expiry stats — surface as a banner so Director sees lapses
+  // proactively without having to remember to visit the PDPA tab.
+  const [pdpaExpiring, setPdpaExpiring] = useState(0)
+  const [pdpaExpired, setPdpaExpired] = useState(0)
+  const [pdpaBannerDismissed, setPdpaBannerDismissed] = useState(false)
   useEffect(() => {
     const onResize = () => setIsMobile(window.innerWidth < 768)
     window.addEventListener('resize', onResize)
     return () => window.removeEventListener('resize', onResize)
   }, [])
-  useEffect(() => { if (!token) return; load(); loadViews() }, [token])
+  useEffect(() => { if (!token) return; load(); loadViews(); loadPdpaCounts() }, [token])
+
+  // Lightweight fetch — only need two numbers off the dashboard endpoint.
+  // Failures are silent because the banner is purely informational; we
+  // don't want a transient API blip to throw an error toast on a page
+  // that's primarily about contacts, not PDPA.
+  async function loadPdpaCounts() {
+    try {
+      const r = await fetch(`${API}/pdpa/dashboard`, { headers: { Authorization: 'Bearer ' + token } })
+      if (!r.ok) return
+      const d = await r.json()
+      setPdpaExpiring(d.expiring || 0)
+      setPdpaExpired(d.expired || 0)
+    } catch {}
+  }
 
   async function load() {
     try {
@@ -1362,6 +1381,59 @@ export default function Contacts() {
             </div>
           )}
         </div>
+
+        {/* PDPA compliance banners — surface lapsing/lapsed consent without
+            requiring Director to visit the PDPA tab. Two stacked banners:
+            red for already-expired (highest urgency), amber for upcoming
+            within 30 days. Both clickable to navigate to the PDPA tab.
+            Single dismiss state for the session — won't re-open until
+            page reload, since the underlying counts are unchanged. */}
+        {!pdpaBannerDismissed && (pdpaExpired > 0 || pdpaExpiring > 0) && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
+            {pdpaExpired > 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', background: '#fef2f2', border: '0.5px solid #fecaca', borderRadius: 8 }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                  <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                </svg>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#991b1b', marginBottom: 2 }}>
+                    {pdpaExpired} contact{pdpaExpired !== 1 ? 's have' : ' has'} expired PDPA consent
+                  </div>
+                  <div style={{ fontSize: 11, color: '#7f1d1d' }}>
+                    These contacts cannot receive broadcasts until consent is renewed.
+                  </div>
+                </div>
+                <button onClick={() => onNavigate && onNavigate('pdpa')}
+                  style={{ flexShrink: 0, padding: '6px 12px', fontSize: 11, fontWeight: 600, color: '#fff', background: '#dc2626', border: 'none', borderRadius: 6, cursor: 'pointer' }}>
+                  Review
+                </button>
+              </div>
+            )}
+            {pdpaExpiring > 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', background: '#fef3c7', border: '0.5px solid #fde68a', borderRadius: 8 }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                  <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                </svg>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#92400e', marginBottom: 2 }}>
+                    {pdpaExpiring} contact{pdpaExpiring !== 1 ? 's have' : ' has'} PDPA consent expiring within 30 days
+                  </div>
+                  <div style={{ fontSize: 11, color: '#78350f' }}>
+                    Reach out to renew consent before broadcasts are blocked.
+                  </div>
+                </div>
+                <button onClick={() => onNavigate && onNavigate('pdpa')}
+                  style={{ flexShrink: 0, padding: '6px 12px', fontSize: 11, fontWeight: 600, color: '#fff', background: '#d97706', border: 'none', borderRadius: 6, cursor: 'pointer' }}>
+                  Review
+                </button>
+              </div>
+            )}
+            <button onClick={() => setPdpaBannerDismissed(true)}
+              style={{ alignSelf: 'flex-end', padding: '4px 10px', fontSize: 10, color: '#9a958c', background: 'transparent', border: 'none', cursor: 'pointer', fontWeight: 500 }}>
+              Dismiss for now
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Saved views tab strip */}

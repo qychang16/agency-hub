@@ -440,7 +440,7 @@ function MainApp() {
         case 'settings': return <Settings />
         case 'pipeline': return <Pipeline />
         case 'jobs': return <JobOrders />
-        case 'contacts': return <Contacts />
+        case 'contacts': return <Contacts onNavigate={setActiveNav} />
         case 'pdpa': return <PDPA />
         default: return <ComingSoon name={activeNav} />
       }

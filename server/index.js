@@ -2805,18 +2805,32 @@ app.post('/phone-numbers', auth, requirePermission('manage_phone_numbers'), asyn
 app.patch('/phone-numbers/:id', auth, requirePermission('manage_phone_numbers'), async (req, res) => {
   try {
     const wsId = await getWorkspaceId(req.user.id)
-    const { display_name, is_primary, status, team_id, owner_user_id, project_id } = req.body
+    const { display_name, is_primary, status, team_id, owner_user_id, project_id, whatsapp_phone_id } = req.body
     if (is_primary) await pool.query('UPDATE phone_numbers SET is_primary=false WHERE workspace_id=$1', [wsId])
+    // whatsapp_phone_id is updated via COALESCE pattern but with one
+    // wrinkle: empty string from the form needs to clear the column to
+    // NULL, not store ''. We normalize before passing in.
+    const cleanedWaId = whatsapp_phone_id === undefined
+      ? null
+      : (whatsapp_phone_id?.trim() || null)
     const r = await pool.query(
       `UPDATE phone_numbers
-          SET display_name   = COALESCE($1, display_name),
-              is_primary     = COALESCE($2, is_primary),
-              status         = COALESCE($3, status),
-              team_id        = $4,
-              owner_user_id  = $5,
-              project_id     = $6
-        WHERE id=$7 AND workspace_id=$8 RETURNING *`,
-      [display_name, is_primary, status, team_id || null, owner_user_id || null, project_id || null, req.params.id, wsId]
+          SET display_name      = COALESCE($1, display_name),
+              is_primary        = COALESCE($2, is_primary),
+              status            = COALESCE($3, status),
+              team_id           = $4,
+              owner_user_id     = $5,
+              project_id        = $6,
+              whatsapp_phone_id = CASE WHEN $9::boolean THEN $7 ELSE whatsapp_phone_id END
+        WHERE id=$8 AND workspace_id=$10 RETURNING *`,
+      [
+        display_name, is_primary, status,
+        team_id || null, owner_user_id || null, project_id || null,
+        cleanedWaId,
+        req.params.id,
+        whatsapp_phone_id !== undefined,  // only update if field was sent
+        wsId
+      ]
     )
     res.json(r.rows[0])
   } catch (err) { res.status(500).json({ error: err.message }) }

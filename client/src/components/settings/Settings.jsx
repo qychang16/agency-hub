@@ -15,6 +15,7 @@ import WhatsAppAPI from './tabs/WhatsAppAPI'
 import NotificationSettings from './tabs/NotificationSettings'
 import SecuritySettings from './tabs/SecuritySettings'
 import AuditLog from './tabs/AuditLog'
+import PDPA from '../pdpa/PDPA'
 
 const ICON_PROPS = { width: 16, height: 16, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.7, strokeLinecap: 'round', strokeLinejoin: 'round' }
 
@@ -31,6 +32,7 @@ const Icons = {
   notifications: <svg {...ICON_PROPS}><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>,
   security: <svg {...ICON_PROPS}><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>,
   audit: <svg {...ICON_PROPS}><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8"/><path d="M8 11h8"/><path d="M8 15h5"/></svg>,
+  pdpa: <svg {...ICON_PROPS}><path d="M12 2L4 6v6c0 5 3.5 9 8 10 4.5-1 8-5 8-10V6l-8-4z"/><path d="M9 12l2 2 4-4"/></svg>,
 }
 
 const TABS = [
@@ -46,6 +48,7 @@ const TABS = [
   { key: 'notifications', label: 'Notifications' },
   { key: 'security', label: 'Security' },
   { key: 'audit', label: 'Audit Log' },
+  { key: 'pdpa', label: 'PDPA Compliance' },
 ]
 
 function MobileTabMenu({ tabs, activeTab, icons, onSelect }) {
@@ -119,6 +122,7 @@ export default function Settings() {
       case 'notifications': return <NotificationSettings />
       case 'security': return <SecuritySettings />
       case 'audit': return <AuditLog />
+      case 'pdpa': return <PDPA />
       default: return (
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div style={{ textAlign: 'center', color: '#9a958c' }}>

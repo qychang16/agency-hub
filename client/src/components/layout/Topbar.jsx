@@ -5,14 +5,13 @@ import { ink, accent, semantic, fonts, textSize, textWeight, space, radius, bord
 
 const NAV_ITEMS = [
   { key: 'inbox',       label: 'Inbox' },
-  { key: 'projects',    label: 'Projects' },
-  { key: 'scheduled',   label: 'Scheduled' },
+  { key: 'contacts',    label: 'Contacts' },
   { key: 'calendar',    label: 'Calendar' },
+  { key: 'scheduled',   label: 'Scheduled' },
   { key: 'broadcasts',  label: 'Broadcasts' },
+  { key: 'projects',    label: 'Projects' },
   { key: 'templates',   label: 'Templates' },
   { key: 'analytics',   label: 'Analytics' },
-  { key: 'contacts',    label: 'Contacts' },
-  { key: 'pdpa',        label: 'PDPA' },
   { key: 'settings',    label: 'Settings' },
 ]
 

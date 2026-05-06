@@ -256,7 +256,8 @@ const DEFAULT_ROLE_PERMISSIONS = {
       send_messages: true, write_notes: true, manage_conversations: true,
       manage_contacts: true, manage_project_members: true,
       manage_templates: true, manage_scheduled_messages: true,
-      manage_quick_replies: true, manage_broadcasts: true
+      manage_quick_replies: true, manage_broadcasts: true,
+      manage_pdpa: true
     }
   },
   senior_consultant: {
@@ -266,7 +267,8 @@ const DEFAULT_ROLE_PERMISSIONS = {
       send_messages: true, write_notes: true, manage_conversations: true,
       manage_contacts: true,
       manage_templates: true, manage_scheduled_messages: true,
-      manage_quick_replies: true, manage_broadcasts: true
+      manage_quick_replies: true, manage_broadcasts: true,
+      manage_pdpa: true
     }
   },
   consultant: {

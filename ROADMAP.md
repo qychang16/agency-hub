@@ -2,15 +2,15 @@
 
 Living document capturing future work, product decisions, and context for Claude sessions.
 
-Last updated: 2026-04-25 (production deploy resolved)
+Last updated: 2026-05-07 (auth + brand redesign + nav refactor)
 
 ---
 
 ## Currently Building
 
-Nothing actively in progress. Permissions system (Chunk 5) shipped end-to-end. Mobile responsiveness foundation shipped across 5 primary pages + 5 Settings sub-tabs.
+Nothing actively in progress. Recent push: Google Sign-In end-to-end (production), brand redesign across login/AdminPanel/favicon, navigation refactor with PDPA into Settings.
 
-Next likely work: Eque go-live setup on production, or ChatWindow mobile polish once live conversations exist.
+Next likely work: production polish (Pipeline page, Contacts page, mobile pass), or kick off Tech Provider Phase II for Templates submit-to-Meta flow.
 
 ---
 
@@ -20,6 +20,8 @@ Next likely work: Eque go-live setup on production, or ChatWindow mobile polish 
 - Focus: Tel-Cloud as SaaS platform for recruitment agencies
 - First tenant: Eque Singapore (dogfood, billing-exempt)
 - Target tenant size: 5-50 person agencies
+- Frontend hosted on Vercel (`agency-hub-teal.vercel.app`)
+- Backend hosted on Railway (`agency-hub-production-e5af.up.railway.app`)
 
 ### Out of scope for now
 - **Jobs / Positions** — recruiters have external ATS, Tel-Cloud is not a jobs database
@@ -37,10 +39,17 @@ Next likely work: Eque go-live setup on production, or ChatWindow mobile polish 
 - Disabled public TCP proxy after fix (was temporarily enabled for SQL access, no longer needed)
 - Verified production: health check returns 200, login enforces auth, superadmin login works
 
+### Resolved 7 May 2026
+- Frontend hosting decision: Vercel (separate from Railway) — auto-deploys from GitHub master
+- Google Sign-In integrated end-to-end (production verified)
+- Production database migration applied: chunk_22 (google_id, auth_provider columns), super_admin email renamed `superadmin@tel-cloud.com` → `quiinn@tel-cloud.sg`
+- Tel-Cloud Demo workspace created on production for dogfooding (separate from Eque tenant)
+- Brand redesign deployed: login screen, AdminPanel, favicon all use chrome rings logo + design tokens
+- Top nav restructured: 9 tabs in usage-frequency order, PDPA moved into Settings as 13th sub-tab
+
 ### Pending before Eque go-live
 - Create Eque Singapore workspace on production (UEN 202231751D) via superadmin UI
-- Add Director Quiinn account on production with secure password
-- Decide frontend hosting: separate service (Vercel/Netlify) vs backend serving `client/dist`
+- Onboard Eque director account on production with secure password
 - Configure Meta WhatsApp API credentials in agency-hub Variables tab once Meta approves
 - Apply ChatWindow mobile polish (deferred from 25 Apr session) once live conversations exist
 - Re-test end-to-end with production backend before announcing go-live
@@ -81,6 +90,15 @@ Use case: Director sends message "as" a consultant, or admin sends on behalf of 
 - Billing dashboard
 - Plan tier enforcement
 
+### In-app Password Change UI
+**Status:** No UI exists for users to change their own password.
+
+Painfully discovered during 7 May session: user has no way to change password from inside the app. Required PowerShell + bcrypt + psql recovery dance to reset. Must build:
+- Profile/settings menu with "Change password" option
+- Verify current password before allowing change
+- Enforce password strength rules (already in security_settings table)
+- Should also include "Forgot password" email-based reset flow once email infra exists
+
 ---
 
 ## Mobile Polish — Deferred Items
@@ -102,6 +120,7 @@ The "Enter to send · Shift+Enter for new line · Ctrl+K to search" hint below t
 ### Other deferred mobile items
 - **Inbox empty state** — "No conversations" alone reads as broken. Add icon + helpful copy similar to Projects / Templates empty states.
 - **Templates editor Buttons row** — 4-element inline row (type select + label + url + remove) overflows on mobile. Low priority — editing on mobile is an edge case.
+- **AdminPanel** — designed for desktop, modals and table cramp on phone. Lower priority since AdminPanel is platform-staff-only.
 
 ### Test steps when ready
 Open any conversation on phone at <400px width. Verify (1) header buttons wrap to a second row cleanly if they don't fit, (2) composer hint is hidden, (3) status pill ("24hr window open") still aligns to the right.
@@ -110,11 +129,29 @@ Open any conversation on phone at <400px width. Verify (1) header buttons wrap t
 
 ## Open Follow-ups
 
+### chunk_22 migration not embedded in runner
+chunk_22_google_auth schema (google_id, auth_provider columns + partial unique index) was applied manually via psql to both local and production DBs. NOT yet added to the migration runner in `server/index.js`. Future Railway redeploys are safe (idempotent IF NOT EXISTS guards needed if we add it). Tech debt to embed properly.
+
+### Local server env vars not persistent
+GOOGLE_CLIENT_ID must be set via `$env:` in PowerShell before each `node server/index.js` start. dotenv not installed, no `server/.env` file. Should:
+- Install `dotenv` in `server/package.json`
+- Create `server/.env` (gitignored) with `GOOGLE_CLIENT_ID` and any other secrets
+- Update server boot to load via `require('dotenv').config()`
+
+### Boot log message wrong
+Server prints `📧 Super admin login: superadmin@tel-cloud.com / admin123` on startup. Should reflect renamed super_admin (`quiinn@tel-cloud.sg`).
+
+### phone_numbers.whatsapp_phone_id needs UNIQUE+lookup index
+Pre-existing deferred item. Multi-tenant correctness blocker before second tenant goes live.
+
 ### 401 auth noise on page load
 8-16 failed requests fire on every refresh before AuthContext hydrates. Token is still valid (pages render), but wasteful and clutters console. Pre-existing, not caused by any specific feature work. Investigate which components fire fetches before token is available.
 
 ### UI permission gating — stub files
 Contacts.jsx and Broadcasts.jsx are placeholder "Coming soon" pages. When built, apply the same `hasPermission` pattern used in Chunk 5d Tier 1-5.
+
+### China connectivity — VPN proxy ghost risk
+LetsVPN uninstall left a `127.0.0.1:7890` proxy in HKCU registry that broke ALL command-line HTTPS (git, Node). Disabling via `Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet Settings" -Name ProxyEnable -Value 0` fixed it. Document this in any future "developing from China" guide. Reinstalling LetsVPN re-enables the proxy.
 
 ---
 
@@ -122,9 +159,10 @@ Contacts.jsx and Broadcasts.jsx are placeholder "Coming soon" pages. When built,
 
 ### Multi-tenancy
 - `workspace_type`: `platform` | `client` | `internal` (legacy, being phased out)
-- Tel-Cloud Platform = workspace_type `platform` (super admin's own workspace)
-- Eque Singapore = workspace_type `client`, billing_exempt=true
-- Test Agency = workspace_type `client`, billing_exempt=false (sample)
+- Tel-Cloud Sandbox = workspace_type `internal` (super admin's own workspace, slug `telcloud-main`)
+- Tel-Cloud Demo = workspace_type `internal` (production dogfooding workspace, slug `tc-demo`)
+- Eque Singapore = workspace_type `client`, billing_exempt=true (local only, not yet on production)
+- Test Agency = workspace_type `client`, billing_exempt=false (local only, sample)
 
 ### Roles (fixed list, not customizable)
 - super_admin — platform layer
@@ -146,6 +184,12 @@ Contacts.jsx and Broadcasts.jsx are placeholder "Coming soon" pages. When built,
 ### Scope (independent of permissions)
 - `workspace_wide` — sees all data in workspace
 - `project_only` — sees only data tied to their project memberships
+
+### Authentication
+- Password sign-in: bcrypt hash in `users.password_hash`, lockout after 5 failed attempts (15 min)
+- Google sign-in: domain allowlist enforced server-side (`tel-cloud.sg` only). Existing users matched by email; google_id linked on first sign-in. auth_provider tracks 'password' | 'google' | 'both'.
+- Production OAuth Client: `131482043793-jthli7dijfjlgnhf5gdaodn947i1ufn6.apps.googleusercontent.com`
+- Authorized origins: localhost:5173, Railway URL, Vercel URL, future app.tel-cloud.sg
 
 ---
 
@@ -190,3 +234,42 @@ Foundation + 5 primary pages + 5 Settings sub-tabs shipped across commits 2dd399
 Real-device QA pass completed on Android Chrome via LAN. Inbox three-pane collapse already worked correctly via `mobileView` state in App.jsx — no changes needed there.
 
 Tailwind v4 confirmed working via `@import "tailwindcss"` in `client/src/index.css`. Mobile polish strategy: add Tailwind classNames alongside existing inline styles rather than rewriting.
+
+### Auth + Brand + IA refactor (May 6-7, 2026 session)
+
+7 commits. Major shipping push covering authentication, visual identity, and information architecture.
+
+- **44af47d** Pipeline recovery (357 lines from prior uncommitted work)
+- **63ab0f7** Google Sign-In feature
+  - Migration chunk_22: `google_id` + `auth_provider` columns + partial unique index
+  - Server endpoint `POST /auth/google` with `tel-cloud.sg` domain allowlist
+  - AuthContext gains `loginWithGoogle()` method
+  - main.jsx wraps app with `GoogleOAuthProvider`
+- **748d6d7** Login screen redesign
+  - Real Tel-Cloud chrome rings logo (radial gradient SVG)
+  - Library Indigo `#2d2a7a` primary button
+  - Warm cream `ink[50]` background
+  - Satoshi display heading "Welcome back"
+  - Mobile responsive `clamp()` padding
+- **9956387** AdminPanel redesign
+  - Logo header with chrome rings
+  - Library Indigo create button
+  - Refined typography (Satoshi for headings, Inter for body)
+  - Subtle 0.5px borders, soft shadows
+  - All modals (Create/Edit/Roles/Password) updated to design tokens
+- **d49de13** + **e3f21f7** Favicon
+  - First attempt: flat circles (rejected — didn't look like the brand)
+  - Final: real chrome rings with radial gradients (matches login + AdminPanel logo)
+- **77346e8** Nav refactor + PDPA into Settings
+  - Top nav reordered to usage-frequency: Inbox · Contacts · Calendar · Scheduled · Broadcasts · Projects · Templates · Analytics · Settings
+  - PDPA removed from top nav, added as 13th sub-tab in Settings
+  - Cleaner IA matching mature SaaS patterns
+
+Production database changes (manual SQL, not yet in migration runner):
+- chunk_22 schema applied to local + Railway production
+- super_admin email renamed: `superadmin@tel-cloud.com` → `quiinn@tel-cloud.sg`
+
+Production workspace created:
+- Tel-Cloud Demo (slug: `tc-demo`, ENTERPRISE plan, billing_exempt) — for dogfooding/demos, separate from Eque tenant
+
+End state: Brand identity coherent across login → admin → favicon. Authentication has both password and Google paths. Production has Tel-Cloud Sandbox (platform admin) + Tel-Cloud Demo (operator dogfooding). Tech debt accumulated documented in Open Follow-ups.

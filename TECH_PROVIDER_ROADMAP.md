@@ -4,6 +4,7 @@ Y.E.C Consultancy / Tel-Cloud platform path to Meta WhatsApp
 Business Platform Tech Provider status.
 
 Created: 26 Apr 2026
+Last updated: 7 May 2026 (auth + brand redesign session)
 Owner: Quiinn Chang (Director, Y.E.C Consultancy)
 Target: Direct Tech Provider with Meta (not via BSP)
 Estimated total timeline: 2-3 months from start
@@ -36,8 +37,7 @@ timeline, more upfront infrastructure work.
 ### Step 1: Domain registration
 - [x] Buy tel-cloud.sg via Vodien (2 years, ~SGD $76)
       Bought: 26 Apr 2026
-- [ ] Complete SGNIC VerifiedID@SG within 21 days
-      Deadline: 17 May 2026
+- [x] Complete SGNIC VerifiedID@SG (verified May 2026)
 - [ ] Enable auto-renew in Vodien dashboard
 - [ ] Optional defensive: tel-cloud.com.sg
 
@@ -52,14 +52,11 @@ Note: tel-cloud.com is taken by US company TELCLOUD (CPaaS). Using
       (may take 24h to sync)
 
 ### Step 3: Email infrastructure
-- [ ] Set up Google Workspace for tel-cloud.sg domain
-      Plan: Business Starter ~SGD $8/user/month
-      Needed addresses:
-      - tech@tel-cloud.sg     (Meta app contact email)
-      - support@tel-cloud.sg  (client-facing)
-      - legal@tel-cloud.sg    (privacy/ToS contact)
-      - hello@tel-cloud.sg    (general inquiries)
-      - quiinn@tel-cloud.sg   (director)
+- [x] Google Workspace Business Starter set up for tel-cloud.sg
+- [x] Primary mailbox: quiinn@tel-cloud.sg
+- [x] Aliases configured: tech, support, legal, hello, noreply
+- [ ] Add demo@tel-cloud.sg alias (needed for Tel-Cloud Demo
+      workspace director account on production)
 
 ### Step 4: Legal documents
 - [ ] Privacy Policy (PDPA-compliant, mentions WhatsApp data handling)
@@ -74,13 +71,15 @@ Approach options:
 Recommendation: lawyer for first version, Termly for updates.
 
 ### Step 5: Marketing landing site
-- [ ] Buy/setup Vercel hosting (free for static)
-- [ ] 1-page site at tel-cloud.sg
+- [x] Vercel hosting platform set up (currently used for app frontend)
+- [ ] 1-page marketing site at tel-cloud.sg root
       Sections: Hero, Features, Pricing (or "Contact"), Footer
       Footer must link: Privacy Policy, ToS, Contact
 - [ ] DNS: point tel-cloud.sg from Vodien to Vercel
 - [ ] SSL certificate (Vercel auto-issues via Let's Encrypt)
-- [ ] Optional: simple "Sign in" link routing to app subdomain
+- [ ] Decide: app stays at agency-hub-teal.vercel.app or moves to
+      app.tel-cloud.sg subdomain (Google OAuth origins already
+      include https://app.tel-cloud.sg in anticipation)
 
 ---
 
@@ -108,7 +107,7 @@ Critical: do NOT reuse existing Meta apps. Create new.
 - [ ] Configure app:
       Privacy Policy URL: https://tel-cloud.sg/privacy
       Terms of Service URL: https://tel-cloud.sg/terms
-      App icon: Tel-Cloud logo
+      App icon: Tel-Cloud logo (chrome rings, already designed)
       App description: client-facing, professional
 
 App name "Tel-Cloud" and portfolio name "Y.E.C Consultancy" will be
@@ -227,16 +226,22 @@ Open questions to decide before launching to paying clients:
 ## Key contacts and resources
 
 Domain: Vodien dashboard (tel-cloud.sg, expires Apr 2028)
-Hosting: Railway (existing, agency-hub-production)
+Hosting:
+- Backend: Railway (agency-hub-production-e5af.up.railway.app)
+- Frontend: Vercel (agency-hub-teal.vercel.app)
 Code: github.com/qychang16/agency-hub
 Y.E.C UEN: 202231751D
 Meta Business Account: linked to personal Facebook with 2FA
 
 External services to set up:
-- Google Workspace (email)
-- Vercel (marketing site hosting)
-- Termly.io or lawyer (legal docs)
-- Stripe Singapore or HitPay (payments)
+- [x] Google Workspace (email)
+- [x] Vercel (frontend hosting)
+- [x] Railway (backend hosting)
+- [x] Google Cloud Console (OAuth Client ID for Sign in with Google)
+- [ ] Termly.io or lawyer (legal docs)
+- [ ] Stripe Singapore or HitPay (payments)
+- [ ] Resend or SendGrid (transactional email — needed for password
+      reset, invites, broadcast emails, 2FA codes)
 
 Meta documentation:
 - Tech Provider: developers.facebook.com/documentation/business-messaging/whatsapp/solution-providers/get-started-for-tech-providers
@@ -265,8 +270,8 @@ Total: ~2.5 months realistic, 4 months conservative.
    Mitigation: thorough first submission, professional polish,
    working Embedded Signup demo
 
-2. SGNIC VerifiedID lapse (21 days from domain purchase)
-   Mitigation: complete by 17 May 2026 latest
+2. ~~SGNIC VerifiedID lapse (21 days from domain purchase)~~
+   Resolved May 2026: VerifiedID@SG verified.
 
 3. Eque churns waiting for Tech Provider
    Mitigation: Option A transition (manual now), regular updates
@@ -281,6 +286,14 @@ Total: ~2.5 months realistic, 4 months conservative.
 6. Personal Facebook account compromise = Y.E.C compromise
    Mitigation: 2FA on (done), separate Y.E.C admin account
    (Phase 2 hardening), recovery codes printed and stored offline
+
+7. Working from China with broken VPN setup
+   Discovered May 2026: LetsVPN uninstall left registry proxy at
+   127.0.0.1:7890 that blocked all command-line HTTPS (git, Node).
+   Fix: Set-ItemProperty HKCU:\...\Internet Settings -Name ProxyEnable
+   -Value 0. Reinstalling LetsVPN re-enables it.
+   Mitigation: prefer system-level VPNs (Astrill, ExpressVPN) over
+   proxy-based (LetsVPN, Clash) for development.
 
 ---
 
@@ -395,6 +408,8 @@ What gets seeded into a new tenant's workspace on signup:
 - [ ] Reseed Eque from masters (since Eque was created before this)
 - [ ] Verify Eque now has 12 starter templates as drafts
 
+Note: superseded by v2 model. See "Internal Architecture v2" section.
+
 #### Phase I2 - Approved template locking (Week 2)
 - [ ] Add status check to `PATCH /templates/:id`: reject any body/
       header/footer/buttons edit if status='approved'
@@ -435,13 +450,22 @@ What gets seeded into a new tenant's workspace on signup:
 These are independent of the Tech Provider path but needed before
 broad customer launch.
 
-#### Phase A1 - Google OAuth login
-- [ ] Google Cloud project + OAuth consent screen for Tel-Cloud
-- [ ] `/auth/google` endpoints (initiate, callback)
-- [ ] Link Google identities to existing tenant users by email match
+#### Phase A1 - Google OAuth login (SHIPPED 7 May 2026)
+- [x] Google Cloud project + OAuth consent screen for Tel-Cloud
+- [x] `/auth/google` endpoint (server-side ID token verification with
+      domain allowlist)
+- [x] Link Google identities to existing tenant users by email match
+      (matches by email; populates google_id on first sign-in;
+      auth_provider becomes 'both')
 - [ ] Per-workspace setting: require Google login / allow password
-- [ ] "Sign in with Google" button on login page
-- [ ] Test that existing password users aren't locked out
+      (deferred — not blocking)
+- [x] "Sign in with Google" button on login page (uses
+      @react-oauth/google)
+- [x] Verified existing password users not locked out
+- [x] Production end-to-end verified: quiinn@tel-cloud.sg signed
+      in via Google, landed in AdminPanel as super_admin
+- [ ] Local dev: dotenv setup so GOOGLE_CLIENT_ID persists across
+      reboots (currently must $env: set before each server start)
 
 #### Phase A2 - Verification codes
 Scope to be defined before building. Possibilities:
@@ -450,8 +474,19 @@ Scope to be defined before building. Possibilities:
 - 2FA via email code (alternative for tenant users)
 - Password reset codes (must-have)
 
-Decision needed: which subset to ship first, and via what channel
-(email via Google Workspace SMTP? SendGrid? Postmark?)
+Decision needed: which subset to ship first, and via what channel.
+Email infrastructure decision: Resend or SendGrid (deferred).
+
+#### Phase A3 - In-app password change UI (NEW, added 7 May)
+Discovered painfully during 7 May session: no UI for users to
+change their own password. Reset required PowerShell + bcrypt +
+psql recovery dance.
+
+- [ ] Profile/settings menu with "Change password" option
+- [ ] Verify current password before allowing change
+- [ ] Enforce password strength rules (already in security_settings)
+- [ ] Forgot password email-based reset flow (depends on A2 email
+      infra)
 
 ---
 
@@ -489,15 +524,14 @@ These rules apply to every architectural decision going forward:
 These internal phases (I1-I5, A1-A2) can run in parallel with the
 external Tech Provider phases (1-5 above). However:
 
-- I1 (starter pack auto-seed) should complete before any second
-  tenant signs up, otherwise that tenant gets an empty starter pack.
+- I1 (starter pack auto-seed) is superseded by v2 architecture.
 - I2 (approved template locking) must complete before I5 (Meta
   submission), otherwise tenants could send modified content under
   an approved template name and trigger Meta violations.
 - I4 (super admin tenant view) should complete before second tenant
   signs up, otherwise support requests will be unworkable.
-- A1 (Google OAuth) can ship anytime after Phase 1 of the external
-  roadmap (after tel-cloud.sg domain and email are live).
+- A1 (Google OAuth) shipped 7 May 2026.
+- A3 (password change UI) needs to ship before customer launch.
 
 ---
 
@@ -730,9 +764,10 @@ Realistic: 4-5 weeks given other commitments and PDPA review.
 
 ### What this addendum does NOT cover
 
-Authentication enhancements (Google OAuth, verification codes,
-super admin tenant view) remain as separate workstreams from the v1
-addendum, untouched by this overhaul.
+Authentication enhancements (Google OAuth shipped 7 May 2026,
+verification codes deferred, super admin tenant view deferred,
+in-app password change UI deferred) remain as separate workstreams
+from the v1 addendum, untouched by this overhaul.
 
 The starter pack concept itself is dropped. Tenants no longer get
 auto-seeded content. Instead they browse the three surfaces on
@@ -858,25 +893,168 @@ Verified end-to-end:
   - Tap day header to add event for that specific date
   - Filter chips and month nav wrap naturally on narrow widths
 
+### 6-7 May 2026 — Auth + Brand redesign + Nav refactor + Production deployment
+
+Multi-day session, 7 commits to master + significant production changes.
+
+**Google Sign-In end-to-end (commit 63ab0f7)**
+- Migration chunk_22_google_auth: google_id (TEXT), auth_provider
+  (VARCHAR DEFAULT 'password'), partial unique index on google_id
+- Server endpoint POST /auth/google with google-auth-library.
+  OAuth2Client.verifyIdToken with audience check.
+- Domain allowlist (server-side): GOOGLE_ALLOWED_DOMAINS = ['tel-cloud.sg']
+- Behaviour: matches existing user by email, populates google_id on first
+  sign-in, sets auth_provider to 'both' if user already had password
+- AuthContext: new loginWithGoogle(idToken) function exposed
+- main.jsx: wraps App with GoogleOAuthProvider from @react-oauth/google
+- Production verified end-to-end: quiinn@tel-cloud.sg signed in, landed
+  in AdminPanel as super_admin
+
+**Login screen redesign (commit 748d6d7)**
+- Real Tel-Cloud chrome rings logo (radial gradient SVG copied from
+  Topbar)
+- Library Indigo #2d2a7a primary button (matches design tokens)
+- Warm cream ink[50] background
+- Satoshi display heading "Welcome back"
+- "Sign in with Google" button below password form (uses
+  @react-oauth/google's GoogleLogin component)
+- Mobile responsive padding via clamp()
+
+**AdminPanel redesign (commit 9956387, 355 insertions / 133 deletions)**
+- Logo header with chrome rings + "PLATFORM ADMIN / SUPER ADMIN" badge
+- Library Indigo "+ Create workspace" button
+- Refined typography (Satoshi for "Workspaces" heading, Inter for body)
+- Subtle 0.5px borders, soft shadows from design tokens
+- All four modals (Create, Edit, Roles, Password Reveal) updated
+- Filter pills use ink[900] for active state (deep ink, not navy)
+- Status badges use semantic.successSoft / dangerSoft tokens
+- Plan badges use accent.soft (light indigo)
+
+**Favicon (commits d49de13, e3f21f7)**
+- First attempt: flat circles. Rejected — looked nothing like the brand.
+- Final: real chrome rings with radial gradients at 32x32 viewBox.
+  Same SVG structure as login + AdminPanel logo, just stripped highlight
+  overlays which become invisible at favicon sizes.
+
+**Nav refactor + PDPA into Settings (commit 77346e8)**
+- Top nav reordered to usage-frequency: Inbox, Contacts, Calendar,
+  Scheduled, Broadcasts, Projects, Templates, Analytics, Settings
+- PDPA removed from top nav, added as 13th sub-tab in Settings (with
+  shield icon, visible to all users to match prior behaviour)
+- Settings.jsx: import added, icon added, TABS entry added, render case
+  added
+- App.jsx pdpa lazy import + case left in place as harmless dead code
+
+**Production database changes (manual SQL, applied during session)**
+Applied to BOTH local DB and Railway production DB:
+```sql
+ALTER TABLE users
+  ADD COLUMN google_id TEXT,
+  ADD COLUMN auth_provider VARCHAR(20) DEFAULT 'password';
+
+CREATE UNIQUE INDEX users_google_id_key
+  ON users (google_id)
+  WHERE google_id IS NOT NULL;
+
+UPDATE users
+  SET auth_provider = 'password'
+  WHERE auth_provider IS NULL;
+
+UPDATE users
+  SET email = 'quiinn@tel-cloud.sg'
+  WHERE email = 'superadmin@tel-cloud.com';
+```
+
+These changes are NOT yet embedded in the migration runner code. Tech
+debt: add chunk_22 to runner with IF NOT EXISTS guards before next major
+deploy.
+
+**Production workspace created**
+- Tel-Cloud Demo (slug `tc-demo`, ENTERPRISE plan, billing_exempt,
+  workspace_type internal) — for operator dogfooding, separate from Eque
+  tenant. Director account: demo@tel-cloud.sg (password generated and
+  saved by operator).
+
+**Vercel + Google Cloud + Railway configuration**
+- Google Cloud project "Tel-Cloud" created (project number 131482043793)
+- OAuth Client "Tel-Cloud Web" created
+  (Client ID: 131482043793-jthli7dijfjlgnhf5gdaodn947i1ufn6.apps.googleusercontent.com)
+- Authorized origins: localhost:5173, Railway URL, Vercel URL,
+  https://app.tel-cloud.sg (anticipating future move)
+- OAuth consent: External + Testing mode, with
+  quiinn@tel-cloud.sg as test user
+- Vercel env vars added: VITE_GOOGLE_CLIENT_ID, VITE_API_URL
+- Railway env var added: GOOGLE_CLIENT_ID
+- Vercel auto-deploys from GitHub master push (verified working)
+
+**China connectivity issue discovered and resolved**
+- LetsVPN uninstall left a residual proxy at 127.0.0.1:7890 in HKCU
+  registry.
+- This silently blocked ALL command-line HTTPS:
+  - googleapis.com (couldn't verify Google ID tokens locally)
+  - github.com (couldn't push)
+  - any other HTTPS endpoint from Node/git/PowerShell
+- Browser worked fine because it bypasses this registry proxy in some cases.
+- Symptom looked like firewall, antivirus, or VPN issue. Firewall rules
+  for Node didn't help. Real cause: registry proxy.
+- Fix:
+  Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet Settings" -Name ProxyEnable -Value 0
+- After fix: git push worked, googleapis.com reachable from Node, local
+  Google sign-in worked end-to-end.
+- This is now in the risk register.
+
+**Local dev quirks documented**
+- Server doesn't load env from a .env file (no dotenv installed, no
+  server/.env exists). GOOGLE_CLIENT_ID must be set via $env: in
+  PowerShell before each `node server/index.js` start. Tech debt: install
+  dotenv and create server/.env (gitignored).
+- Local Google sign-in works after registry proxy fix + env var set.
+- Local password sign-in continues to work either way.
+- Account lockout (5 failed attempts -> 15 min lockout) bit during this
+  session when the operator forgot their newly-set password. Recovery
+  required psql UPDATE on failed_login_attempts and locked_until columns.
+  This is more evidence the in-app password change UI (Phase A3) is
+  needed.
+
+**Operator email strategy**
+- quiinn@tel-cloud.sg = platform super_admin (sees AdminPanel, manages
+  tenants)
+- demo@tel-cloud.sg = director of Tel-Cloud Demo workspace (sees product
+  UI as a recruiter would)
+- quiinn@eque.com.sg = director of Eque tenant (existing, local only)
+- Plan: add demo@tel-cloud.sg as Google Workspace alias on tel-cloud.sg
+  domain so it can sign in via Google.
+
 ### Outstanding for next session
 
 Operational priorities:
-1. SGNIC VerifiedID@SG verification (deadline 20 May 2026, ~18 days).
-   Currently VerifiedID@SG-Pending. Domain registered to Pte Ltd not
-   sole prop. Quiinn amended UEN in Vodien but WHOIS sync hadn't
-   propagated. Email sent to Vodien support. Status check needed.
-2. Eque Railway production deploy (worker needs META_ACCESS_TOKEN,
+1. Eque Railway production deploy (worker needs META_ACCESS_TOKEN,
    META_PHONE_NUMBER_ID, META_API_VERSION env vars to actually fire)
-3. Marketing landing site (Vercel)
-4. Legal docs (Privacy/ToS/AUP)
-5. Y.E.C as WhatsApp sender setup
-6. New Meta App for Tech Provider
+2. Marketing landing site (Vercel) at tel-cloud.sg root (separate from
+   app at agency-hub-teal.vercel.app)
+3. Legal docs (Privacy/ToS/AUP)
+4. Y.E.C as WhatsApp sender setup
+5. New Meta App for Tech Provider
+6. Email infrastructure decision (Resend vs SendGrid) and integration
+   for password reset, invites, notifications, future 2FA codes
+7. demo@tel-cloud.sg Google Workspace alias
+
+Tech debt:
+- Embed chunk_22 in migration runner with IF NOT EXISTS guards
+- Install dotenv + server/.env for persistent local env vars
+- Update server boot log message (still says superadmin@tel-cloud.com /
+  admin123)
+- phone_numbers.whatsapp_phone_id UNIQUE+lookup index
+- In-app password change UI (Phase A3)
+- 401 auth noise on page load (8-16 failed requests pre-auth-hydrate)
 
 Product polish:
 - Pipeline page
-- Contacts page
-- PDPA page
-- Settings page
+- Contacts page (currently a stub "Coming soon")
+- Broadcasts page (currently a stub "Coming soon")
+- Settings page mobile pass on remaining tabs
+- ChatWindow mobile polish (deferred from 25 Apr)
+- Inbox empty state (deferred from 25 Apr)
 
 ### Critical architecture notes added today
 
@@ -892,3 +1070,10 @@ Product polish:
 - ASCII-only in code (PowerShell UTF-8 quirks). Lucide-style SVG
   (strokeWidth 1.3-1.7, no fill, stroke="currentColor"). Find/replace
   strings preferred over line numbers.
+- LetsVPN registry proxy ghost: when uninstalling Clash-based VPNs in
+  China, always check HKCU:\Software\Microsoft\Windows\CurrentVersion\
+  Internet Settings ProxyEnable afterward. Set to 0 if 1.
+- Production frontend hosted on Vercel (auto-deploy from GitHub master).
+  Production backend on Railway (auto-deploy from GitHub master).
+  Both configured this session. Next push to master = next production
+  deploy on both surfaces.

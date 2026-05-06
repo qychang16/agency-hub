@@ -24,23 +24,30 @@ const METHOD_OPTIONS = [
   { value: 'verbal',           label: 'Verbal (with notes)' },
 ]
 
-function StatCard({ label, value, color, bg, desc, onClick, active }) {
+function StatCard({ label, value, color, bg, desc, onClick, active, isMobile }) {
   return (
     <button onClick={onClick}
       style={{
-        textAlign: 'left', padding: 16,
+        textAlign: 'left',
+        padding: isMobile ? 12 : 16,
         background: active ? color + '18' : '#fff',
         border: `1.5px solid ${active ? color : '#dcd8d0'}`,
         borderRadius: 10, cursor: 'pointer',
-        flex: '1 1 140px', minWidth: 140,
+        // Mobile: 2 per row via calc minus the gap. Desktop: as before.
+        flex: isMobile ? '1 1 calc(50% - 5px)' : '1 1 140px',
+        minWidth: isMobile ? 0 : 140,
         transition: 'all .12s'
       }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-        <div style={{ width: 8, height: 8, borderRadius: '50%', background: color }} />
-        <span style={{ fontSize: 11, fontWeight: 600, color: color, textTransform: 'uppercase', letterSpacing: '0.4px' }}>{label}</span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+        <div style={{ width: 7, height: 7, borderRadius: '50%', background: color, flexShrink: 0 }} />
+        <span style={{ fontSize: 10, fontWeight: 600, color: color, textTransform: 'uppercase', letterSpacing: '0.4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
       </div>
-      <div style={{ fontSize: 24, fontWeight: 700, color: '#14130f', marginBottom: 2 }}>{value}</div>
-      <div style={{ fontSize: 11, color: '#9a958c', lineHeight: 1.4 }}>{desc}</div>
+      <div style={{ fontSize: isMobile ? 20 : 24, fontWeight: 700, color: '#14130f', marginBottom: isMobile ? 0 : 2 }}>{value}</div>
+      {/* Description hides on mobile — label + number is enough at a glance.
+          Desktop has room to show the helper text. */}
+      {!isMobile && (
+        <div style={{ fontSize: 11, color: '#9a958c', lineHeight: 1.4 }}>{desc}</div>
+      )}
     </button>
   )
 }
@@ -344,22 +351,22 @@ export default function PDPA() {
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 20 }}>
               <StatCard label="All Contacts" value={dashboard?.total_contacts || 0}
                 color={NAVY} bg="#f5f3ef" desc="Total in workspace"
-                onClick={() => setFilter('all')} active={filter === 'all'} />
+                onClick={() => setFilter('all')} active={filter === 'all'} isMobile={isMobile} />
               <StatCard label="Consented" value={dashboard?.consented || 0}
                 color={STATUS_CONFIG.consented.color} bg={STATUS_CONFIG.consented.bg} desc={STATUS_CONFIG.consented.desc}
-                onClick={() => setFilter('consented')} active={filter === 'consented'} />
+                onClick={() => setFilter('consented')} active={filter === 'consented'} isMobile={isMobile} />
               <StatCard label="Expiring" value={dashboard?.expiring || 0}
                 color={STATUS_CONFIG.expiring.color} bg={STATUS_CONFIG.expiring.bg} desc={STATUS_CONFIG.expiring.desc}
-                onClick={() => setFilter('expiring')} active={filter === 'expiring'} />
+                onClick={() => setFilter('expiring')} active={filter === 'expiring'} isMobile={isMobile} />
               <StatCard label="Expired" value={dashboard?.expired || 0}
                 color={STATUS_CONFIG.expired.color} bg={STATUS_CONFIG.expired.bg} desc={STATUS_CONFIG.expired.desc}
-                onClick={() => setFilter('expired')} active={filter === 'expired'} />
+                onClick={() => setFilter('expired')} active={filter === 'expired'} isMobile={isMobile} />
               <StatCard label="Withdrawn" value={dashboard?.withdrawn || 0}
                 color={STATUS_CONFIG.withdrawn.color} bg={STATUS_CONFIG.withdrawn.bg} desc={STATUS_CONFIG.withdrawn.desc}
-                onClick={() => setFilter('withdrawn')} active={filter === 'withdrawn'} />
+                onClick={() => setFilter('withdrawn')} active={filter === 'withdrawn'} isMobile={isMobile} />
               <StatCard label="Not Consented" value={dashboard?.not_consented || 0}
                 color={STATUS_CONFIG.not_consented.color} bg={STATUS_CONFIG.not_consented.bg} desc={STATUS_CONFIG.not_consented.desc}
-                onClick={() => setFilter('not_consented')} active={filter === 'not_consented'} />
+                onClick={() => setFilter('not_consented')} active={filter === 'not_consented'} isMobile={isMobile} />
             </div>
 
             {/* Search */}

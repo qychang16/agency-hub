@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { API } from '../../utils/constants'
 import { ACCENT, ACCENT_LIGHT, NAVY } from '../../utils/designTokens'
+import Button from '../ui/Button'
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 const COLOURS = [
@@ -9,22 +10,6 @@ const COLOURS = [
   '#d97706','#16a34a','#0891b2','#0f766e','#4f46e5',
   '#9333ea','#c026d3'
 ]
-
-function Btn({ onClick, children, variant = 'primary', size = 'md', disabled, style: extra }) {
-  const sizes = { sm: { padding: '5px 10px', fontSize: 11 }, md: { padding: '8px 14px', fontSize: 12 } }
-  const variants = {
-    primary: { background: ACCENT, color: '#fff', border: 'none' },
-    ghost: { background: 'transparent', color: '#6b7280', border: '0.5px solid #e5e7eb' },
-    danger: { background: '#fee2e2', color: '#dc2626', border: '0.5px solid #fca5a5' },
-    dark: { background: NAVY, color: '#fff', border: 'none' },
-  }
-  return (
-    <button onClick={!disabled ? onClick : undefined}
-      style={{ ...sizes[size], ...variants[variant], borderRadius: 8, cursor: disabled ? 'default' : 'pointer', fontWeight: 500, opacity: disabled ? 0.6 : 1, display: 'inline-flex', alignItems: 'center', gap: 6, ...extra }}>
-      {children}
-    </button>
-  )
-}
 
 function ColourPicker({ value, onChange }) {
   return (
@@ -128,10 +113,10 @@ function ProjectModal({ project, onClose, onSaved }) {
           {error && <div style={{ padding: '10px 12px', background: '#fef2f2', border: '0.5px solid #fecaca', borderRadius: 8, fontSize: 12, color: '#dc2626', marginBottom: 16 }}>! {error}</div>}
 
           <div style={{ display: 'flex', gap: 10 }}>
-            <Btn variant="ghost" onClick={onClose} style={{ flex: 1 }}>Cancel</Btn>
-            <Btn onClick={save} disabled={saving} style={{ flex: 2 }}>
+            <Button variant="secondary" onClick={onClose} style={{ flex: 1 }}>Cancel</Button>
+            <Button onClick={save} loading={saving} style={{ flex: 2 }}>
               {saving ? 'Saving...' : isEdit ? 'Save Changes' : 'Create Project'}
-            </Btn>
+            </Button>
           </div>
         </div>
       </div>
@@ -239,22 +224,22 @@ function ProjectCard({ project, onEdit, onArchive, onRestore, onDelete, onSelect
         <div className="[&>button]:min-h-[40px] md:[&>button]:min-h-0" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {!isArchived && (
             <>
-              <Btn variant="ghost" size="sm" onClick={() => onSelect(project)} style={{ flex: 1, justifyContent: 'center' }}>
+              <Button variant="secondary" size="sm" onClick={() => onSelect(project)} style={{ flex: 1, justifyContent: 'center' }}>
                 Open
-              </Btn>
+              </Button>
               {canManageProjects && (
                 <>
-                  <Btn variant="ghost" size="sm" onClick={() => setRenaming(true)} title="Rename">Rename</Btn>
-                  <Btn variant="ghost" size="sm" onClick={() => onEdit(project)} title="Edit">Edit</Btn>
-                  <Btn variant="ghost" size="sm" onClick={() => onArchive(project)} title="Archive">Archive</Btn>
+                  <Button variant="secondary" size="sm" onClick={() => setRenaming(true)} title="Rename">Rename</Button>
+                  <Button variant="secondary" size="sm" onClick={() => onEdit(project)} title="Edit">Edit</Button>
+                  <Button variant="secondary" size="sm" onClick={() => onArchive(project)} title="Archive">Archive</Button>
                 </>
               )}
             </>
           )}
           {isArchived && canManageProjects && (
             <>
-              <Btn variant="ghost" size="sm" onClick={() => onRestore(project)} style={{ flex: 1, justifyContent: 'center' }}>Restore</Btn>
-              <Btn variant="danger" size="sm" onClick={() => onDelete(project)}>Delete</Btn>
+              <Button variant="secondary" size="sm" onClick={() => onRestore(project)} style={{ flex: 1, justifyContent: 'center' }}>Restore</Button>
+              <Button variant="danger" size="sm" onClick={() => onDelete(project)}>Delete</Button>
             </>
           )}
         </div>
@@ -334,7 +319,7 @@ function MembersPanel({ project, agents, canManageMembers }) {
             </div>
           </div>
           {canManageMembers && !adding && eligibleToAdd.length > 0 && (
-            <Btn onClick={() => setAdding(true)}>+ Add member</Btn>
+            <Button onClick={() => setAdding(true)}>+ Add member</Button>
           )}
         </div>
 
@@ -353,8 +338,8 @@ function MembersPanel({ project, agents, canManageMembers }) {
                 <option value="member">Member</option>
                 <option value="lead">Lead</option>
               </select>
-              <Btn onClick={addMember}>Add</Btn>
-              <Btn variant="ghost" onClick={() => { setAdding(false); setError(''); setSelectedUserId('') }}>Cancel</Btn>
+              <Button onClick={addMember}>Add</Button>
+              <Button variant="secondary" onClick={() => { setAdding(false); setError(''); setSelectedUserId('') }}>Cancel</Button>
             </div>
             {error && <div style={{ marginTop: 8, fontSize: 11, color: '#dc2626' }}>! {error}</div>}
           </div>
@@ -410,7 +395,7 @@ function MembersPanel({ project, agents, canManageMembers }) {
                 )}
                 {/* Remove */}
                 {canManageMembers && (
-                  <Btn variant="danger" size="sm" onClick={() => removeMember(m.user_id, m.name)}>Remove</Btn>
+                  <Button variant="danger" size="sm" onClick={() => removeMember(m.user_id, m.name)}>Remove</Button>
                 )}
               </div>
             ))}
@@ -744,9 +729,9 @@ export default function Projects() {
             </div>
           </div>
           {canManageProjects && (
-            <Btn onClick={() => { setEditingProject(null); setShowModal(true) }}>
+            <Button onClick={() => { setEditingProject(null); setShowModal(true) }}>
               + New Project
-            </Btn>
+            </Button>
           )}
         </div>
 
@@ -775,7 +760,7 @@ export default function Projects() {
             style={{ padding: '7px 12px', border: `0.5px solid ${showArchived ? ACCENT : '#dcd8d0'}`, borderRadius: 6, background: showArchived ? ACCENT_LIGHT : '#fff', color: showArchived ? ACCENT : '#4a4742', fontSize: 12, cursor: 'pointer', fontWeight: showArchived ? 600 : 500 }}>
             {showArchived ? 'Hide' : 'Show'} Archived ({archived.length})
           </button>
-          <Btn variant="ghost" size="sm" onClick={load}>Refresh</Btn>
+          <Button variant="secondary" size="sm" onClick={load}>Refresh</Button>
         </div>
       </div>
 
@@ -800,7 +785,7 @@ export default function Projects() {
                 : 'Projects organise your inbox by client engagement. Ask a director to create one.'}
             </div>
             {canManageProjects && (
-              <Btn onClick={() => { setEditingProject(null); setShowModal(true) }}>+ Create First Project</Btn>
+              <Button onClick={() => { setEditingProject(null); setShowModal(true) }}>+ Create First Project</Button>
             )}
           </div>
         ) : (

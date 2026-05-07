@@ -4,6 +4,7 @@ import { useApiSave } from '../../../hooks/useApiSave'
 import { API } from '../../../utils/constants'
 import { ACCENT, ACCENT_LIGHT, ACCENT_MID, NAVY } from '../../../utils/designTokens'
 import { getRoleColor, getRoleLabel } from '../../../utils/permissions'
+import Button from '../../ui/Button'
 
 const ROLE_OPTIONS = [
   { value: 'director', label: 'Director' },
@@ -88,23 +89,6 @@ function Select({ value, onChange, options, disabled }) {
   )
 }
 
-function Btn({ onClick, children, variant = 'primary', size = 'md', disabled, style: extra }) {
-  const sizes = { sm: { padding: '5px 10px', fontSize: 11 }, md: { padding: '8px 14px', fontSize: 12 } }
-  const variants = {
-    primary: { background: ACCENT, color: '#fff', border: 'none' },
-    ghost: { background: 'transparent', color: '#6e6a63', border: '0.5px solid #dcd8d0' },
-    danger: { background: '#fee2e2', color: '#dc2626', border: '0.5px solid #fca5a5' },
-    success: { background: '#dcfce7', color: '#16a34a', border: '0.5px solid #86efac' },
-    dark: { background: NAVY, color: '#fff', border: 'none' },
-  }
-  return (
-    <button onClick={!disabled ? onClick : undefined}
-      style={{ ...sizes[size], ...variants[variant], borderRadius: 8, cursor: disabled ? 'default' : 'pointer', fontWeight: 500, opacity: disabled ? 0.6 : 1, display: 'inline-flex', alignItems: 'center', gap: 5, ...extra }}>
-      {children}
-    </button>
-  )
-}
-
 function RoleBadge({ role }) {
   const rc = getRoleColor(role)
   return (
@@ -173,7 +157,7 @@ function PermissionsModal({ agent, onClose, onSave }) {
           {perms.length} of {PERMISSIONS_LIST.length} permissions enabled
           {isCustomised && ' · Custom permissions active'}
         </div>
-        <Btn variant="ghost" size="sm" onClick={resetToRole}>↺ Reset to role defaults</Btn>
+        <Button variant="secondary" size="sm" onClick={resetToRole}>↺ Reset to role defaults</Button>
       </div>
 
       {categories.map(cat => (
@@ -220,8 +204,8 @@ function PermissionsModal({ agent, onClose, onSave }) {
       )}
 
       <div style={{ display: 'flex', gap: 10, paddingTop: 12, borderTop: '0.5px solid #f5f3ef', position: 'sticky', bottom: 0, background: '#fff' }}>
-        <Btn variant="ghost" onClick={onClose} style={{ flex: 1 }}>Cancel</Btn>
-        <Btn onClick={save} disabled={saving} style={{ flex: 2 }}>{saving ? 'Saving…' : 'Save Permissions'}</Btn>
+        <Button variant="secondary" onClick={onClose} style={{ flex: 1 }}>Cancel</Button>
+        <Button onClick={save} loading={saving} style={{ flex: 2 }}>{saving ? 'Saving...' : 'Save Permissions'}</Button>
       </div>
     </Modal>
   )
@@ -299,8 +283,8 @@ function AgentModal({ agent, teams, onClose, onSave }) {
         </div>
       )}
       <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
-        <Btn variant="ghost" onClick={onClose} style={{ flex: 1 }}>Cancel</Btn>
-        <Btn onClick={save} disabled={saving} style={{ flex: 2 }}>{saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Create Agent'}</Btn>
+        <Button variant="secondary" onClick={onClose} style={{ flex: 1 }}>Cancel</Button>
+        <Button onClick={save} loading={saving} style={{ flex: 2 }}>{saving ? 'Saving...' : isEdit ? 'Save Changes' : 'Create Agent'}</Button>
       </div>
     </Modal>
   )
@@ -353,8 +337,8 @@ function ResetPasswordModal({ agent, onClose }) {
             </div>
           )}
           <div style={{ display: 'flex', gap: 10 }}>
-            <Btn variant="ghost" onClick={onClose} style={{ flex: 1 }}>Cancel</Btn>
-            <Btn onClick={save} disabled={saving} style={{ flex: 2 }}>{saving ? 'Resetting…' : 'Reset Password'}</Btn>
+            <Button variant="secondary" onClick={onClose} style={{ flex: 1 }}>Cancel</Button>
+            <Button onClick={save} loading={saving} style={{ flex: 2 }}>{saving ? 'Resetting...' : 'Reset Password'}</Button>
           </div>
         </>
       )}
@@ -437,7 +421,7 @@ export default function Agents() {
             {activeCount} active · {onlineCount} online now · {agents.filter(a => !a.active).length} inactive
           </div>
         </div>
-        {hasPermission('manage_staff') && <Btn onClick={() => setShowAdd(true)}>+ Add Agent</Btn>}
+        {hasPermission('manage_staff') && <Button onClick={() => setShowAdd(true)}>+ Add Agent</Button>}
       </div>
 
       {/* Stats row */}
@@ -540,15 +524,15 @@ export default function Agents() {
                 {/* Actions */}
                 {hasPermission('manage_staff') && (
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                    <Btn variant="ghost" size="sm" onClick={() => setShowEdit(a)} style={{ flex: '1 1 auto' }}>Edit</Btn>
-                    <Btn variant="ghost" size="sm" onClick={() => setShowReset(a)} style={{ flex: '1 1 auto' }}>Reset PW</Btn>
+                    <Button variant="secondary" size="sm" onClick={() => setShowEdit(a)} style={{ flex: '1 1 auto' }}>Edit</Button>
+                    <Button variant="secondary" size="sm" onClick={() => setShowReset(a)} style={{ flex: '1 1 auto' }}>Reset PW</Button>
                     {a.id !== user?.id && !a.is_super_admin && (
-                      <Btn variant={a.active ? 'danger' : 'success'} size="sm" onClick={() => {
+                      <Button variant={a.active ? 'danger' : 'success'} size="sm" onClick={() => {
                         if (!confirm(`${a.active ? 'Deactivate' : 'Reactivate'} ${a.name}?`)) return
                         toggleActive(a)
                       }} style={{ flex: '1 1 auto' }}>
                         {a.active ? 'Deactivate' : 'Reactivate'}
-                      </Btn>
+                      </Button>
                     )}
                   </div>
                 )}
@@ -614,15 +598,15 @@ export default function Agents() {
                   </td>
                   <td style={{ padding: '12px 14px' }}>
                     <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                      {hasPermission('manage_staff') && <Btn variant="ghost" size="sm" onClick={() => setShowEdit(a)}>Edit</Btn>}
-                      {hasPermission('manage_staff') && <Btn variant="ghost" size="sm" onClick={() => setShowReset(a)}>Reset PW</Btn>}
+                      {hasPermission('manage_staff') && <Button variant="secondary" size="sm" onClick={() => setShowEdit(a)}>Edit</Button>}
+                      {hasPermission('manage_staff') && <Button variant="secondary" size="sm" onClick={() => setShowReset(a)}>Reset PW</Button>}
                       {hasPermission('manage_staff') && a.id !== user?.id && !a.is_super_admin && (
-                        <Btn variant={a.active ? 'danger' : 'success'} size="sm" onClick={() => {
+                        <Button variant={a.active ? 'danger' : 'success'} size="sm" onClick={() => {
                           if (!confirm(`${a.active ? 'Deactivate' : 'Reactivate'} ${a.name}?`)) return
                           toggleActive(a)
                         }}>
                           {a.active ? 'Deactivate' : 'Reactivate'}
-                        </Btn>
+                        </Button>
                       )}
                     </div>
                   </td>

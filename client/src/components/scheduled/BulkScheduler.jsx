@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext'
 import { API } from '../../utils/constants'
 import { ACCENT, ACCENT_LIGHT, NAVY } from '../../utils/designTokens'
 import { fmtSGT } from '../../utils/dates'
+import Button from '../ui/Button'
 
 function Field({ label, hint, children, required }) {
   return (
@@ -22,23 +23,6 @@ function Select({ value, onChange, options, disabled }) {
       style={{ width: '100%', padding: '9px 12px', border: '0.5px solid #dcd8d0', borderRadius: 8, fontSize: 13, outline: 'none', background: disabled ? '#faf9f7' : '#fff', color: '#14130f' }}>
       {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
     </select>
-  )
-}
-
-function Btn({ onClick, children, variant = 'primary', size = 'md', disabled, style: extra }) {
-  const sizes = { sm: { padding: '5px 10px', fontSize: 11 }, md: { padding: '9px 16px', fontSize: 13 } }
-  const variants = {
-    primary: { background: ACCENT, color: '#fff', border: 'none' },
-    ghost: { background: 'transparent', color: '#6e6a63', border: '0.5px solid #dcd8d0' },
-    dark: { background: NAVY, color: '#fff', border: 'none' },
-    success: { background: '#dcfce7', color: '#16a34a', border: '0.5px solid #86efac' },
-    danger: { background: '#fee2e2', color: '#dc2626', border: '0.5px solid #fca5a5' },
-  }
-  return (
-    <button onClick={!disabled ? onClick : undefined}
-      style={{ ...sizes[size], ...variants[variant], borderRadius: 8, cursor: disabled ? 'default' : 'pointer', fontWeight: 500, opacity: disabled ? 0.6 : 1, display: 'inline-flex', alignItems: 'center', gap: 6, ...extra }}>
-      {children}
-    </button>
   )
 }
 
@@ -383,7 +367,7 @@ export default function BulkScheduler({ onClose, onSaved }) {
                   {dragOver ? 'Drop your CSV here' : 'Drag & drop your CSV file'}
                 </div>
                 <div style={{ fontSize: 12, color: '#9a958c', marginBottom: 14 }}>or click to browse files · CSV or TXT format</div>
-                <Btn variant="ghost" size="sm" onClick={e => { e.stopPropagation(); fileRef.current?.click() }}>Browse Files</Btn>
+                <Button variant="secondary" size="sm" onClick={e => { e.stopPropagation(); fileRef.current?.click() }}>Browse Files</Button>
                 <input ref={fileRef} type="file" accept=".csv,.txt,text/csv" style={{ display: 'none' }} onChange={e => handleFile(e.target.files[0])} />
               </div>
 
@@ -396,7 +380,7 @@ export default function BulkScheduler({ onClose, onSaved }) {
                 <textarea value={csvText} onChange={e => setCsvText(e.target.value)} rows={6} placeholder={`phone,name,role,company,date,time\n+6591234001,Sarah Lim,HR Executive,ABC Pte Ltd,25 Apr,10am`}
                   style={{ width: '100%', padding: '10px 12px', border: '0.5px solid #dcd8d0', borderRadius: 8, fontSize: 11, outline: 'none', background: '#fff', color: '#4a4742', resize: 'vertical', fontFamily: 'monospace', boxSizing: 'border-box', lineHeight: 1.5 }} />
                 {csvText && (
-                  <Btn size="sm" onClick={() => processCSV(csvText)} style={{ marginTop: 8 }}>Process CSV →</Btn>
+                  <Button size="sm" onClick={() => processCSV(csvText)} style={{ marginTop: 8 }}>Process CSV →</Button>
                 )}
               </div>
 
@@ -427,7 +411,7 @@ export default function BulkScheduler({ onClose, onSaved }) {
 
               {errorCount > 0 && (
                 <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
-                  <Btn variant="ghost" size="sm" onClick={downloadErrors}>⬇ Download error rows as CSV</Btn>
+                  <Button variant="secondary" size="sm" onClick={downloadErrors}>⬇ Download error rows as CSV</Button>
                 </div>
               )}
 
@@ -549,32 +533,32 @@ export default function BulkScheduler({ onClose, onSaved }) {
           <div style={{ display: 'flex', gap: 10 }}>
             {!saved && (
               <>
-                {step > 1 && <Btn variant="ghost" onClick={() => { setStep(s => s - 1); setError('') }}>← Back</Btn>}
-                <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
+                {step > 1 && <Button variant="secondary" onClick={() => { setStep(s => s - 1); setError('') }}>← Back</Button>}
+                <Button variant="secondary" onClick={onClose}>Cancel</Button>
                 {step === 1 && (
-                  <Btn onClick={() => {
+                  <Button onClick={() => {
                     if (!selectedTemplate && channel === 'whatsapp') { setError('Please select a template'); return }
                     if (channel === 'email' && !subject.trim()) { setError('Email subject is required'); return }
                     if (!scheduledDate || !scheduledTime) { setError('Please set a schedule date and time'); return }
                     setError(''); setStep(2)
-                  }}>Next →</Btn>
+                  }}>Next →</Button>
                 )}
                 {step === 2 && (
-                  <Btn onClick={() => {
+                  <Button onClick={() => {
                     if (!csvText.trim()) { setError('Please upload or paste a CSV file'); return }
                     processCSV(csvText)
-                  }}>Process CSV →</Btn>
+                  }}>Process CSV →</Button>
                 )}
                 {step === 3 && (
-                  <Btn onClick={() => { if (validCount === 0) { setError('No valid rows to schedule'); return }; setStep(4) }}
+                  <Button onClick={() => { if (validCount === 0) { setError('No valid rows to schedule'); return }; setStep(4) }}
                     disabled={validCount === 0}>
                     Confirm {validCount} message{validCount !== 1 ? 's' : ''} →
-                  </Btn>
+                  </Button>
                 )}
                 {step === 4 && (
-                  <Btn onClick={schedule} disabled={saving || validCount === 0}>
-                    {saving ? `Scheduling ${validCount} messages…` : `📅 Schedule ${validCount} Messages`}
-                  </Btn>
+                  <Button onClick={schedule} loading={saving} disabled={validCount === 0}>
+                    {saving ? `Scheduling ${validCount} messages...` : `📅 Schedule ${validCount} Messages`}
+                  </Button>
                 )}
               </>
             )}

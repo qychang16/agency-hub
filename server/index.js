@@ -7,6 +7,7 @@ const { Pool } = require('pg')
 const bcrypt = require('bcrypt')
 const jwt = require('jsonwebtoken')
 const metaLibraryMock = require('./metaLibraryMock')
+const queue = require('./queues')
 
 const app = express()
 const httpServer = createServer(app)
@@ -6416,25 +6417,19 @@ const WORKER_INTERVAL_MS = 60 * 1000  // 60 seconds
 const WORKER_BATCH_SIZE = 20  // Max messages per poll cycle
 
 async function processScheduledMessage(msg) {
-  // Guard: only send if still pending. If another worker (or a previous poll) already
-  // grabbed this row, skip. We re-query inside a transaction to claim the message.
+  // Atomic claim via the queue abstraction. If another worker already grabbed
+  // this row, claimOne returns null and we skip. Note: side queries
+  // (reminder lookup, phone lookup, etc.) still go through the pool directly
+  // because they read auxiliary state, not queue state. Only the four queue
+  // operations (claim, claimOne, markSent, markFailed) go through the
+  // abstraction layer.
   const client = await pool.connect()
   try {
-    await client.query('BEGIN')
-
-    // Atomic claim: only proceed if still pending
-    const claimRes = await client.query(
-      `UPDATE scheduled_messages SET status = 'sending'
-       WHERE id = $1 AND status = 'pending'
-       RETURNING *`,
-      [msg.id]
-    )
-    if (claimRes.rows.length === 0) {
+    const claimed = await queue.claimOne(client, msg.id)
+    if (!claimed) {
       // Another worker beat us, or status changed - just skip
-      await client.query('COMMIT')
       return { skipped: true }
     }
-    const claimed = claimRes.rows[0]
 
     // Check if this is a reminder - if so, re-render body using current event data
     const reminderRes = await client.query(
@@ -6477,18 +6472,17 @@ async function processScheduledMessage(msg) {
       throw new Error('No recipient phone number on contact')
     }
 
-    // Commit the claim before sending - we don't want the send to hold a DB transaction
-    await client.query('COMMIT')
+    // Release the connection before the network call to Meta. We don't want
+    // to hold a DB connection during the HTTP round-trip.
+    client.release()
 
     // Send via existing helper. This may throw on Meta credential issues or API errors.
     const waMessageId = await sendWhatsAppMessage(toPhone, bodyToSend)
 
-    // Mark sent. Use a fresh client (the previous transaction has been committed).
-    await pool.query(
-      `UPDATE scheduled_messages SET status = 'sent', sent_at = NOW(), body = $1
-       WHERE id = $2`,
-      [bodyToSend, claimed.id]
-    )
+    // Mark sent via queue abstraction. Side effects (insert into messages,
+    // update conversation, mark reminder sent) stay as direct queries because
+    // they're not queue state — they're application state.
+    await queue.markSent(pool, claimed.id, bodyToSend)
 
     // Also create the actual messages table row so it appears in the conversation thread
     await pool.query(
@@ -6514,20 +6508,17 @@ async function processScheduledMessage(msg) {
 
     return { sent: true, sm_id: claimed.id, wa_id: waMessageId }
   } catch (err) {
-    // Mark as failed - try to release transaction first if still in one
-    try { await client.query('ROLLBACK') } catch {}
+    // Mark as failed via queue abstraction
     try {
-      await pool.query(
-        `UPDATE scheduled_messages SET status = 'failed', failed_at = NOW(), failed_reason = $1
-         WHERE id = $2 AND status IN ('pending', 'sending')`,
-        [err.message?.slice(0, 500) || 'unknown error', msg.id]
-      )
+      await queue.markFailed(pool, msg.id, err.message)
     } catch (markErr) {
       console.error(`[worker] Failed to mark sm ${msg.id} as failed:`, markErr.message)
     }
     return { failed: true, sm_id: msg.id, error: err.message }
   } finally {
-    client.release()
+    // Defensive: if we already released above (success path), this is a no-op
+    // because pg-pool's release is idempotent on a released client.
+    try { client.release() } catch {}
   }
 }
 

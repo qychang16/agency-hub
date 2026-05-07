@@ -4,6 +4,7 @@ import { useApiSave } from '../../../hooks/useApiSave'
 import { API } from '../../../utils/constants'
 import { ACCENT, ACCENT_LIGHT, NAVY } from '../../../utils/designTokens'
 import { getRoleColor, getRoleLabel } from '../../../utils/permissions'
+import Button from '../../ui/Button'
 
 const TEAM_COLORS = [
   '#2563eb', '#7c3aed', '#059669', '#d97706',
@@ -42,21 +43,6 @@ function Select({ value, onChange, options }) {
       style={{ width: '100%', padding: '9px 12px', border: '0.5px solid #dcd8d0', borderRadius: 8, fontSize: 13, outline: 'none', background: '#fff', color: '#14130f' }}>
       {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
     </select>
-  )
-}
-
-function Btn({ onClick, children, variant = 'primary', size = 'md', disabled, style: extra }) {
-  const sizes = { sm: { padding: '5px 10px', fontSize: 11 }, md: { padding: '8px 14px', fontSize: 12 } }
-  const variants = {
-    primary: { background: ACCENT, color: '#fff', border: 'none' },
-    ghost: { background: 'transparent', color: '#6e6a63', border: '0.5px solid #dcd8d0' },
-    danger: { background: '#fee2e2', color: '#dc2626', border: '0.5px solid #fca5a5' },
-  }
-  return (
-    <button onClick={!disabled ? onClick : undefined}
-      style={{ ...sizes[size], ...variants[variant], borderRadius: 8, cursor: disabled ? 'default' : 'pointer', fontWeight: 500, opacity: disabled ? 0.6 : 1, display: 'inline-flex', alignItems: 'center', gap: 5, ...extra }}>
-      {children}
-    </button>
   )
 }
 
@@ -234,8 +220,8 @@ function TeamModal({ team, agents, onClose, onSave }) {
       )}
 
       <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
-        <Btn variant="ghost" onClick={onClose} style={{ flex: 1 }}>Cancel</Btn>
-        <Btn onClick={save} disabled={saving} style={{ flex: 2 }}>{saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Create Team'}</Btn>
+        <Button variant="secondary" onClick={onClose} style={{ flex: 1 }}>Cancel</Button>
+        <Button onClick={save} loading={saving} style={{ flex: 2 }}>{saving ? 'Saving...' : isEdit ? 'Save Changes' : 'Create Team'}</Button>
       </div>
     </Modal>
   )
@@ -293,7 +279,7 @@ export default function Teams() {
             {teams.length} team{teams.length !== 1 ? 's' : ''} · {totalAgentsInTeams} agent{totalAgentsInTeams !== 1 ? 's' : ''} assigned
           </div>
         </div>
-        {hasPermission('manage_teams') && <Btn onClick={() => setShowAdd(true)}>+ Create Team</Btn>}
+        {hasPermission('manage_teams') && <Button onClick={() => setShowAdd(true)}>+ Create Team</Button>}
       </div>
 
       {/* Info banner */}
@@ -317,7 +303,7 @@ export default function Teams() {
           <div style={{ fontSize: 12, color: '#9a958c', marginBottom: 20, maxWidth: 320, margin: '0 auto 20px' }}>
             Create teams to organise your agents and enable smart conversation routing
           </div>
-          {hasPermission('manage_teams') && <Btn onClick={() => setShowAdd(true)}>+ Create First Team</Btn>}
+          {hasPermission('manage_teams') && <Button onClick={() => setShowAdd(true)}>+ Create First Team</Button>}
         </div>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 14 }}>
@@ -347,8 +333,8 @@ export default function Teams() {
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: 5 }}>
-                    {hasPermission('manage_teams') && <Btn variant="ghost" size="sm" onClick={() => setShowEdit(t)}>Edit</Btn>}
-                    {hasPermission('manage_teams') && <Btn variant="danger" size="sm" onClick={() => deleteTeam(t)}>Delete</Btn>}
+                    {hasPermission('manage_teams') && <Button variant="secondary" size="sm" onClick={() => setShowEdit(t)}>Edit</Button>}
+                    {hasPermission('manage_teams') && <Button variant="danger" size="sm" onClick={() => deleteTeam(t)}>Delete</Button>}
                   </div>
                 </div>
 

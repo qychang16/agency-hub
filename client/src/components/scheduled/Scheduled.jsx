@@ -5,22 +5,7 @@ import { ACCENT, ACCENT_LIGHT, NAVY } from '../../utils/designTokens'
 import { fmtSGT, isFuture, minutesUntil } from '../../utils/dates'
 import ScheduledComposer from './ScheduledComposer'
 import BulkScheduler from './BulkScheduler'
-
-function Btn({ onClick, children, variant = 'primary', size = 'md', disabled, style: extra }) {
-  const sizes = { sm: { padding: '5px 10px', fontSize: 11 }, md: { padding: '8px 14px', fontSize: 12 } }
-  const variants = {
-    primary: { background: ACCENT, color: '#fff', border: 'none' },
-    ghost: { background: 'transparent', color: '#6e6a63', border: '0.5px solid #dcd8d0' },
-    danger: { background: '#fee2e2', color: '#dc2626', border: '0.5px solid #fca5a5' },
-    dark: { background: NAVY, color: '#fff', border: 'none' },
-  }
-  return (
-    <button onClick={!disabled ? onClick : undefined}
-      style={{ ...sizes[size], ...variants[variant], borderRadius: 8, cursor: disabled ? 'default' : 'pointer', fontWeight: 500, opacity: disabled ? 0.6 : 1, display: 'inline-flex', alignItems: 'center', gap: 6, ...extra }}>
-      {children}
-    </button>
-  )
-}
+import Button from '../ui/Button'
 
 function StatusBadge({ status }) {
   const styles = {
@@ -128,14 +113,14 @@ export default function Scheduled() {
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             {hasPermission('manage_scheduled_messages') && (
-              <Btn variant="ghost" onClick={() => setShowBulk(true)}>
+              <Button variant="secondary" onClick={() => setShowBulk(true)}>
                 Bulk CSV
-              </Btn>
+              </Button>
             )}
             {hasPermission('manage_scheduled_messages') && (
-              <Btn onClick={() => setShowComposer(true)}>
+              <Button onClick={() => setShowComposer(true)}>
                 + Schedule Message
-              </Btn>
+              </Button>
             )}
           </div>
         </div>
@@ -193,7 +178,7 @@ export default function Scheduled() {
             style={{ padding: '6px 10px 6px 26px', border: '0.5px solid #dcd8d0', borderRadius: 8, fontSize: 12, outline: 'none', background: '#faf9f7', color: '#14130f', boxSizing: 'border-box' }} />
         </div>
 
-        <Btn variant="ghost" size="sm" onClick={load}>↻ Refresh</Btn>
+        <Button variant="secondary" size="sm" onClick={load}>↻ Refresh</Button>
       </div>
 
       {/* Message list */}
@@ -216,8 +201,8 @@ export default function Scheduled() {
             </div>
             {activeTab === 'pending' && (
               <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
-                <Btn onClick={() => setShowComposer(true)}>+ Schedule Single Message</Btn>
-                <Btn variant="ghost" onClick={() => setShowBulk(true)}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 5, verticalAlign: '-2px', display: 'inline' }}><path d="M3 3v18h18"/><path d="M7 14l4-4 4 4 5-5"/></svg>Bulk CSV Upload</Btn>
+                <Button onClick={() => setShowComposer(true)}>+ Schedule Single Message</Button>
+                <Button variant="secondary" onClick={() => setShowBulk(true)}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 5, verticalAlign: '-2px', display: 'inline' }}><path d="M3 3v18h18"/><path d="M7 14l4-4 4 4 5-5"/></svg>Bulk CSV Upload</Button>
               </div>
             )}
           </div>
@@ -299,14 +284,14 @@ export default function Scheduled() {
                     {hasPermission('manage_scheduled_messages') && (
                     <div style={{ display: 'flex', gap: 6, flexShrink: 0, alignItems: 'center' }}>
                       {msg.status === 'pending' && (
-                        <Btn variant="danger" size="sm" disabled={cancelling === msg.id} onClick={e => { e.stopPropagation(); cancel(msg.id) }}>
-                          {cancelling === msg.id ? 'Cancelling…' : 'Cancel'}
-                        </Btn>
+                        <Button variant="danger" size="sm" loading={cancelling === msg.id} onClick={e => { e.stopPropagation(); cancel(msg.id) }}>
+                          {cancelling === msg.id ? 'Cancelling...' : 'Cancel'}
+                        </Button>
                       )}
                       {msg.status === 'failed' && (
-                        <Btn variant="ghost" size="sm" onClick={e => { e.stopPropagation(); /* retry */ }}>
+                        <Button variant="secondary" size="sm" onClick={e => { e.stopPropagation(); /* retry */ }}>
                           ↻ Retry
-                        </Btn>
+                        </Button>
                       )}
                       <span style={{ fontSize: 12, color: '#9a958c' }}>{isExpanded ? '▲' : '▼'}</span>
                     </div>

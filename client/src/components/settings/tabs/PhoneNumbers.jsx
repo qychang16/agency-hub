@@ -3,6 +3,7 @@ import { useAuth } from '../../../context/AuthContext'
 import { useApiSave } from '../../../hooks/useApiSave'
 import { API } from '../../../utils/constants'
 import { ACCENT, ACCENT_LIGHT, ACCENT_MID, NAVY } from '../../../utils/designTokens'
+import Button from '../../ui/Button'
 
 function Field({ label, hint, children }) {
   return (
@@ -33,22 +34,6 @@ function Toggle({ value, onChange, label, hint }) {
         <div style={{ width: 18, height: 18, borderRadius: '50%', background: '#fff', position: 'absolute', top: 3, left: value ? 23 : 3, transition: 'left .2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
       </button>
     </div>
-  )
-}
-
-function Btn({ onClick, children, variant = 'primary', size = 'md', disabled }) {
-  const sizes = { sm: { padding: '5px 12px', fontSize: 11 }, md: { padding: '8px 16px', fontSize: 12 }, lg: { padding: '10px 20px', fontSize: 13 } }
-  const variants = {
-    primary: { background: ACCENT, color: '#fff', border: 'none' },
-    ghost: { background: 'transparent', color: '#6e6a63', border: '0.5px solid #dcd8d0' },
-    danger: { background: '#fee2e2', color: '#dc2626', border: '0.5px solid #fca5a5' },
-    dark: { background: NAVY, color: '#fff', border: 'none' },
-  }
-  return (
-    <button onClick={!disabled ? onClick : undefined} disabled={disabled}
-      style={{ ...sizes[size], ...variants[variant], borderRadius: 8, cursor: disabled ? 'default' : 'pointer', fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: 6, opacity: disabled ? 0.6 : 1, transition: 'opacity .15s' }}>
-      {children}
-    </button>
   )
 }
 
@@ -156,7 +141,7 @@ export default function PhoneNumbers() {
           <div style={{ fontSize: 15, fontWeight: 600, color: '#14130f' }}>Phone Numbers</div>
           <div style={{ fontSize: 12, color: '#9a958c', marginTop: 3 }}>Manage WhatsApp numbers connected to your workspace. No limit on numbers.</div>
         </div>
-        {hasPermission('manage_phone_numbers') && <Btn onClick={() => { clearError(); setForm({ number: '', display_name: '', whatsapp_phone_id: '', is_primary: false, owner_user_id: '', project_id: '' }); setShowAdd(true) }}>+ Add Number</Btn>}
+        {hasPermission('manage_phone_numbers') && <Button onClick={() => { clearError(); setForm({ number: '', display_name: '', whatsapp_phone_id: '', is_primary: false, owner_user_id: '', project_id: '' }); setShowAdd(true) }}>+ Add Number</Button>}
       </div>
 
       {/* Info banner */}
@@ -192,7 +177,7 @@ export default function PhoneNumbers() {
             <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#9a958c" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: 12 }}><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M12 18h.01"/></svg>
             <div style={{ fontSize: 13, fontWeight: 500, color: '#6e6a63', marginBottom: 4 }}>No phone numbers added yet</div>
             <div style={{ fontSize: 12, color: '#9a958c', marginBottom: 16 }}>Add your WhatsApp Business number to start receiving messages</div>
-            {hasPermission('manage_phone_numbers') && <Btn onClick={() => { clearError(); setShowAdd(true) }}>+ Add First Number</Btn>}
+            {hasPermission('manage_phone_numbers') && <Button onClick={() => { clearError(); setShowAdd(true) }}>+ Add First Number</Button>}
           </div>
         </Card>
       ) : (
@@ -249,15 +234,15 @@ export default function PhoneNumbers() {
               {hasPermission('manage_phone_numbers') && (
               <div className="phone-number-card-actions" style={{ display: 'flex', gap: 6, flexShrink: 0, flexWrap: 'wrap' }}>
                 {!n.is_primary && (
-                  <Btn variant="dark" size="sm" onClick={() => setPrimary(n.id)}>Set Primary</Btn>
+                  <Button variant="primary" size="sm" onClick={() => setPrimary(n.id)}>Set Primary</Button>
                 )}
-                <Btn variant="ghost" size="sm" onClick={() => {
+                <Button variant="secondary" size="sm" onClick={() => {
                   clearError()
                   setShowEdit(n)
                   setForm({ number: n.number, display_name: n.display_name || '', whatsapp_phone_id: n.whatsapp_phone_id || '', is_primary: n.is_primary, owner_user_id: n.owner_user_id || '', project_id: n.project_id || '' })
-                }}>Edit</Btn>
+                }}>Edit</Button>
                 {!n.is_primary && (
-                  <Btn variant="danger" size="sm" onClick={() => remove(n.id)}>Remove</Btn>
+                  <Button variant="danger" size="sm" onClick={() => remove(n.id)}>Remove</Button>
                 )}
               </div>
               )}
@@ -338,8 +323,8 @@ export default function PhoneNumbers() {
           )}
 
           <div style={{ display: 'flex', gap: 10 }}>
-            <Btn variant="ghost" onClick={() => { clearError(); setShowAdd(false); setShowEdit(null) }} style={{ flex: 1 }}>Cancel</Btn>
-            <Btn onClick={save} disabled={saving} style={{ flex: 2 }}>{saving ? 'Saving...' : (showEdit ? 'Save Changes' : 'Add Number')}</Btn>
+            <Button variant="secondary" onClick={() => { clearError(); setShowAdd(false); setShowEdit(null) }} style={{ flex: 1 }}>Cancel</Button>
+            <Button onClick={save} loading={saving} style={{ flex: 2 }}>{saving ? 'Saving...' : (showEdit ? 'Save Changes' : 'Add Number')}</Button>
           </div>
         </Modal>
       )}

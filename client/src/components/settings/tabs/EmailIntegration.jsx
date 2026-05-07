@@ -3,6 +3,7 @@ import { useAuth } from '../../../context/AuthContext'
 import { useApiSave } from '../../../hooks/useApiSave'
 import { API } from '../../../utils/constants'
 import { ACCENT, ACCENT_LIGHT, NAVY } from '../../../utils/designTokens'
+import Button from '../../ui/Button'
 
 function Field({ label, hint, children }) {
   return (
@@ -35,21 +36,6 @@ function CardHeader({ title, subtitle }) {
       <div style={{ fontSize: 12, fontWeight: 600, color: '#4a4742' }}>{title}</div>
       {subtitle && <div style={{ fontSize: 11, color: '#9a958c', marginTop: 2 }}>{subtitle}</div>}
     </div>
-  )
-}
-
-function Btn({ onClick, children, variant = 'primary', size = 'md', disabled }) {
-  const sizes = { sm: { padding: '5px 12px', fontSize: 11 }, md: { padding: '8px 16px', fontSize: 12 } }
-  const variants = {
-    primary: { background: ACCENT, color: '#fff', border: 'none' },
-    ghost: { background: 'transparent', color: '#6e6a63', border: '0.5px solid #dcd8d0' },
-    danger: { background: '#fee2e2', color: '#dc2626', border: '0.5px solid #fca5a5' },
-  }
-  return (
-    <button onClick={!disabled ? onClick : undefined}
-      style={{ ...sizes[size], ...variants[variant], borderRadius: 8, cursor: disabled ? 'default' : 'pointer', fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: 6, opacity: disabled ? 0.6 : 1 }}>
-      {children}
-    </button>
   )
 }
 
@@ -170,10 +156,10 @@ export default function EmailIntegration() {
                 </div>
               </div>
               {!connected && (
-                <Btn size="sm" onClick={connectOutlook}>
+                <Button size="sm" onClick={connectOutlook}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
                   Connect Outlook
-                </Btn>
+                </Button>
               )}
             </div>
             <div style={{ background: ACCENT_LIGHT, border: '0.5px solid #dcd8d0', borderRadius: 8, padding: '10px 12px', fontSize: 11, color: '#2d2a7a', lineHeight: 1.6 }}>
@@ -278,7 +264,7 @@ export default function EmailIntegration() {
       {hasPermission('manage_workspace_settings') && (
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
           {saved && <div style={{ fontSize: 12, color: '#16a34a', display: 'flex', alignItems: 'center', gap: 5 }}>✓ Email settings saved</div>}
-          <Btn onClick={save} disabled={saving}>{saving ? 'Saving…' : 'Save Email Settings'}</Btn>
+          <Button onClick={save} loading={saving}>{saving ? 'Saving...' : 'Save Email Settings'}</Button>
         </div>
       )}
     </div>

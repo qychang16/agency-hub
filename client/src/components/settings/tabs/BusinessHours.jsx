@@ -3,6 +3,7 @@ import { useAuth } from '../../../context/AuthContext'
 import { useApiSave } from '../../../hooks/useApiSave'
 import { API } from '../../../utils/constants'
 import { ACCENT, ACCENT_LIGHT } from '../../../utils/designTokens'
+import Button from '../../ui/Button'
 
 const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 
@@ -14,21 +15,6 @@ const QUICK_PRESETS = [
   { label: '10am – 7pm', open: '10:00', close: '19:00' },
   { label: '24 hours', open: '00:00', close: '23:59' },
 ]
-
-function Btn({ onClick, children, variant = 'primary', size = 'md', disabled, style: extra }) {
-  const sizes = { sm: { padding: '5px 10px', fontSize: 11 }, md: { padding: '8px 14px', fontSize: 12 } }
-  const variants = {
-    primary: { background: ACCENT, color: '#fff', border: 'none' },
-    ghost: { background: 'transparent', color: '#6e6a63', border: '0.5px solid #dcd8d0' },
-    light: { background: ACCENT_LIGHT, color: ACCENT, border: `0.5px solid ${ACCENT}30` },
-  }
-  return (
-    <button onClick={!disabled ? onClick : undefined}
-      style={{ ...sizes[size], ...variants[variant], borderRadius: 8, cursor: disabled ? 'default' : 'pointer', fontWeight: 500, opacity: disabled ? 0.6 : 1, display: 'inline-flex', alignItems: 'center', gap: 5, ...extra }}>
-      {children}
-    </button>
-  )
-}
 
 function Toggle({ value, onChange }) {
   return (
@@ -308,7 +294,7 @@ export default function BusinessHours() {
             ✓ Business hours saved
           </div>
         )}
-        <Btn onClick={save} disabled={saving}>{saving ? 'Saving…' : 'Save Business Hours'}</Btn>
+        <Button onClick={save} loading={saving}>{saving ? 'Saving...' : 'Save Business Hours'}</Button>
       </div>
     </div>
   )

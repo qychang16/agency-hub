@@ -4,6 +4,7 @@ import { useApiSave } from '../../../hooks/useApiSave'
 import { useWorkspace } from '../../../context/WorkspaceContext'
 import { API } from '../../../utils/constants'
 import { ACCENT, ACCENT_LIGHT, NAVY } from '../../../utils/designTokens'
+import Button from '../../ui/Button'
 
 function Field({ label, hint, children }) {
   return (
@@ -45,19 +46,6 @@ function CardHeader({ title, subtitle }) {
       <div style={{ fontSize: 12, fontWeight: 600, color: '#4a4742' }}>{title}</div>
       {subtitle && <div style={{ fontSize: 11, color: '#9a958c', marginTop: 2 }}>{subtitle}</div>}
     </div>
-  )
-}
-
-function Btn({ onClick, children, variant = 'primary', disabled }) {
-  const variants = {
-    primary: { background: ACCENT, color: '#fff', border: 'none' },
-    ghost: { background: 'transparent', color: '#6e6a63', border: '0.5px solid #dcd8d0' },
-  }
-  return (
-    <button onClick={!disabled ? onClick : undefined}
-      style={{ padding: '8px 16px', fontSize: 12, ...variants[variant], borderRadius: 8, cursor: disabled ? 'default' : 'pointer', fontWeight: 500, opacity: disabled ? 0.6 : 1, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-      {children}
-    </button>
   )
 }
 
@@ -193,7 +181,7 @@ export default function AgencyProfile() {
                 <div style={{ fontSize: 12, fontWeight: 500, color: '#14130f', marginBottom: 4 }}>Upload your agency logo</div>
                 <div style={{ fontSize: 11, color: '#9a958c', marginBottom: 10, lineHeight: 1.5 }}>PNG or JPG recommended. Min 200×200px. Max 2MB. Square format works best.</div>
                 <div style={{ display: 'flex', gap: 8 }}>
-                  <Btn variant="ghost" onClick={() => alert('File upload will be available once storage is configured.')}>Upload Logo</Btn>
+                  <Button variant="secondary" onClick={() => alert('File upload will be available once storage is configured.')}>Upload Logo</Button>
                 </div>
               </div>
             </div>
@@ -207,7 +195,7 @@ export default function AgencyProfile() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <input value={workspace?.id || 'Loading…'} readOnly
                 style={{ flex: 1, padding: '8px 12px', border: '0.5px solid #dcd8d0', borderRadius: 8, fontSize: 12, background: '#faf9f7', color: '#9a958c', outline: 'none', fontFamily: 'monospace' }} />
-              <Btn variant="ghost" onClick={() => { navigator.clipboard.writeText(workspace?.id || ''); alert('Workspace ID copied') }}>Copy</Btn>
+              <Button variant="secondary" onClick={() => { navigator.clipboard.writeText(workspace?.id || ''); alert('Workspace ID copied') }}>Copy</Button>
             </div>
           </Card>
         </div>
@@ -221,7 +209,7 @@ export default function AgencyProfile() {
 
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
         {saved && <div style={{ fontSize: 12, color: '#16a34a', display: 'flex', alignItems: 'center', gap: 5 }}>✓ Profile saved successfully</div>}
-        <Btn onClick={save} disabled={saving}>{saving ? 'Saving…' : 'Save Profile'}</Btn>
+        <Button onClick={save} loading={saving}>{saving ? 'Saving...' : 'Save Profile'}</Button>
       </div>
     </div>
   )

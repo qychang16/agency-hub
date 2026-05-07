@@ -3,6 +3,7 @@ import { useAuth } from '../../../context/AuthContext'
 import { useApiSave } from '../../../hooks/useApiSave'
 import { API } from '../../../utils/constants'
 import { ACCENT, ACCENT_LIGHT, NAVY } from '../../../utils/designTokens'
+import Button from '../../ui/Button'
 
 const ROLE_OPTIONS = [
   { value: 'director', label: 'Director' },
@@ -69,21 +70,6 @@ function CardHeader({ title, subtitle, action }) {
       </div>
       {action}
     </div>
-  )
-}
-
-function Btn({ onClick, children, variant = 'primary', size = 'md', disabled, style: extra }) {
-  const sizes = { sm: { padding: '5px 10px', fontSize: 11 }, md: { padding: '8px 14px', fontSize: 12 } }
-  const variants = {
-    primary: { background: ACCENT, color: '#fff', border: 'none' },
-    ghost: { background: 'transparent', color: '#6e6a63', border: '0.5px solid #dcd8d0' },
-    dark: { background: NAVY, color: '#fff', border: 'none' },
-  }
-  return (
-    <button onClick={!disabled ? onClick : undefined}
-      style={{ ...sizes[size], ...variants[variant], borderRadius: 8, cursor: disabled ? 'default' : 'pointer', fontWeight: 500, opacity: disabled ? 0.6 : 1, display: 'inline-flex', alignItems: 'center', gap: 5, ...extra }}>
-      {children}
-    </button>
   )
 }
 
@@ -428,7 +414,7 @@ export default function Routing() {
       {/* Save */}
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 4 }}>
         {saved && <div style={{ fontSize: 12, color: '#16a34a', display: 'flex', alignItems: 'center', gap: 5 }}>✓ Routing rules saved</div>}
-        <Btn onClick={save} disabled={saving}>{saving ? 'Saving…' : 'Save Routing Rules'}</Btn>
+        <Button onClick={save} loading={saving}>{saving ? 'Saving...' : 'Save Routing Rules'}</Button>
       </div>
     </div>
   )

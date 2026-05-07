@@ -3,20 +3,7 @@ import { useAuth } from '../../../context/AuthContext'
 import { API } from '../../../utils/constants'
 import { ACCENT } from '../../../utils/designTokens'
 import { fmtSGT } from '../../../utils/dates'
-
-function Btn({ onClick, children, variant = 'primary', size = 'md', disabled }) {
-  const sizes = { sm: { padding: '5px 12px', fontSize: 11 }, md: { padding: '8px 16px', fontSize: 12 } }
-  const variants = {
-    primary: { background: ACCENT, color: '#fff', border: 'none' },
-    ghost: { background: 'transparent', color: '#6e6a63', border: '0.5px solid #dcd8d0' },
-  }
-  return (
-    <button onClick={!disabled ? onClick : undefined}
-      style={{ ...sizes[size], ...variants[variant], borderRadius: 8, cursor: disabled ? 'default' : 'pointer', fontWeight: 500, opacity: disabled ? 0.6 : 1, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-      {children}
-    </button>
-  )
-}
+import Button from '../../ui/Button'
 
 const ACTION_META = {
   login: { label: 'Login', bg: '#eeedf5', color: '#2d2a7a', icon: '🔑' },
@@ -112,8 +99,8 @@ export default function AuditLog() {
           <div style={{ fontSize: 12, color: '#9a958c', marginTop: 3 }}>Complete record of all actions. Showing last 500 entries. Export CSV for full history.</div>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <Btn variant="ghost" onClick={load}>↻ Refresh</Btn>
-          <Btn variant="ghost" onClick={exportCSV}>⬇ Export CSV</Btn>
+          <Button variant="secondary" onClick={load}>↻ Refresh</Button>
+          <Button variant="secondary" onClick={exportCSV}>⬇ Export CSV</Button>
         </div>
       </div>
 

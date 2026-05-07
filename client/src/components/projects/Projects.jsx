@@ -64,7 +64,7 @@ function ProjectModal({ project, onClose, onSaved }) {
             <div style={{ fontSize: 14, fontWeight: 600, color: '#111827' }}>{isEdit ? 'Edit Project' : 'New Project'}</div>
             <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>Projects organise your inbox by client engagement</div>
           </div>
-          <button onClick={onClose} style={{ width: 28, height: 28, borderRadius: 7, border: '0.5px solid #e5e7eb', background: '#f9fafb', cursor: 'pointer', fontSize: 14, color: '#6b7280', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>X</button>
+          <button onClick={onClose} style={{ width: 28, height: 28, borderRadius: 7, border: '0.5px solid #e5e7eb', background: '#f9fafb', cursor: 'pointer', fontSize: 14, color: '#6b7280', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
         </div>
         <div style={{ padding: 24 }}>
           {/* Preview */}

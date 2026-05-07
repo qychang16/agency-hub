@@ -500,7 +500,7 @@ function TemplateEditor({ template, onClose, onSaved }) {
                     style={{ flex: 1, padding: '8px 10px', border: '0.5px solid #dcd8d0', borderRadius: 7, fontSize: 12, outline: 'none', background: '#fff', color: '#14130f' }} />
                 )}
                 <button onClick={() => removeButton(i)}
-                  style={{ width: 28, height: 28, borderRadius: 7, border: '0.5px solid #fca5a5', background: '#fee2e2', cursor: 'pointer', color: '#dc2626', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 16, lineHeight: 1 }}>x</button>
+                  style={{ width: 28, height: 28, borderRadius: 7, border: '0.5px solid #fca5a5', background: '#fee2e2', cursor: 'pointer', color: '#dc2626', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 16, lineHeight: 1 }}>✕</button>
               </div>
             ))}
           </div>

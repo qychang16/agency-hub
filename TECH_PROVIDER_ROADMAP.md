@@ -4,7 +4,7 @@ Y.E.C Consultancy / Tel-Cloud platform path to Meta WhatsApp
 Business Platform Tech Provider status.
 
 Created: 26 Apr 2026
-Last updated: 7 May 2026 (auth + brand redesign session)
+Last updated: 8 May 2026 (engineering hardening session — dotenv, queue abstraction, AWS roadmap, Btn migration, mobile grids)
 Owner: Quiinn Chang (Director, Y.E.C Consultancy)
 Target: Direct Tech Provider with Meta (not via BSP)
 Estimated total timeline: 2-3 months from start
@@ -1028,25 +1028,29 @@ deploy.
 ### Outstanding for next session
 
 Operational priorities:
-1. Eque Railway production deploy (worker needs META_ACCESS_TOKEN,
-   META_PHONE_NUMBER_ID, META_API_VERSION env vars to actually fire)
-2. Marketing landing site (Vercel) at tel-cloud.sg root (separate from
-   app at agency-hub-teal.vercel.app)
-3. Legal docs (Privacy/ToS/AUP)
-4. Y.E.C as WhatsApp sender setup
-5. New Meta App for Tech Provider
-6. Email infrastructure decision (Resend vs SendGrid) and integration
-   for password reset, invites, notifications, future 2FA codes
+1. AWS Activate Portfolio application (submit before any AWS resource creation; 5-10 business day approval cycle)
+2. Marketing landing site (Vercel or S3+CloudFront) at tel-cloud.sg root (separate from app at agency-hub-teal.vercel.app)
+3. Legal docs (Privacy/ToS/AUP) - PDPA-compliant, Singapore governing law
+4. Y.E.C as WhatsApp sender setup (register Y.E.C's own number via Self Sign-up)
+5. New Meta App for Tech Provider (do NOT reuse existing apps)
+6. Email infrastructure decision (Resend vs SendGrid) and integration for password reset, invites, notifications, future 2FA codes
 7. demo@tel-cloud.sg Google Workspace alias
 
 Tech debt:
 - Embed chunk_22 in migration runner with IF NOT EXISTS guards
-- Install dotenv + server/.env for persistent local env vars
-- Update server boot log message (still says superadmin@tel-cloud.com /
-  admin123)
+- Update server boot log message (still says superadmin@tel-cloud.com / admin123)
 - phone_numbers.whatsapp_phone_id UNIQUE+lookup index
 - In-app password change UI (Phase A3)
 - 401 auth noise on page load (8-16 failed requests pre-auth-hydrate)
+- server/node_modules/.package-lock.json should be in .gitignore (untrack from index)
+- Graceful shutdown handling in server/index.js (SIGTERM trap for ECS task draining; ~10 lines)
+- File storage abstraction (S3-compatible interface) before first file-upload feature
+
+Recently resolved:
+- ~~Install dotenv + server/.env~~ Resolved 8 May 2026 (commit c5f14eb)
+- ~~Hardcoded JWT_SECRET fallback~~ Resolved 8 May 2026 (commit c5f14eb)
+- ~~Btn component duplication~~ Resolved 8 May 2026 (5 commits, 15 files migrated)
+- ~~Mobile responsive grids on critical user paths~~ Resolved 8 May 2026 (commit 26a29ca)
 
 Product polish:
 - Pipeline page
@@ -1557,3 +1561,53 @@ moves to background operational maintenance.
 ---
 
 End of Phase 6 addendum.
+
+---
+
+## Build log entry: 8 May 2026 — Engineering hardening session
+
+Single-day session, 7 commits. Foundation work to prepare codebase for Tech Provider phase + AWS migration.
+
+**Commits (chronological):**
+1. `c5f14eb` - dotenv setup, JWT_SECRET hardening, NODE_ENV SSL toggle
+2. `97fa6c4` - Queue abstraction layer (server/queues/)
+3. `c3bcde9` - AWS Phase 6 migration roadmap (~280 lines added to this document)
+4. `1d29fa7` - UX polish + new Button.jsx + ButtonGroup.jsx components (existing pre-session work, committed early in session)
+5. `10465a8` - Btn->Button migration batch 1 (5 settings tabs)
+6. `c12eaad` - Btn->Button migration batch 2 (4 components)
+7. `8ae1c1a` - Btn->Button migration batch 3 (3 components)
+8. `3e09314` - Btn->Button migration batch 4 + delete legacy Btn.jsx (final 3 components)
+9. `26a29ca` - Mobile responsive grid fixes (6 components: ScheduledComposer, Teams, Agents, AuditLog, Routing, EventModal)
+10. `173e753` - UI close icon consistency (Projects, Templates)
+
+All commits pushed to origin/master. Vercel auto-deployed. Railway auto-deployed.
+
+**Net effect on codebase:**
+- ~280 lines of duplicated button component code eliminated
+- 15 files migrated to single shared Button component
+- 6 mobile-breaking layouts fixed (ScheduledComposer was actively broken on phone)
+- Pluggable queue layer (Postgres now, SQS-ready)
+- Configurable secrets via dotenv (server exits cleanly if JWT_SECRET unset)
+
+**Key engineering decisions captured to memory for future sessions:**
+- variant="ghost" (old) -> variant="secondary" (new) when migrating Btn->Button
+- variant="dark" (old NAVY) -> variant="primary" (new Library Indigo)
+- loading={saving} only on the button that initiates the operation
+- Mojibake in PowerShell console !== mojibake in browser. Don't "fix" UTF-8 quirks based on PowerShell display alone.
+
+**AWS migration timing decision (committed in c3bcde9):**
+"Migrate before Tech Provider submission" - chosen after twice reviewing the trade-off. Tech Provider critical path is delayed by 4-6 weeks but pre-launch migration is cheapest and avoids forced post-launch migration cliff. AWS Activate Portfolio application to be submitted next session for credit pre-approval (5-10 business day cycle).
+
+**Items intentionally deferred or skipped:**
+- AdminPanel.jsx mobile grid fixes - super admin tool, desktop-only use
+- BulkScheduler.jsx grid fix - verified working visually on mobile
+- Projects.jsx grid fix - small dropdowns, fine on mobile
+- node_modules untrack from git - separate cleanup task
+- Mojibake retrofitting - source displays incorrectly in PowerShell but renders correctly in browser
+
+**Next session priorities:**
+1. AWS Activate Portfolio application (~30 min, fire-and-forget)
+2. Marketing landing site at tel-cloud.sg (the website-for-AWS-app dependency, also Tech Provider Phase 1 step 5)
+3. Legal docs drafting (Privacy + ToS + AUP)
+
+End of 8 May 2026 build log entry.

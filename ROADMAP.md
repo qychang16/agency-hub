@@ -2,15 +2,17 @@
 
 Living document capturing future work, product decisions, and context for Claude sessions.
 
-Last updated: 2026-05-07 (auth + brand redesign + nav refactor)
+Last updated: 2026-05-08 (engineering hardening: dotenv, queue abstraction, AWS roadmap, full Btn-to-Button migration, mobile responsive grids)
 
 ---
 
 ## Currently Building
 
-Nothing actively in progress. Recent push: Google Sign-In end-to-end (production), brand redesign across login/AdminPanel/favicon, navigation refactor with PDPA into Settings.
+Tech Provider Phase 1 - Foundation. Domain + Workspace done. Pending: AWS Activate Portfolio application, marketing landing site at tel-cloud.sg root, legal docs (Privacy / ToS / AUP).
 
-Next likely work: production polish (Pipeline page, Contacts page, mobile pass), or kick off Tech Provider Phase II for Templates submit-to-Meta flow.
+Engineering foundation hardening complete as of 8 May 2026: dotenv-managed secrets, queue abstraction layer (Postgres -> SQS-ready), full Btn-to-Button component migration (single source of truth), mobile responsive grid fixes across 6 components.
+
+AWS Phase 6 migration roadmap committed as roadmap addendum. Decision: migrate before Tech Provider submission to ensure Singapore data residency and avoid forced post-launch migration. Estimated 4-6 weeks calendar time.
 
 ---
 
@@ -132,11 +134,8 @@ Open any conversation on phone at <400px width. Verify (1) header buttons wrap t
 ### chunk_22 migration not embedded in runner
 chunk_22_google_auth schema (google_id, auth_provider columns + partial unique index) was applied manually via psql to both local and production DBs. NOT yet added to the migration runner in `server/index.js`. Future Railway redeploys are safe (idempotent IF NOT EXISTS guards needed if we add it). Tech debt to embed properly.
 
-### Local server env vars not persistent
-GOOGLE_CLIENT_ID must be set via `$env:` in PowerShell before each `node server/index.js` start. dotenv not installed, no `server/.env` file. Should:
-- Install `dotenv` in `server/package.json`
-- Create `server/.env` (gitignored) with `GOOGLE_CLIENT_ID` and any other secrets
-- Update server boot to load via `require('dotenv').config()`
+### ~~Local server env vars not persistent~~ - Resolved 8 May 2026
+dotenv installed, `server/.env` created (gitignored), `server/.env.example` committed for reference. JWT_SECRET hardcoded fallback removed (server now exits if not set). NODE_ENV-based SSL toggle added. JWT_SECRET rotated to fresh 96-char hex.
 
 ### Boot log message wrong
 Server prints `📧 Super admin login: superadmin@tel-cloud.com / admin123` on startup. Should reflect renamed super_admin (`quiinn@tel-cloud.sg`).
@@ -273,3 +272,76 @@ Production workspace created:
 - Tel-Cloud Demo (slug: `tc-demo`, ENTERPRISE plan, billing_exempt) — for dogfooding/demos, separate from Eque tenant
 
 End state: Brand identity coherent across login → admin → favicon. Authentication has both password and Google paths. Production has Tel-Cloud Sandbox (platform admin) + Tel-Cloud Demo (operator dogfooding). Tech debt accumulated documented in Open Follow-ups.
+
+### Engineering hardening + UI consistency (May 8, 2026 session)
+
+Single-day session, 7 commits. Foundation work to harden the codebase before Tech Provider work begins.
+
+**Secrets and configuration (commit c5f14eb)**
+- Installed `dotenv` in server/package.json
+- Created server/.env (gitignored) and server/.env.example (committed)
+- Removed hardcoded JWT_SECRET fallback from server/index.js — server now exits cleanly if not set rather than running with a known-leaked secret
+- Generated fresh 96-char hex JWT_SECRET, stored in local .env
+- Added NODE_ENV-based SSL toggle for database connections
+
+**Queue abstraction layer (commit 97fa6c4)**
+- New server/queues/ directory with messageQueue.js (interface), postgresQueue.js (current implementation), index.js (provider selector via QUEUE_PROVIDER env var)
+- Refactored server/index.js scheduled message worker to use abstraction (queue.claim, queue.claimOne, queue.markSent, queue.markFailed)
+- Smoke test verified: scheduled message id 6 went through abstraction cleanly, failed correctly with "No recipient phone number on contact"
+- Future SQS swap is now a single new file (sqsQueue.js) plus env var change
+
+**AWS Phase 6 migration roadmap (commit c3bcde9)**
+- Appended ~280 lines to TECH_PROVIDER_ROADMAP.md documenting full AWS migration plan
+- Target architecture: ap-southeast-1, RDS Postgres Multi-AZ, ECS Fargate, SQS, S3, CloudFront
+- 8 phases (6.1 through 6.8) covering account foundation through DNS cutover
+- 3-tier cost estimates ($148 / $260 / $1,110 monthly)
+- 8-item risk register with mitigations
+- Decision points and rollback procedures
+- Decision committed: migrate before Tech Provider submission, accept ~4-6 week timeline slip on Meta approval
+
+**Btn -> Button component migration (5 commits: 1d29fa7, 10465a8, c12eaad, 8ae1c1a, 3e09314)**
+Migrated 15 files from inconsistent local `function Btn` declarations to a single shared `client/src/components/ui/Button.jsx`. Each file previously had its own ~17-line Btn component with subtle variant differences.
+
+Files migrated (in batch order):
+- Batch 1: Routing, BusinessHours, AuditLog, EmailIntegration, AgencyProfile
+- Batch 2: SecuritySettings, WhatsAppAPI, ScheduledComposer, RolesPermissions
+- Batch 3: Teams, Scheduled, PhoneNumbers
+- Batch 4: BulkScheduler, Agents, Projects + delete legacy ui/Btn.jsx
+
+Patterns established and saved to memory:
+- `variant="ghost"` (old: 0.5px border) -> `variant="secondary"` (new: bordered)
+- `variant="dark"` (old: NAVY) -> `variant="primary"` (new: Library Indigo)
+- `variant="success"` and `variant="danger"` preserved 1:1
+- `loading={saving}` only on the button that initiates the operation; `disabled={saving}` on Cancel/Discard buttons that should grey out without spinner
+- ASCII ellipsis `...` preferred over Unicode `\u2026`
+- Mojibake in PowerShell console display does NOT equal mojibake in browser. Don't "fix" UTF-8 quirks unless browser visually confirms breakage.
+
+Net effect: ~280 lines of duplicated button code eliminated. Single source of truth for the entire app's button styling.
+
+**Mobile responsive grid fixes (commit 26a29ca)**
+Fixed cramped 2-column layouts on mobile in 6 components. Replaced inline `gridTemplateColumns: '1fr 1fr'` with Tailwind `className="grid grid-cols-1 md:grid-cols-2"` so columns stack vertically below 768px.
+
+Files fixed: ScheduledComposer, Teams, Agents, AuditLog, Routing, EventModal.
+
+Files intentionally NOT fixed (cramped but functional, or super-admin-only):
+- AdminPanel.jsx (5 occurrences) - super admin tool, desktop-only use
+- BulkScheduler.jsx (1 occurrence) - already verified working visually on mobile
+- Projects.jsx (1 occurrence) - small Month/Year dropdowns, fine on mobile
+
+The actual breaking issue was ScheduledComposer (2-column form squeezing TEMPLATE/MESSAGE column to a sliver on phone). Verified fix on 375px-wide DevTools mobile view.
+
+**UI close icon consistency (commit 173e753)**
+- Projects.jsx ProjectModal close button: literal `X` character -> `\u2715` (Heavy Multiplication X) for visual consistency with other modals
+- Templates.jsx delete button: lowercase `x` -> `\u2715` (28x28 red square button, semantically a delete action)
+- Contacts.jsx tag-remove button (small inline `x` in tag chips) intentionally left as-is - different design context
+
+End state: Engineering foundation is significantly hardened. dotenv-managed secrets, pluggable queue infrastructure, single-source-of-truth button component, mobile-responsive across all primary pages. AWS migration roadmap documented. Ready to proceed with Tech Provider Phase 1 (landing site, legal docs) and AWS Phase 6 (account setup, RDS provisioning) in parallel.
+
+Tech debt acknowledged but not addressed today:
+- server/node_modules/.package-lock.json still tracked by git (should be in .gitignore)
+- chunk_22 still applied to prod manually rather than via migration runner
+- 401 auth noise on page load (8-16 failed pre-auth requests)
+- Mojibake in source files (intentional skip — renders fine in browser)
+- AdminPanel/BulkScheduler/Projects.jsx have inline 2-col grids (intentional skip per triage)
+- In-app password change UI (Phase A3, still pending)
+- demo@tel-cloud.sg Google Workspace alias (still pending)

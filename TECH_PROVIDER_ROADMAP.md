@@ -1077,3 +1077,483 @@ Product polish:
   Production backend on Railway (auto-deploy from GitHub master).
   Both configured this session. Next push to master = next production
   deploy on both surfaces.
+
+  ---
+
+## Phase 6 - AWS infrastructure migration
+
+Added: 8 May 2026
+Status: Pre-Tech Provider migration. Decided to migrate now while
+the platform is pre-launch with no paying tenants, accepting that
+Tech Provider submission slips by the migration duration.
+
+This addendum supersedes earlier Railway-only deployment guidance
+in Phase 1 hosting choices. Railway remains the dev/staging host;
+production migrates to AWS Singapore (ap-southeast-1).
+
+---
+
+### Strategic context and decision rationale
+
+The platform currently runs on Railway (backend) and Vercel (frontend).
+This works well for development and was the right choice for getting
+to a working product. The decision to migrate to AWS now is driven by:
+
+1. **Singapore data residency**. PDPA compliance is cleaner when
+   tenant data lives in ap-southeast-1 with documented controls.
+   Railway uses GCP behind the scenes with less direct control over
+   region pinning.
+
+2. **Pre-launch is the cheapest migration window**. Zero paying
+   tenants means zero risk of customer disruption. Eque has minimal
+   data and is operator-controlled. Re-seeding is acceptable.
+
+3. **Avoiding a forced migration later**. Migrating after 20 tenants
+   with millions of conversations carries operational risk and
+   downtime cost. Doing it now removes that future cliff.
+
+4. **Long-term cost control at scale**. AWS has higher fixed costs
+   at low volume (RDS minimum, NAT gateway, etc.) but better unit
+   economics above ~5 tenants. Tel-Cloud's target volume justifies
+   AWS economics within 12 months.
+
+Trade-offs accepted with this decision:
+
+- Tech Provider submission delayed by ~3-6 weeks
+- Eque go-live delayed by the same amount
+- Y.E.C carries operating costs during migration without Tel-Cloud
+  revenue
+- Operator (Quiinn) takes on AWS operational complexity solo
+
+These trade-offs were reviewed and accepted on 8 May 2026.
+
+---
+
+### AWS-compatibility disciplines (status)
+
+These disciplines protect the codebase from being tightly coupled
+to Railway primitives, making migration tractable. Status as of
+8 May 2026:
+
+| Discipline | Status | Evidence |
+|------------|--------|----------|
+| dotenv-managed secrets | Done | server/.env, server/.env.example, commit c5f14eb |
+| No hardcoded secrets in source | Done | JWT_SECRET fallback removed in c5f14eb |
+| Queue abstraction (Postgres -> SQS) | Done | server/queues/*, commit 97fa6c4 |
+| File storage abstraction (local -> S3) | Pending | No file-upload features built yet; abstract before first use |
+| Stateless application servers | Done by design | JWT auth, atomic claim worker, no in-memory session store |
+| Single-region only | Pending | Migration target is single-region (ap-southeast-1); multi-region deferred indefinitely |
+| Logs to stdout (not files) | Done by design | console.log/error throughout, no file appenders |
+| Graceful shutdown | Pending | SIGTERM handling needed for ECS task draining |
+
+Future work to add before migration: graceful shutdown handling
+in server/index.js (10 lines, low effort). File storage abstraction
+deferred until first file-upload feature is built.
+
+---
+
+### Pre-migration checklist (Week 0)
+
+Must complete BEFORE touching AWS console:
+
+- [ ] AWS Activate Portfolio application submitted via
+      aws.amazon.com/activate
+      Expected credits: USD $1,000 (pre-revenue tier, no investor)
+- [ ] AWS account created (root credentials in 1Password)
+- [ ] Root MFA enabled (hardware key preferred, TOTP acceptable)
+- [ ] Billing alerts configured: $50, $100, $200 thresholds
+- [ ] AWS region locked to ap-southeast-1 (Singapore) in IAM policy
+      (prevents accidental resource creation in cheaper US regions
+      that would violate data residency)
+- [ ] IAM admin user created (no daily root usage)
+- [ ] DevOps consultant identified and quoted (SGD $3,000-5,000
+      for 2-day setup engagement) - DEFERRED per operator decision
+      to do migration solo
+- [ ] Read AWS Well-Architected Framework summary (free, 2 hours)
+- [ ] Set up cost monitoring dashboard before any resource creation
+
+Total Week 0 effort: ~1 working day, plus AWS Activate review wait
+time (typically 5-10 business days).
+
+---
+
+### Target architecture
+Internet
+                          |
+                          v
+                   Route 53 (DNS)
+                          |
+            +-------------+-------------+
+            |                           |
+            v                           v
+       CloudFront                  CloudFront
+    (app.tel-cloud.sg)         (tel-cloud.sg root)
+            |                           |
+            v                           v
+    ALB (HTTPS)                  S3 (static landing)
+            |
+            v
+    ECS Fargate Service
+    (Express server, 2 tasks, ap-southeast-1a + 1b)
+            |
+    +-------+-------+--------+
+    |       |       |        |
+    v       v       v        v
+   RDS    SQS     S3       Secrets
+Postgres  (queue) (files) Manager
+
+**Service breakdown:**
+
+- **Route 53**: DNS for tel-cloud.sg and subdomains. Migrated from
+  Vodien.
+- **CloudFront**: CDN + TLS termination for app and marketing site.
+  Free tier covers initial volume.
+- **ALB (Application Load Balancer)**: HTTPS termination for ECS,
+  health checks, target group routing.
+- **ECS Fargate**: Stateless containers running the Express server.
+  Auto-scaling 1-4 tasks, 0.5 vCPU / 1GB RAM each. No EC2 instances
+  to manage.
+- **RDS Postgres 17 Multi-AZ**: Primary in ap-southeast-1a, standby
+  in 1b, automated failover. db.t4g.small to start (2 vCPU, 2GB
+  RAM).
+- **SQS Standard queue**: Replaces Postgres-backed scheduled message
+  queue. Throughput vastly exceeds Tel-Cloud's needs at this stage.
+- **S3**: Future file uploads (resumes, JDs, attachments). Encryption
+  at rest, versioning enabled.
+- **Secrets Manager**: JWT_SECRET, GOOGLE_CLIENT_ID,
+  META_ACCESS_TOKEN, etc. Rotated programmatically. Read by ECS
+  task at startup via IAM role.
+- **CloudWatch**: Logs from ECS, RDS metrics, SQS queue depth
+  alarms, billing alarms.
+- **VPC**: Private subnets for RDS, public subnets for ALB. NAT
+  gateway in one AZ (single NAT to control cost; accept reduced AZ
+  resilience for cost savings until volume justifies dual NAT).
+
+**What is NOT in v1 of the architecture:**
+
+- Multi-region (ap-southeast-1 only)
+- ElastiCache / Redis (no caching layer needed yet)
+- Lambda functions (everything runs in ECS)
+- API Gateway (ALB handles routing)
+- ECR (using Docker Hub initially, migrate to ECR if it's free
+  tier sufficient)
+
+These can be added later without architectural changes.
+
+---
+
+### Migration phases
+
+#### Phase 6.1 - AWS account foundation (Week 1, ~2 days operator effort)
+
+- [ ] AWS account, MFA, IAM admin user (per Week 0 checklist)
+- [ ] VPC with 2 public + 2 private subnets across 1a + 1b
+- [ ] Internet Gateway, single NAT gateway in 1a
+- [ ] Security groups: ALB-SG, ECS-SG, RDS-SG with least-privilege
+      rules
+- [ ] Route 53 hosted zone for tel-cloud.sg created (do NOT migrate
+      DNS yet — keep Vodien live until cutover)
+
+Outcome: empty VPC ready to accept resources. No production traffic
+affected.
+
+#### Phase 6.2 - RDS Postgres provisioning (Week 1, ~1 day)
+
+- [ ] RDS Postgres 17, db.t4g.small, Multi-AZ
+- [ ] Database name: tel_cloud_prod
+- [ ] Master credentials in Secrets Manager
+- [ ] Parameter group: defaults plus rds.force_ssl=1
+- [ ] Backup retention: 7 days
+- [ ] Subnet group: 2 private subnets
+- [ ] Security group: only ECS-SG allowed on port 5432
+- [ ] Test connection from a temporary EC2 instance in the VPC
+
+Outcome: production-ready Postgres instance, empty schema.
+
+#### Phase 6.3 - Schema migration (Week 1, ~0.5 day)
+
+- [ ] Connect to new RDS from local PowerShell via SSH bastion or
+      VPN
+- [ ] Run all 22 existing migrations against new RDS
+      (chunk_22_google_auth must be embedded in migration runner
+      first - tech debt called out in build log)
+- [ ] Verify schema matches Railway production via pg_dump --schema-only
+      diff
+- [ ] Test that local server can connect to new RDS by switching
+      DATABASE_URL temporarily
+
+Outcome: schema matches Railway production. No data yet.
+
+#### Phase 6.4 - SQS queue setup and code wire-up (Week 1, ~1 day)
+
+- [ ] Create SQS Standard queue: tel-cloud-scheduled-messages-prod
+- [ ] Create dead-letter queue: tel-cloud-scheduled-messages-dlq
+- [ ] Create server/queues/sqsQueue.js implementing the messageQueue
+      interface (claim, claimOne, markSent, markFailed, enqueue)
+- [ ] Note: SQS does not have row-level update like Postgres. Mapping
+      decisions:
+      - claim() = ReceiveMessage (long poll, batch up to 10)
+      - claimOne() = use receipt handle from previous claim batch
+      - markSent() = DeleteMessage + write status row in audit table
+      - markFailed() = ChangeMessageVisibility (requeue) OR DeleteMessage
+        + write to failed_messages audit table after max retries
+- [ ] Add sqsQueue case to server/queues/index.js selector
+- [ ] Test locally with QUEUE_PROVIDER=sqs against an isolated test
+      queue
+- [ ] Decide: dual-write during migration (write to both Postgres
+      table AND SQS) for safety, then read from SQS only after cutover
+
+Outcome: code can run on either Postgres queue or SQS queue based
+on environment variable.
+
+Note: this phase is the biggest engineering risk in the migration.
+The Postgres queue has features (status visibility in DB, manual
+inspection via SQL, replay) that SQS does not. Audit tables
+compensate but require careful design.
+
+#### Phase 6.5 - ECS task definition and Fargate service (Week 2, ~2 days)
+
+- [ ] Create Dockerfile in repo root (server side)
+      Base: node:24-alpine
+      Copy server/, install deps, expose 4000, CMD node index.js
+- [ ] Push image to Docker Hub (private repo) or ECR
+- [ ] ECS cluster: tel-cloud-prod
+- [ ] Task definition: 0.5 vCPU, 1GB RAM, 1 container
+      Environment from Secrets Manager via task role
+- [ ] ECS service: 2 tasks across 1a + 1b
+- [ ] Target group attached to ALB
+- [ ] Health check: GET / returns 200
+- [ ] CloudWatch log group attached for stdout/stderr
+- [ ] IAM task role: read access to Secrets Manager, send/receive
+      SQS, read/write S3 bucket
+
+Outcome: server running on AWS, reachable via ALB DNS name. Not yet
+in DNS.
+
+#### Phase 6.6 - Frontend migration (Week 2, ~1 day)
+
+Decision needed: keep Vercel for the Vite SPA, or move frontend to
+S3 + CloudFront?
+
+- Option A: Keep Vercel. Simpler, free tier sufficient, fast deploys
+  via GitHub integration. Vercel CDN is global.
+- Option B: Move to S3 + CloudFront. Single AWS bill, full control,
+  marginally higher operational complexity.
+
+Recommendation: Option A initially. Move only if there's a specific
+reason later (cost, integration, etc.).
+
+If Option A:
+- [ ] Update VITE_API_URL in Vercel to new ALB DNS name
+- [ ] No other changes needed
+
+If Option B:
+- [ ] Build static assets locally: npm run build in client/
+- [ ] Create S3 bucket: app.tel-cloud.sg-prod, public read
+- [ ] CloudFront distribution pointing at S3
+- [ ] Custom domain via ACM certificate in us-east-1 (CloudFront
+      requirement)
+- [ ] Tear down Vercel deployment after cutover
+
+Outcome: frontend can talk to AWS backend.
+
+#### Phase 6.7 - DNS cutover (Week 2, ~0.5 day, scheduled outside business hours)
+
+This is the only step with risk of user-visible disruption.
+Mitigations: low TTL set 24h before, parallel-run period, immediate
+rollback path.
+
+- [ ] 24 hours before cutover: lower TTL on tel-cloud.sg DNS records
+      at Vodien to 60 seconds
+- [ ] Verify low TTL has propagated (dig +short tel-cloud.sg)
+- [ ] Update Vodien NS records to Route 53 nameservers
+- [ ] In Route 53: A record app.tel-cloud.sg -> ALB (ALIAS)
+- [ ] In Route 53: A record tel-cloud.sg -> Vercel (or S3 if Option B)
+- [ ] Smoke test: log in, send template, schedule message, verify
+      worker runs
+- [ ] Monitor CloudWatch for errors for 1 hour
+- [ ] Update Google OAuth Authorized Origins to include new
+      production URL if it changed
+- [ ] Tear down Railway deployment after 48 hours of clean operation
+
+Outcome: production traffic flowing through AWS.
+
+#### Phase 6.8 - Data migration (Week 2, ~0.5 day, scheduled with cutover)
+
+For Tel-Cloud Demo workspace and Eque (both pre-launch):
+
+- [ ] Schedule maintenance window (announce to operator, no external
+      users yet)
+- [ ] Stop Railway server: railway down
+- [ ] pg_dump from Railway production
+- [ ] pg_restore into new RDS
+- [ ] Verify row counts match for: workspaces, users, contacts,
+      conversations, messages, scheduled_messages, calendar_events,
+      event_reminders, templates, broadcasts
+- [ ] Reseed Eque if needed (per v2 architecture decision)
+- [ ] Switch DNS
+
+Total maintenance window: ~30 minutes. Acceptable given pre-launch
+state.
+
+---
+
+### Cost estimates
+
+**Tier 1: Pre-launch (current state, just Eque + Demo workspace)**
+
+Monthly cost in USD, ap-southeast-1:
+
+- RDS Postgres db.t4g.small Multi-AZ: ~$60
+- ECS Fargate 2 tasks (0.5 vCPU, 1GB) running 24/7: ~$20
+- ALB: ~$22
+- NAT Gateway (single): ~$35
+- S3, SQS, CloudWatch (low usage): ~$5
+- Route 53 hosted zone + queries: ~$1
+- Data transfer out: ~$5
+
+**Total: ~$148/month**
+
+AWS Activate credits ($1,000) cover ~6.5 months of this tier.
+
+**Tier 2: Eque live + small growth (5 tenants, ~50K messages/month)**
+
+- RDS bumped to db.t4g.medium Multi-AZ: ~$120
+- ECS Fargate scales to 4 tasks during business hours: ~$40
+- ALB: ~$25 (small data fee growth)
+- NAT Gateway: ~$35
+- S3 (resumes/JDs starting to land): ~$15
+- SQS, CloudWatch: ~$10
+- Data transfer out: ~$15
+
+**Total: ~$260/month**
+
+**Tier 3: Scaled (20 tenants, ~2M messages/month, target state)**
+
+- RDS db.r7g.large Multi-AZ + read replica: ~$500
+- ECS Fargate auto-scaling 4-12 tasks: ~$200
+- ALB: ~$50
+- NAT Gateway (now justified to add second AZ): ~$70
+- S3 (significant attachment storage): ~$80
+- SQS at higher volume: ~$30
+- CloudWatch (logs and metrics scale): ~$60
+- Data transfer out: ~$120
+
+**Total: ~$1,110/month**
+
+For comparison: Railway at this volume would likely be $400-600/
+month with much less control over scaling and no Multi-AZ. AWS
+becomes economically reasonable at Tier 2 onward.
+
+---
+
+### Risk register
+
+1. **Migration takes longer than 3 weeks**
+   Likelihood: high. Solo operator learning AWS while running an
+   agency. Realistic estimate is 4-6 weeks calendar time even if
+   focused effort is 3 weeks.
+   Mitigation: budget 6 weeks; do not commit to Tech Provider
+   submission timeline until migration is stable.
+
+2. **Cost overrun beyond Activate credits**
+   Likelihood: medium. NAT gateway and RDS Multi-AZ are silent
+   recurring costs that add up.
+   Mitigation: billing alerts at $50/$100/$200; weekly cost review
+   for first 2 months; willing to scale RDS down to Single-AZ
+   db.t4g.micro if pre-launch costs run hot.
+
+3. **SQS migration introduces bugs in queue behaviour**
+   Likelihood: medium. SQS semantics differ from Postgres-backed
+   queue (no SELECT inspection, visibility timeouts, eventual
+   consistency).
+   Mitigation: dual-write period (write to both Postgres and SQS,
+   read from Postgres) for at least 1 week; SQS-only mode toggled
+   via QUEUE_PROVIDER env var; can roll back instantly.
+
+4. **DNS cutover causes outage**
+   Likelihood: low. Standard procedure with low TTL prep.
+   Mitigation: low TTL 24h before; parallel run; rollback by
+   reverting Vodien NS records (effective in 60 seconds).
+
+5. **Tech Provider submission slips materially**
+   Likelihood: high. This is the explicit trade-off of migrating
+   first. Submission cannot happen until landing site, legal docs,
+   Y.E.C WhatsApp sender, and new Meta App are done.
+   Mitigation: track Tech Provider blocker list weekly; do not let
+   AWS migration creep into time budgeted for those items.
+
+6. **Operator burnout / context-switching cost**
+   Likelihood: high. Solo founder running agency + building product
+   + pursuing approvals + migrating infrastructure. AWS adds a
+   fourth context.
+   Mitigation: enforce calendar blocks for AWS work (no
+   interleaving with agency or product); budget consultant if
+   migration stalls > 2 weeks; willing to abort and roll back to
+   Railway if it becomes unmanageable.
+
+7. **PDPA audit reveals data residency gap during migration**
+   Likelihood: low. Eque has no real customer data yet.
+   Mitigation: complete migration before Eque ingests real
+   candidate/client data; document data residency in Privacy
+   Policy.
+
+8. **Lock-in risk via AWS-specific services**
+   Likelihood: medium. SQS, RDS, ECS are reasonably standard but
+   migration to GCP/Azure later would still be non-trivial.
+   Mitigation: queue abstraction layer (already shipped) means SQS
+   can be swapped for another queue; database portability via
+   standard Postgres; container portability via Docker.
+
+---
+
+### Decision points and rollback
+
+**After Phase 6.4 (queue wired up locally with sqsQueue):**
+
+Decision: proceed to ECS deployment, or pause?
+- Proceed if: SQS queue behaviour matches Postgres queue in tests
+- Pause if: SQS semantic gaps (visibility timeout edge cases,
+  duplicate delivery handling) cause data integrity concerns
+
+**After Phase 6.7 (DNS cutover):**
+
+Rollback procedure if AWS unstable in first 48 hours:
+1. Revert Vodien nameservers to original (Vodien-managed DNS)
+2. Bring Railway back up: railway up
+3. Verify Railway accepts traffic
+4. Investigate AWS issue offline; do not retry cutover until root
+   cause known
+
+Rollback window: 48 hours after cutover. After that, Railway is
+torn down and rollback requires full re-deployment.
+
+**After 30 days of clean AWS operation:**
+
+Triggers for declaring migration complete:
+- Zero unplanned outages
+- All scheduled messages firing correctly
+- Cost tracking within $50/month of estimate
+- No data integrity incidents
+
+If all four hold: Tech Provider work resumes as primary focus, AWS
+moves to background operational maintenance.
+
+---
+
+### What this addendum does NOT cover
+
+- Multi-region disaster recovery (deferred indefinitely; ap-
+  southeast-1 single-region is adequate until 50+ tenants)
+- Kubernetes or EKS (ECS Fargate chosen for simplicity; revisit if
+  team grows)
+- Lambda functions for event-driven processing (not needed yet;
+  workers in ECS handle current load)
+- ElastiCache / Redis (no caching layer requirements identified)
+- WAF (web application firewall; consider after first paying
+  tenant)
+- SOC 2 / ISO 27001 compliance work (deferred to post-launch year 2)
+
+---
+
+End of Phase 6 addendum.

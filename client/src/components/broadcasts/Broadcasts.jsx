@@ -180,8 +180,10 @@ export default function Broadcasts({ onOpen }) {
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#faf9f7' }}>
+
+      {/* Pinned header — title + primary action only */}
       <div className="px-4 pt-5 pb-4 md:px-7 md:pt-6" style={{ flexShrink: 0 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 14, marginBottom: 20 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 14 }}>
           <div>
             <div style={{ fontSize: 22, fontWeight: 700, color: '#14130f', marginBottom: 4, letterSpacing: '-0.3px' }}>Broadcasts</div>
             <div style={{ fontSize: 12, color: '#6e6a63' }}>
@@ -192,7 +194,13 @@ export default function Broadcasts({ onOpen }) {
             <Button variant="primary" onClick={() => setShowComposer(true)}>+ New Broadcast</Button>
           )}
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+      </div>
+
+      {/* Scrollable body — stats, filters, and list all scroll together */}
+      <div className="px-4 md:px-7" style={{ flex: 1, overflowY: 'auto', paddingBottom: 24 }}>
+
+        {/* Stats */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5" style={{ marginBottom: 16 }}>
           {[
             { label: 'Total Broadcasts', value: counts.all,        color: counts.all === 0 ? '#9a958c' : '#14130f' },
             { label: 'Scheduled',        value: counts.scheduled,  color: counts.scheduled === 0 ? '#9a958c' : '#9a6a00' },
@@ -205,34 +213,34 @@ export default function Broadcasts({ onOpen }) {
             </div>
           ))}
         </div>
-      </div>
 
-      <div className="px-4 md:px-7 py-3 gap-3 md:gap-4" style={{ background: '#fff', borderBottom: '0.5px solid #dcd8d0', display: 'flex', alignItems: 'center', flexWrap: 'wrap', flexShrink: 0 }}>
-        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-          {FILTER_TABS.map(t => (
-            <button key={t.key} onClick={() => setActiveTab(t.key)}
-              style={{ padding: '5px 12px', borderRadius: 7, border: 'none', background: activeTab === t.key ? ACCENT : 'transparent', color: activeTab === t.key ? '#fff' : '#6e6a63', fontSize: 12, cursor: 'pointer', fontWeight: activeTab === t.key ? 600 : 400, display: 'flex', alignItems: 'center', gap: 5 }}>
-              {t.label}
-              {counts[t.key] > 0 && (
-                <span style={{ fontSize: 10, padding: '1px 5px', borderRadius: 10, background: activeTab === t.key ? 'rgba(255,255,255,0.3)' : '#f5f3ef', color: activeTab === t.key ? '#fff' : '#6e6a63' }}>
-                  {counts[t.key]}
-                </span>
-              )}
-            </button>
-          ))}
+        {/* Filters */}
+        <div style={{ background: '#fff', borderRadius: 10, border: '0.5px solid #dcd8d0', padding: '12px 14px', marginBottom: 16, display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+            {FILTER_TABS.map(t => (
+              <button key={t.key} onClick={() => setActiveTab(t.key)}
+                style={{ padding: '5px 12px', borderRadius: 7, border: 'none', background: activeTab === t.key ? ACCENT : 'transparent', color: activeTab === t.key ? '#fff' : '#6e6a63', fontSize: 12, cursor: 'pointer', fontWeight: activeTab === t.key ? 600 : 400, display: 'flex', alignItems: 'center', gap: 5 }}>
+                {t.label}
+                {counts[t.key] > 0 && (
+                  <span style={{ fontSize: 10, padding: '1px 5px', borderRadius: 10, background: activeTab === t.key ? 'rgba(255,255,255,0.3)' : '#f5f3ef', color: activeTab === t.key ? '#fff' : '#6e6a63' }}>
+                    {counts[t.key]}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+          <div className="w-full md:w-auto md:ml-auto" style={{ position: 'relative' }}>
+            <svg style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', width: 12, height: 12, color: '#9a958c', pointerEvents: 'none' }} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <circle cx="7" cy="7" r="4"/>
+              <path d="M10.5 10.5l3 3" strokeLinecap="round"/>
+            </svg>
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search broadcasts..."
+              className="w-full md:w-[220px]"
+              style={{ padding: '6px 10px 6px 26px', border: '0.5px solid #dcd8d0', borderRadius: 8, fontSize: 12, outline: 'none', background: '#faf9f7', color: '#14130f', boxSizing: 'border-box' }} />
+          </div>
         </div>
-        <div className="w-full md:w-auto md:ml-auto" style={{ position: 'relative' }}>
-          <svg style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', width: 12, height: 12, color: '#9a958c', pointerEvents: 'none' }} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-            <circle cx="7" cy="7" r="4"/>
-            <path d="M10.5 10.5l3 3" strokeLinecap="round"/>
-          </svg>
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search broadcasts..."
-            className="w-full md:w-[220px]"
-            style={{ padding: '6px 10px 6px 26px', border: '0.5px solid #dcd8d0', borderRadius: 8, fontSize: 12, outline: 'none', background: '#faf9f7', color: '#14130f', boxSizing: 'border-box' }} />
-        </div>
-      </div>
 
-      <div className="px-4 py-5 md:px-7" style={{ flex: 1, overflowY: 'auto' }}>
+        {/* Broadcast list */}
         {loading ? (
           <div style={{ textAlign: 'center', padding: 60, color: '#9a958c' }}>
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#9a958c" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: 12 }}>

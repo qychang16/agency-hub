@@ -124,9 +124,13 @@ export default function Scheduled() {
             )}
           </div>
         </div>
+      </div>
+
+      {/* Scrollable body — stats, filters, and list all scroll together */}
+      <div className="px-4 md:px-7" style={{ flex: 1, overflowY: 'auto', paddingBottom: 24 }}>
 
         {/* Stats - light cards on cream */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5" style={{ marginBottom: 16 }}>
           {[
             { label: 'Scheduled', value: counts.pending, color: '#9a6a00' },
             { label: 'Sent', value: counts.sent, color: '#2d6a4f' },
@@ -139,10 +143,9 @@ export default function Scheduled() {
             </div>
           ))}
         </div>
-      </div>
 
-      {/* Filters */}
-      <div className="px-4 md:px-7 py-3 md:gap-4 gap-3" style={{ background: '#fff', borderBottom: '0.5px solid #dcd8d0', display: 'flex', alignItems: 'center', flexWrap: 'wrap', flexShrink: 0 }}>
+        {/* Filters */}
+        <div style={{ background: '#fff', borderRadius: 10, border: '0.5px solid #dcd8d0', padding: '12px 14px', marginBottom: 16, display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
         {/* Status tabs */}
         <div style={{ display: 'flex', gap: 4 }}>
           {FILTER_TABS.map(t => (
@@ -179,10 +182,9 @@ export default function Scheduled() {
         </div>
 
         <Button variant="secondary" size="sm" onClick={load}>↻ Refresh</Button>
-      </div>
+        </div>
 
-      {/* Message list */}
-      <div className="px-4 py-4 md:px-7" style={{ flex: 1, overflowY: 'auto' }}>
+        {/* Message list */}
         {loading ? (
           <div style={{ textAlign: 'center', padding: 60, color: '#9a958c' }}>
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#9a958c" strokeWidth="2" strokeLinecap="round" style={{ marginBottom: 10, animation: 'spin 0.9s linear infinite' }}><path d="M21 12a9 9 0 11-6.219-8.56"/></svg>

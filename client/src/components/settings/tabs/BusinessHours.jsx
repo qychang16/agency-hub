@@ -34,6 +34,14 @@ function TimeInput({ value, onChange, disabled }) {
 
 export default function BusinessHours() {
   const { token } = useAuth()
+  const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.innerWidth < 768)
+
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth < 768)
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+
   const [hours, setHours] = useState(
     WEEKDAYS.map(day => ({
       day_of_week: day,
@@ -136,9 +144,13 @@ export default function BusinessHours() {
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <div style={{ padding: '6px 12px', background: '#faf9f7', borderRadius: 8, border: '0.5px solid #dcd8d0', fontSize: 11, color: '#4a4742' }}>
-            <span style={{ color: '#9a958c' }}>Open: </span><strong>{summary.openDays} days</strong>
-            <span style={{ color: '#9a958c', marginLeft: 8 }}>Total: </span><strong>{summary.totalHrs}h/week</strong>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end' }}>
+            <div style={{ padding: '4px 10px', background: '#faf9f7', borderRadius: 6, border: '0.5px solid #dcd8d0', fontSize: 11, color: '#4a4742', whiteSpace: 'nowrap' }}>
+              <span style={{ color: '#9a958c' }}>Open: </span><strong>{summary.openDays} days</strong>
+            </div>
+            <div style={{ padding: '4px 10px', background: '#faf9f7', borderRadius: 6, border: '0.5px solid #dcd8d0', fontSize: 11, color: '#4a4742', whiteSpace: 'nowrap' }}>
+              <strong>{summary.totalHrs}h/week</strong>
+            </div>
           </div>
         </div>
       </div>
@@ -174,7 +186,8 @@ export default function BusinessHours() {
         </div>
       </div>
 
-      {/* Hours table */}
+      {/* Hours table — desktop */}
+      {!isMobile && (
       <div style={{ background: '#fff', borderRadius: 12, border: '0.5px solid #dcd8d0', overflow: 'hidden', marginBottom: 16 }}>
         {/* Table header */}
         <div style={{ display: 'grid', gridTemplateColumns: '140px 80px 1fr 1fr 80px 100px', gap: 0, padding: '10px 20px', background: '#faf9f7', borderBottom: '0.5px solid #f5f3ef' }}>
@@ -247,6 +260,58 @@ export default function BusinessHours() {
           )
         })}
       </div>
+      )}
+
+      {/* Hours cards — mobile */}
+      {isMobile && (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
+        {WEEKDAYS.map((day, idx) => {
+          const h = hours.find(x => x.day_of_week === day) || { day_of_week: day, is_open: false, open_time: '09:00', close_time: '18:00' }
+          const isWeekend = ['Saturday', 'Sunday'].includes(day)
+          const totalHrs = getTotalHours(h)
+
+          return (
+            <div key={day} style={{ background: h.is_open ? '#fff' : '#faf9f7', borderRadius: 10, border: '0.5px solid #dcd8d0', padding: 14 }}>
+              {/* Top row: day name + toggle */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: h.is_open ? 12 : 0 }}>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: h.is_open ? 600 : 500, color: h.is_open ? '#14130f' : '#6e6a63' }}>{day}</div>
+                  {isWeekend && <div style={{ fontSize: 10, color: '#c2bdb3', marginTop: 2 }}>Weekend</div>}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  {h.is_open && totalHrs && (
+                    <span style={{ fontSize: 11, fontWeight: 500, color: '#4a4742', background: ACCENT_LIGHT, padding: '3px 8px', borderRadius: 6 }}>{totalHrs}</span>
+                  )}
+                  <Toggle value={h.is_open} onChange={v => update(day, 'is_open', v)} />
+                </div>
+              </div>
+
+              {/* Time inputs row — only when open */}
+              {h.is_open && (
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 10, fontWeight: 600, color: '#9a958c', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 4 }}>Opens</div>
+                    <input type="time" value={h.open_time} onChange={e => update(day, 'open_time', e.target.value)}
+                      style={{ width: '100%', padding: '8px 10px', border: '0.5px solid #dcd8d0', borderRadius: 8, fontSize: 13, outline: 'none', background: '#fff', color: '#14130f', boxSizing: 'border-box' }} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 10, fontWeight: 600, color: '#9a958c', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 4 }}>Closes</div>
+                    <input type="time" value={h.close_time} onChange={e => update(day, 'close_time', e.target.value)}
+                      style={{ width: '100%', padding: '8px 10px', border: '0.5px solid #dcd8d0', borderRadius: 8, fontSize: 13, outline: 'none', background: '#fff', color: '#14130f', boxSizing: 'border-box' }} />
+                  </div>
+                  {idx > 0 && (
+                    <button onClick={() => copyFromPreviousDay(day)}
+                      style={{ alignSelf: 'flex-end', fontSize: 10, padding: '8px 10px', borderRadius: 6, border: '0.5px solid #dcd8d0', background: '#faf9f7', color: '#6e6a63', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                      Copy {WEEKDAYS[idx - 1].slice(0, 3)}
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+      )}
 
       {/* Weekly overview visual */}
       <div style={{ background: '#fff', borderRadius: 12, border: '0.5px solid #dcd8d0', padding: '16px 20px', marginBottom: 16 }}>

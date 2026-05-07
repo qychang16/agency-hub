@@ -533,7 +533,7 @@ function MainApp() {
         case 'pipeline': return <Pipeline />
         case 'jobs': return <JobOrders />
         case 'contacts': return <Contacts onNavigate={setActiveNav} />
-        case 'pdpa': return <PDPA />
+        case 'pdpa': return <PDPA onNavigate={setActiveNav} />
         default: return <ComingSoon name={activeNav} />
       }
     })()

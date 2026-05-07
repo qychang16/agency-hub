@@ -209,7 +209,7 @@ function ConsentModal({ contact, history, onClose, onSaved, token }) {
   )
 }
 
-export default function PDPA() {
+export default function PDPA({ onNavigate }) {
   const { token, hasPermission } = useAuth()
   const [dashboard, setDashboard] = useState(null)
   const [contacts, setContacts] = useState([])
@@ -312,6 +312,13 @@ export default function PDPA() {
       {/* Header */}
       <div style={{ padding: '20px 28px 16px', flexShrink: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap' }}>
         <div style={{ flex: '1 1 auto', minWidth: 0 }}>
+          {onNavigate && (
+            <button onClick={() => onNavigate('contacts')}
+              className="md:hidden"
+              style={{ background: '#fff', border: '0.5px solid #dcd8d0', color: '#4a4742', borderRadius: 6, padding: '6px 12px', cursor: 'pointer', fontSize: 12, fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: 5, marginBottom: 12 }}>
+              ← Back to Contacts
+            </button>
+          )}
           <div style={{ fontSize: 22, fontWeight: 700, color: '#14130f', marginBottom: 4, letterSpacing: '-0.3px' }}>PDPA Compliance</div>
           <div style={{ fontSize: 12, color: '#6e6a63' }}>
             Track and audit consent for every contact in your workspace. Required for Singapore PDPA compliance.

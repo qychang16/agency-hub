@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { useAuth } from '../../../context/AuthContext'
 import { API } from '../../../utils/constants'
 import { ACCENT, NAVY } from '../../../utils/designTokens'
+import Button from '../../ui/Button'
 
 // Permission catalog - must match backend DEFAULT_ROLE_PERMISSIONS keys
 const PERMISSIONS = [
@@ -30,22 +31,6 @@ const ROLE_META = {
   senior_consultant: { label: 'Senior Consultant', desc: 'Experienced consultant with mentoring responsibilities.',  color: '#059669' },
   consultant:        { label: 'Consultant',        desc: 'Day-to-day candidate and client engagement.',              color: '#65a30d' },
   admin:             { label: 'Admin',             desc: 'Back-office oversight role. Read-only by default.',        color: '#d97706' },
-}
-
-function Btn({ onClick, children, variant = 'primary', size = 'md', disabled }) {
-  const sizes = { sm: { padding: '5px 12px', fontSize: 11 }, md: { padding: '8px 16px', fontSize: 12 }, lg: { padding: '10px 20px', fontSize: 13 } }
-  const variants = {
-    primary: { background: ACCENT, color: '#fff', border: 'none' },
-    ghost: { background: 'transparent', color: '#6e6a63', border: '0.5px solid #dcd8d0' },
-    danger: { background: '#fee2e2', color: '#dc2626', border: '0.5px solid #fca5a5' },
-    dark: { background: NAVY, color: '#fff', border: 'none' },
-  }
-  return (
-    <button onClick={!disabled ? onClick : undefined} disabled={disabled}
-      style={{ ...sizes[size], ...variants[variant], borderRadius: 8, cursor: disabled ? 'default' : 'pointer', fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: 6, opacity: disabled ? 0.6 : 1, transition: 'opacity .15s' }}>
-      {children}
-    </button>
-  )
 }
 
 function Toggle({ value, onChange, disabled }) {
@@ -310,9 +295,9 @@ export default function RolesPermissions({ workspaceId, workspaceName }) {
 
       <div style={{ marginTop: 24, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', borderTop: '0.5px solid #dcd8d0' }}>
         <div>
-          <Btn variant="ghost" size="sm" onClick={() => setResetOpen(true)} disabled={saving}>
+          <Button variant="secondary" size="sm" onClick={() => setResetOpen(true)} disabled={saving}>
             Reset to defaults
-          </Btn>
+          </Button>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           {hasUnsavedChanges && (
@@ -320,12 +305,12 @@ export default function RolesPermissions({ workspaceId, workspaceName }) {
               {dirtyRoles.size} {dirtyRoles.size === 1 ? 'role has' : 'roles have'} unsaved changes
             </div>
           )}
-          <Btn variant="ghost" size="md" onClick={discardChanges} disabled={!hasUnsavedChanges || saving}>
+          <Button variant="secondary" size="md" onClick={discardChanges} disabled={!hasUnsavedChanges || saving}>
             Discard
-          </Btn>
-          <Btn variant="primary" size="md" onClick={saveChanges} disabled={!hasUnsavedChanges || saving}>
+          </Button>
+          <Button variant="primary" size="md" onClick={saveChanges} loading={saving} disabled={!hasUnsavedChanges}>
             {saving ? 'Saving...' : 'Save changes'}
-          </Btn>
+          </Button>
         </div>
       </div>
 
@@ -338,8 +323,8 @@ export default function RolesPermissions({ workspaceId, workspaceName }) {
               This will restore all role permissions to their default values. Any customizations you have made will be lost.
             </div>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 20 }}>
-              <Btn variant="ghost" onClick={() => setResetOpen(false)} disabled={saving}>Cancel</Btn>
-              <Btn variant="danger" onClick={resetToDefaults} disabled={saving}>{saving ? 'Resetting...' : 'Reset'}</Btn>
+              <Button variant="secondary" onClick={() => setResetOpen(false)} disabled={saving}>Cancel</Button>
+              <Button variant="danger" onClick={resetToDefaults} loading={saving}>{saving ? 'Resetting...' : 'Reset'}</Button>
             </div>
           </div>
         </div>

@@ -4,6 +4,7 @@ import { useApiSave } from '../../../hooks/useApiSave'
 import { useWorkspace } from '../../../context/WorkspaceContext'
 import { API } from '../../../utils/constants'
 import { ACCENT, ACCENT_LIGHT, NAVY } from '../../../utils/designTokens'
+import Button from '../../ui/Button'
 
 function Field({ label, hint, children }) {
   return (
@@ -36,23 +37,6 @@ function CardHeader({ title, subtitle }) {
       <div style={{ fontSize: 12, fontWeight: 600, color: '#4a4742' }}>{title}</div>
       {subtitle && <div style={{ fontSize: 11, color: '#9a958c', marginTop: 2 }}>{subtitle}</div>}
     </div>
-  )
-}
-
-function Btn({ onClick, children, variant = 'primary', size = 'md', disabled, style: extra }) {
-  const sizes = { sm: { padding: '5px 10px', fontSize: 11 }, md: { padding: '8px 14px', fontSize: 12 } }
-  const variants = {
-    primary: { background: ACCENT, color: '#fff', border: 'none' },
-    ghost: { background: 'transparent', color: '#6e6a63', border: '0.5px solid #dcd8d0' },
-    dark: { background: NAVY, color: '#fff', border: 'none' },
-    success: { background: '#dcfce7', color: '#16a34a', border: '0.5px solid #86efac' },
-    danger: { background: '#fee2e2', color: '#dc2626', border: '0.5px solid #fca5a5' },
-  }
-  return (
-    <button onClick={!disabled ? onClick : undefined}
-      style={{ ...sizes[size], ...variants[variant], borderRadius: 8, cursor: disabled ? 'default' : 'pointer', fontWeight: 500, opacity: disabled ? 0.6 : 1, display: 'inline-flex', alignItems: 'center', gap: 6, ...extra }}>
-      {children}
-    </button>
   )
 }
 
@@ -235,17 +219,17 @@ export default function WhatsAppAPI() {
             </Field>
 
             <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-              <Btn variant="ghost" onClick={testConnection} disabled={testing} style={{ flex: 1 }}>
+              <Button variant="secondary" onClick={testConnection} loading={testing} style={{ flex: 1 }}>
                 {testing ? (
                   <>
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: 'spin 1s linear infinite' }}><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4"/></svg>
                     Testing…
                   </>
                 ) : <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline', verticalAlign: '-2px', marginRight: 6 }}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>Test Connection</>}
-              </Btn>
-              <Btn onClick={save} disabled={saving} style={{ flex: 1 }}>
+              </Button>
+              <Button onClick={save} loading={saving} style={{ flex: 1 }}>
                 {saving ? 'Saving…' : <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline', verticalAlign: '-2px', marginRight: 6 }}><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>Save Credentials</>}
-              </Btn>
+              </Button>
             </div>
 
             {error && (
@@ -275,7 +259,7 @@ export default function WhatsAppAPI() {
               <div style={{ display: 'flex', gap: 8 }}>
                 <input value={webhookUrl} readOnly
                   style={{ flex: 1, padding: '9px 12px', border: '0.5px solid #dcd8d0', borderRadius: 8, fontSize: 11, background: '#faf9f7', color: '#6e6a63', outline: 'none', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis' }} />
-                <Btn variant="ghost" size="sm" onClick={() => copyToClipboard(webhookUrl, 'Webhook URL')}>Copy</Btn>
+                <Button variant="secondary" size="sm" onClick={() => copyToClipboard(webhookUrl, 'Webhook URL')}>Copy</Button>
               </div>
             </Field>
 
@@ -283,7 +267,7 @@ export default function WhatsAppAPI() {
               <div style={{ display: 'flex', gap: 8 }}>
                 <input value={verifyToken} readOnly
                   style={{ flex: 1, padding: '9px 12px', border: '0.5px solid #dcd8d0', borderRadius: 8, fontSize: 11, background: '#faf9f7', color: '#6e6a63', outline: 'none', fontFamily: 'monospace' }} />
-                <Btn variant="ghost" size="sm" onClick={() => copyToClipboard(verifyToken, 'Verify Token')}>Copy</Btn>
+                <Button variant="secondary" size="sm" onClick={() => copyToClipboard(verifyToken, 'Verify Token')}>Copy</Button>
               </div>
             </Field>
 

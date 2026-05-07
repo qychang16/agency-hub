@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext'
 import { API } from '../../utils/constants'
 import { ACCENT, ACCENT_LIGHT, NAVY } from '../../utils/designTokens'
 import { fmtSGT } from '../../utils/dates'
+import Button from '../ui/Button'
 
 function Field({ label, hint, children, required }) {
   return (
@@ -29,22 +30,6 @@ function Select({ value, onChange, options, disabled }) {
       style={{ width: '100%', padding: '9px 12px', border: '0.5px solid #dcd8d0', borderRadius: 8, fontSize: 13, outline: 'none', background: disabled ? '#faf9f7' : '#fff', color: '#14130f' }}>
       {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
     </select>
-  )
-}
-
-function Btn({ onClick, children, variant = 'primary', size = 'md', disabled, style: extra }) {
-  const sizes = { sm: { padding: '5px 10px', fontSize: 11 }, md: { padding: '9px 16px', fontSize: 13 } }
-  const variants = {
-    primary: { background: ACCENT, color: '#fff', border: 'none' },
-    ghost: { background: 'transparent', color: '#6e6a63', border: '0.5px solid #dcd8d0' },
-    dark: { background: NAVY, color: '#fff', border: 'none' },
-    amber: { background: '#fef3c7', color: '#92400e', border: '0.5px solid #fde68a' },
-  }
-  return (
-    <button onClick={!disabled ? onClick : undefined}
-      style={{ ...sizes[size], ...variants[variant], borderRadius: 8, cursor: disabled ? 'default' : 'pointer', fontWeight: 500, opacity: disabled ? 0.6 : 1, display: 'inline-flex', alignItems: 'center', gap: 6, ...extra }}>
-      {children}
-    </button>
   )
 }
 
@@ -524,15 +509,15 @@ export default function ScheduledComposer({ onClose, onSaved, prefillContact, pr
           <div style={{ display: 'flex', gap: 10 }}>
             {step === 1 ? (
               <>
-                <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
-                <Btn onClick={() => { if (validate()) setStep(2) }}>Preview →</Btn>
+                <Button variant="secondary" onClick={onClose}>Cancel</Button>
+                <Button onClick={() => { if (validate()) setStep(2) }}>Preview →</Button>
               </>
             ) : (
               <>
-                <Btn variant="ghost" onClick={() => setStep(1)}>← Edit</Btn>
-                <Btn onClick={save} disabled={saving || hasUnfilledVars}>
+                <Button variant="secondary" onClick={() => setStep(1)}>← Edit</Button>
+                <Button onClick={save} loading={saving} disabled={hasUnfilledVars}>
                   {saving ? 'Scheduling…' : sendMode === 'immediate' ? '⚡ Send Now' : '📅 Confirm Schedule'}
-                </Btn>
+                </Button>
               </>
             )}
           </div>

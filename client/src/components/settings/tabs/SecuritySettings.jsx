@@ -3,6 +3,7 @@ import { useAuth } from '../../../context/AuthContext'
 import { useApiSave } from '../../../hooks/useApiSave'
 import { API } from '../../../utils/constants'
 import { ACCENT } from '../../../utils/designTokens'
+import Button from '../../ui/Button'
 
 function Field({ label, hint, children }) {
   return (
@@ -56,20 +57,6 @@ function CardHeader({ title, subtitle }) {
       <div style={{ fontSize: 12, fontWeight: 600, color: '#4a4742' }}>{title}</div>
       {subtitle && <div style={{ fontSize: 11, color: '#9a958c', marginTop: 2 }}>{subtitle}</div>}
     </div>
-  )
-}
-
-function Btn({ onClick, children, variant = 'primary', disabled }) {
-  const variants = {
-    primary: { background: ACCENT, color: '#fff', border: 'none' },
-    ghost: { background: 'transparent', color: '#6e6a63', border: '0.5px solid #dcd8d0' },
-    danger: { background: '#fee2e2', color: '#dc2626', border: '0.5px solid #fca5a5' },
-  }
-  return (
-    <button onClick={!disabled ? onClick : undefined}
-      style={{ padding: '8px 16px', fontSize: 12, ...variants[variant], borderRadius: 8, cursor: disabled ? 'default' : 'pointer', fontWeight: 500, opacity: disabled ? 0.6 : 1, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-      {children}
-    </button>
   )
 }
 
@@ -159,7 +146,7 @@ export default function SecuritySettings() {
                   <div style={{ fontSize: 13, color: '#14130f' }}>••••••••••••</div>
                   <div style={{ fontSize: 11, color: '#9a958c', marginTop: 2 }}>Last changed: unknown</div>
                 </div>
-                <Btn variant="ghost" onClick={() => setShowChangePassword(true)}>Change Password</Btn>
+                <Button variant="secondary" onClick={() => setShowChangePassword(true)}>Change Password</Button>
               </div>
             ) : (
               <div>
@@ -211,8 +198,8 @@ export default function SecuritySettings() {
                 {pwSaved && <div style={{ fontSize: 12, color: '#16a34a', background: '#f0fdf4', border: '0.5px solid #86efac', borderRadius: 7, padding: '8px 12px', marginBottom: 12 }}>✓ Password changed successfully</div>}
 
                 <div style={{ display: 'flex', gap: 8 }}>
-                  <Btn variant="ghost" onClick={() => { setShowChangePassword(false); setPwError('') }} style={{ flex: 1 }}>Cancel</Btn>
-                  <Btn onClick={changePassword} style={{ flex: 2 }}>Update Password</Btn>
+                  <Button variant="secondary" onClick={() => { setShowChangePassword(false); setPwError('') }} style={{ flex: 1 }}>Cancel</Button>
+                  <Button onClick={changePassword} style={{ flex: 2 }}>Update Password</Button>
                 </div>
               </div>
             )}
@@ -311,7 +298,7 @@ export default function SecuritySettings() {
         </div>
       </div>
 
-      {/* Save 鈥?only Directors can save workspace security settings */}
+      {/* Save - only Directors can save workspace security settings */}
       {isDirector && (
         <>
           {error && (
@@ -321,7 +308,7 @@ export default function SecuritySettings() {
           )}
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 4 }}>
             {saved && <div style={{ fontSize: 12, color: '#16a34a', display: 'flex', alignItems: 'center', gap: 5 }}>✓ Security settings saved</div>}
-            <Btn onClick={save} disabled={saving}>{saving ? 'Saving…' : 'Save Security Settings'}</Btn>
+            <Button onClick={save} loading={saving}>{saving ? 'Saving...' : 'Save Security Settings'}</Button>
           </div>
         </>
       )}

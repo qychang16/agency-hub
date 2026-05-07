@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { API } from '../../utils/constants'
 import IPhonePreview from '../IPhonePreview'
-import Btn from '../ui/Btn'
+import Button from '../ui/Button'
 import Modal from '../ui/Modal'
 import { ACCENT } from '../../utils/designTokens'
 
@@ -486,10 +486,15 @@ export default function SendTemplate({ conversationId, onClose, onSent }) {
 
           {selected && (
             <div style={{ display: 'flex', gap: 10, marginTop: 16, paddingTop: 14, borderTop: '0.5px solid #f5f3ef' }}>
-              <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
-              <Btn onClick={send} disabled={!canSend || sending} style={{ flex: 1 }}>
+              <Button variant="secondary" onClick={onClose}>Cancel</Button>
+              <Button
+                variant="primary"
+                onClick={send}
+                loading={sending}
+                disabled={!canSend}
+                style={{ flex: 1 }}>
                 {sending ? 'Sending...' : missingVars.length > 0 ? `Fill ${missingVars.length} more value${missingVars.length === 1 ? '' : 's'}` : 'Send Message'}
-              </Btn>
+              </Button>
             </div>
           )}
         </div>

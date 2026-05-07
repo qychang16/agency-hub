@@ -5,20 +5,20 @@ import { ACCENT, ACCENT_LIGHT, NAVY } from '../../utils/designTokens'
 import TemplateLibraryModal from '../TemplateLibraryModal'
 import MetaLibraryModal from '../MetaLibraryModal'
 import IPhonePreview from '../IPhonePreview'
-import Btn from '../ui/Btn'
+import Button from '../ui/Button'
 import Modal from '../ui/Modal'
 
 const CATEGORIES = [
-  { value: 'utility', label: 'Utility', desc: 'Transactional — confirmations, reminders, updates' },
-  { value: 'marketing', label: 'Marketing', desc: 'Promotional — job alerts, opportunities' },
+  { value: 'utility', label: 'Utility', desc: 'Transactional - confirmations, reminders, updates' },
+  { value: 'marketing', label: 'Marketing', desc: 'Promotional - job alerts, opportunities' },
   { value: 'authentication', label: 'Authentication', desc: 'OTP and verification messages' },
 ]
 
 const STATUS_STYLES = {
-  approved: { bg: '#dcfce7', color: '#16a34a', label: '✓ Approved' },
-  pending: { bg: '#fef3c7', color: '#92400e', label: '⏳ Pending' },
-  draft: { bg: '#f5f3ef', color: '#6e6a63', label: '✏ Draft' },
-  rejected: { bg: '#fee2e2', color: '#dc2626', label: '✗ Rejected' },
+  approved: { bg: '#dcfce7', color: '#16a34a', label: 'Approved' },
+  pending:  { bg: '#fef3c7', color: '#92400e', label: 'Pending' },
+  draft:    { bg: '#f5f3ef', color: '#6e6a63', label: 'Draft' },
+  rejected: { bg: '#fee2e2', color: '#dc2626', label: 'Rejected' },
 }
 
 // Smart name suggestion for cloning. Detects existing siblings of pattern
@@ -253,21 +253,25 @@ function TemplateEditor({ template, onClose, onSaved }) {
 
   // Modal title reflects mode: edit, clone, customise (defaults), or new.
   const modalTitle = (() => {
-    if (isClone) return `Clone — new template from ${template._clonedFrom}`
-    if (isEdit) return `Edit — ${template.name}`
-    if (template?.name) return `Customise — ${template.name}`
+    if (isClone) return `Clone - new template from ${template._clonedFrom}`
+    if (isEdit) return `Edit - ${template.name}`
+    if (template?.name) return `Customise - ${template.name}`
     return 'New Custom Template'
   })()
 
   return (
     <Modal
       title={modalTitle}
-      subtitle="WhatsApp Business template — requires Meta approval before sending"
+      subtitle="WhatsApp Business template - requires Meta approval before sending"
       onClose={onClose}>
 
       {isClone && (
         <div style={{ marginBottom: 16, padding: '10px 14px', background: '#ede9fe', border: '0.5px solid #d4ccf4', borderRadius: 8, display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ fontSize: 14 }}>↻</span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5b21b6" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+            <polyline points="1 4 1 10 7 10" />
+            <polyline points="23 20 23 14 17 14" />
+            <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15" />
+          </svg>
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 12, color: '#14130f', fontWeight: 500 }}>
               Cloned from <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>{template._clonedFrom}</span>
@@ -293,8 +297,13 @@ function TemplateEditor({ template, onClose, onSaved }) {
                 style={{ width: '100%', padding: '9px 12px', border: '0.5px solid #dcd8d0', borderRadius: 8, fontSize: 13, outline: 'none', background: '#fff', color: '#14130f', boxSizing: 'border-box', fontFamily: 'monospace' }} />
               <div style={{ fontSize: 10, color: '#9a958c', marginTop: 4 }}>Lowercase letters and underscores only</div>
               {nameWarning && (
-                <div style={{ fontSize: 11, color: '#9a6a00', marginTop: 6, padding: '6px 10px', background: '#fef3c7', border: '0.5px solid #fde68a', borderRadius: 6 }}>
-                  ⚠ {nameWarning}
+                <div style={{ fontSize: 11, color: '#9a6a00', marginTop: 6, padding: '6px 10px', background: '#fef3c7', border: '0.5px solid #fde68a', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#9a6a00" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                    <line x1="12" y1="9" x2="12" y2="13" />
+                    <line x1="12" y1="17" x2="12.01" y2="17" />
+                  </svg>
+                  <span>{nameWarning}</span>
                 </div>
               )}
             </div>
@@ -304,7 +313,7 @@ function TemplateEditor({ template, onClose, onSaved }) {
               </label>
               <select value={category} onChange={e => setCategory(e.target.value)}
                 style={{ width: '100%', padding: '9px 12px', border: '0.5px solid #dcd8d0', borderRadius: 8, fontSize: 13, outline: 'none', background: '#fff', color: '#14130f' }}>
-                {CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label} — {c.desc}</option>)}
+                {CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label} - {c.desc}</option>)}
               </select>
             </div>
           </div>
@@ -348,7 +357,7 @@ function TemplateEditor({ template, onClose, onSaved }) {
                 Variables {varOrdered.length > 0 && <span style={{ color: '#9a958c', fontWeight: 400 }}>({varOrdered.length})</span>}
               </div>
               {!isMetaLibrary && (
-                <Btn variant="ghost" size="sm" onClick={addVariable}>+ Add Variable</Btn>
+                <Button variant="ghost" size="sm" onClick={addVariable}>+ Add Variable</Button>
               )}
             </div>
 
@@ -448,7 +457,7 @@ function TemplateEditor({ template, onClose, onSaved }) {
               {[['*bold*', 'Bold'], ['_italic_', 'Italic'], ['~strike~', 'Strikethrough'], ['`code`', 'Monospace']].map(([syntax, label]) => (
                 <div key={label} style={{ fontSize: 11, color: '#6e6a63', display: 'flex', gap: 5, alignItems: 'center' }}>
                   <code style={{ background: '#dcd8d0', padding: '1px 5px', borderRadius: 3, fontSize: 10 }}>{syntax}</code>
-                  <span>→ {label}</span>
+                  <span>renders as {label}</span>
                 </div>
               ))}
             </div>
@@ -459,7 +468,7 @@ function TemplateEditor({ template, onClose, onSaved }) {
               <label style={{ fontSize: 11, fontWeight: 600, color: '#4a4742', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
                 Buttons {!isMetaLibrary && '(optional, max 3)'}
               </label>
-              {!isMetaLibrary && buttons.length < 3 && <Btn variant="ghost" size="sm" onClick={addButton}>+ Add Button</Btn>}
+              {!isMetaLibrary && buttons.length < 3 && <Button variant="ghost" size="sm" onClick={addButton}>+ Add Button</Button>}
             </div>
             {isMetaLibrary && buttons.length > 0 && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>
@@ -487,32 +496,37 @@ function TemplateEditor({ template, onClose, onSaved }) {
                 <input value={b.label} onChange={e => updateButton(i, 'label', e.target.value)} placeholder="Button label"
                   style={{ flex: 1, padding: '8px 10px', border: '0.5px solid #dcd8d0', borderRadius: 7, fontSize: 12, outline: 'none', background: '#fff', color: '#14130f' }} />
                 {b.type === 'call_to_action' && (
-                  <input value={b.url || ''} onChange={e => updateButton(i, 'url', e.target.value)} placeholder="https://…"
+                  <input value={b.url || ''} onChange={e => updateButton(i, 'url', e.target.value)} placeholder="https://..."
                     style={{ flex: 1, padding: '8px 10px', border: '0.5px solid #dcd8d0', borderRadius: 7, fontSize: 12, outline: 'none', background: '#fff', color: '#14130f' }} />
                 )}
                 <button onClick={() => removeButton(i)}
-                  style={{ width: 28, height: 28, borderRadius: 7, border: '0.5px solid #fca5a5', background: '#fee2e2', cursor: 'pointer', color: '#dc2626', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>×</button>
+                  style={{ width: 28, height: 28, borderRadius: 7, border: '0.5px solid #fca5a5', background: '#fee2e2', cursor: 'pointer', color: '#dc2626', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 16, lineHeight: 1 }}>x</button>
               </div>
             ))}
           </div>
 
           {error && (
-            <div style={{ padding: '10px 12px', background: '#fef2f2', border: '0.5px solid #fecaca', borderRadius: 8, fontSize: 12, color: '#dc2626', marginTop: 12 }}>
-              ⚠ {error}
+            <div style={{ padding: '10px 12px', background: '#fef2f2', border: '0.5px solid #fecaca', borderRadius: 8, fontSize: 12, color: '#dc2626', marginTop: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                <line x1="12" y1="9" x2="12" y2="13" />
+                <line x1="12" y1="17" x2="12.01" y2="17" />
+              </svg>
+              <span>{error}</span>
             </div>
           )}
 
           <div style={{ display: 'flex', gap: 10, marginTop: 20, paddingTop: 16, borderTop: '0.5px solid #f5f3ef' }}>
-            <Btn variant="ghost" onClick={onClose} style={{ flex: 1 }}>Cancel</Btn>
-            <Btn variant="ghost" onClick={() => save('draft')} disabled={saving} style={{ flex: 1 }}>Save as Draft</Btn>
+            <Button variant="ghost" onClick={onClose} style={{ flex: 1 }}>Cancel</Button>
+            <Button variant="ghost" onClick={() => save('draft')} disabled={saving} style={{ flex: 1 }}>Save as Draft</Button>
             {(user?.role === 'director' || user?.role === 'manager') ? (
-              <Btn onClick={() => save('approved')} disabled={saving} style={{ flex: 2 }}>
-                {saving ? 'Saving…' : (isEdit && !isClone) ? 'Save & Approve' : 'Create & Approve'}
-              </Btn>
+              <Button onClick={() => save('approved')} disabled={saving} style={{ flex: 2 }}>
+                {saving ? 'Saving...' : (isEdit && !isClone) ? 'Save & Approve' : 'Create & Approve'}
+              </Button>
             ) : (
-              <Btn onClick={() => save('pending')} disabled={saving} style={{ flex: 2 }}>
-                {saving ? 'Saving…' : 'Submit for Approval'}
-              </Btn>
+              <Button onClick={() => save('pending')} disabled={saving} style={{ flex: 2 }}>
+                {saving ? 'Saving...' : 'Submit for Approval'}
+              </Button>
             )}
           </div>
         </div>
@@ -561,38 +575,49 @@ function TemplateCard({ t, canCreate, canApprove, onPreview, onEdit, onDelete, o
       </div>
       <div style={{ padding: '12px 16px', flex: 1 }}>
         <div style={{ fontSize: 12, color: '#4a4742', lineHeight: 1.6, maxHeight: 100, overflow: 'hidden' }}>
-          {t.body?.slice(0, 200)}{t.body?.length > 200 ? '…' : ''}
+          {t.body?.slice(0, 200)}{t.body?.length > 200 ? '...' : ''}
         </div>
       </div>
       {buttons.length > 0 && (
         <div style={{ padding: '0 16px 10px' }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
             {buttons.map((b, i) => (
-              <span key={i} style={{ fontSize: 10, padding: '3px 9px', borderRadius: 6, background: '#f0fdf4', color: '#16a34a', border: '0.5px solid #86efac', fontWeight: 500 }}>
-                {b.type === 'quick_reply' ? '↩ ' : '↗ '}{b.label || b.text}
+              <span key={i} style={{ fontSize: 10, padding: '3px 9px', borderRadius: 6, background: '#f0fdf4', color: '#16a34a', border: '0.5px solid #86efac', fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                {b.type === 'quick_reply' ? (
+                  <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="9 14 4 9 9 4" />
+                    <path d="M20 20v-7a4 4 0 0 0-4-4H4" />
+                  </svg>
+                ) : (
+                  <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M7 17L17 7" />
+                    <polyline points="7 7 17 7 17 17" />
+                  </svg>
+                )}
+                {b.label || b.text}
               </span>
             ))}
           </div>
         </div>
       )}
       <div style={{ padding: '10px 16px', borderTop: '0.5px solid #f5f3ef', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-        <Btn variant="ghost" size="sm" onClick={() => onPreview(t)}>Preview</Btn>
+        <Button variant="ghost" size="sm" onClick={() => onPreview(t)}>Preview</Button>
         {canCreate && (
-          <Btn variant="ghost" size="sm" onClick={() => onEdit(t)}>
+          <Button variant="ghost" size="sm" onClick={() => onEdit(t)}>
             {isLocked ? 'Defaults' : 'Edit'}
-          </Btn>
+          </Button>
         )}
         {canCreate && isLocked && (
-          <Btn variant="ghost" size="sm" onClick={() => onCopy(t)}>Copy</Btn>
+          <Button variant="ghost" size="sm" onClick={() => onCopy(t)}>Copy</Button>
         )}
         {canApprove && t.status === 'pending' && (
           <>
-            <Btn variant="success" size="sm" onClick={() => onApprove(t.id)}>✓ Approve</Btn>
-            <Btn variant="danger" size="sm" onClick={() => onReject(t.id)}>✗ Reject</Btn>
+            <Button variant="success" size="sm" onClick={() => onApprove(t.id)}>Approve</Button>
+            <Button variant="danger" size="sm" onClick={() => onReject(t.id)}>Reject</Button>
           </>
         )}
         {canCreate && (
-          <Btn variant="danger" size="sm" onClick={() => onDelete(t.id)} style={{ marginLeft: 'auto' }}>Delete</Btn>
+          <Button variant="danger" size="sm" onClick={() => onDelete(t.id)} style={{ marginLeft: 'auto' }}>Delete</Button>
         )}
       </div>
     </div>
@@ -754,15 +779,15 @@ export default function Templates() {
           </div>
           {canCreate && (
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <Btn variant="meta" onClick={() => setShowMetaLibrary(true)}>
+              <Button variant="meta" onClick={() => setShowMetaLibrary(true)}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M12 2 2 7l10 5 10-5-10-5Z" />
                   <path d="m2 17 10 5 10-5" />
                   <path d="m2 12 10 5 10-5" />
                 </svg>
                 Meta Library
-              </Btn>
-              <Btn variant="suggested" onClick={() => setShowLibrary(true)}>
+              </Button>
+              <Button variant="suggested" onClick={() => setShowLibrary(true)}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                   <rect x="7" y="6" width="14" height="15" rx="2" />
                   <path d="M3 18V4a1 1 0 0 1 1-1h11" />
@@ -770,10 +795,10 @@ export default function Templates() {
                   <path d="M11 15h6" />
                 </svg>
                 Suggested
-              </Btn>
-              <Btn onClick={() => { setEditingTemplate(null); setShowEditor(true) }}>
+              </Button>
+              <Button onClick={() => { setEditingTemplate(null); setShowEditor(true) }}>
                 + Custom Template
-              </Btn>
+              </Button>
             </div>
           )}
         </div>
@@ -808,7 +833,7 @@ export default function Templates() {
         </div>
         <div className="w-full md:w-auto md:ml-auto" style={{ position: 'relative' }}>
           <svg style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', width: 12, height: 12, color: '#9a958c', pointerEvents: 'none' }} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="7" cy="7" r="4"/><path d="M10.5 10.5l3 3" strokeLinecap="round"/></svg>
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search templates…"
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search templates..."
             className="w-full md:w-[200px]"
             style={{ padding: '6px 10px 6px 26px', border: '0.5px solid #dcd8d0', borderRadius: 8, fontSize: 12, outline: 'none', background: '#faf9f7', color: '#14130f', boxSizing: 'border-box' }} />
         </div>
@@ -818,7 +843,7 @@ export default function Templates() {
         {loading ? (
           <div style={{ textAlign: 'center', padding: 60, color: '#9a958c' }}>
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#9a958c" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: 12 }}><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8"/><path d="M8 11h8"/><path d="M8 15h5"/></svg>
-            <div>Loading templates…</div>
+            <div>Loading templates...</div>
           </div>
         ) : (
           SECTIONS.map(section => (
@@ -893,7 +918,12 @@ export default function Templates() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <div style={{ fontSize: 14, fontWeight: 600, color: '#14130f' }}>{previewTemplate.name}</div>
               <button onClick={() => setPreviewTemplate(null)}
-                style={{ width: 28, height: 28, borderRadius: 7, border: '0.5px solid #dcd8d0', background: '#faf9f7', cursor: 'pointer', fontSize: 14, color: '#6e6a63', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+                style={{ width: 28, height: 28, borderRadius: 7, border: '0.5px solid #dcd8d0', background: '#faf9f7', cursor: 'pointer', color: '#6e6a63', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+                  <line x1="4" y1="4" x2="12" y2="12" />
+                  <line x1="12" y1="4" x2="4" y2="12" />
+                </svg>
+              </button>
             </div>
             <div style={{ display: 'flex', justifyContent: 'center' }}>
               <IPhonePreview

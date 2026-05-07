@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { API } from '../../utils/constants'
 import { ACCENT, ACCENT_LIGHT, NAVY } from '../../utils/designTokens'
-import Btn from '../ui/Btn'
+import Button from '../ui/Button'
 
 // Stages match the canonical pipeline used in Contacts.jsx and the contacts table.
 // Column accent colors signal funnel position: blue/grey for early stages,
@@ -315,7 +315,7 @@ export default function Pipeline() {
             className="w-full md:w-[260px]"
             style={{ padding: '6px 10px 6px 26px', border: '0.5px solid #dcd8d0', borderRadius: 8, fontSize: 12, outline: 'none', background: '#faf9f7', color: '#14130f', boxSizing: 'border-box' }} />
         </div>
-        <Btn variant="ghost" size="sm" onClick={load}>Refresh</Btn>
+        <Button variant="secondary" size="sm" onClick={load}>Refresh</Button>
       </div>
 
       {/* Error banner */}

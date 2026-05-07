@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { API } from '../../utils/constants'
 import { ACCENT, ACCENT_LIGHT, NAVY } from '../../utils/designTokens'
-import Btn from '../ui/Btn'
+import Button from '../ui/Button'
 import Modal from '../ui/Modal'
 
 // ─────────────────────────────────────────────────────────────
@@ -270,13 +270,13 @@ function StepRecipients({ form, setForm, contacts, contactsLoading }) {
           onChange={e => setSearchFilter(e.target.value)}
           placeholder="Search name, phone, email..."
           style={{ flex: 1, minWidth: 180, padding: '6px 10px', border: '0.5px solid #dcd8d0', borderRadius: 7, fontSize: 12, background: '#fff', color: '#14130f' }} />
-        <Btn variant="ghost" size="sm" onClick={selectAllVisible} disabled={filtered.length === 0}>
+        <Button variant="secondary" size="sm" onClick={selectAllVisible} disabled={filtered.length === 0}>
           Select all ({filtered.length})
-        </Btn>
+        </Button>
         {selected.size > 0 && (
-          <Btn variant="ghost" size="sm" onClick={deselectAllVisible}>
+          <Button variant="secondary" size="sm" onClick={deselectAllVisible}>
             Deselect visible
-          </Btn>
+          </Button>
         )}
       </div>
 
@@ -718,21 +718,23 @@ export default function BroadcastComposer({ onClose, onSaved }) {
       )}
 
       <div style={{ display: 'flex', gap: 10, marginTop: 24, paddingTop: 16, borderTop: '0.5px solid #f5f3ef' }}>
-        <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
+        <Button variant="secondary" onClick={onClose}>Cancel</Button>
         {stepIdx > 0 && (
-          <Btn variant="ghost" onClick={goBack}>Back</Btn>
+          <Button variant="secondary" onClick={goBack}>Back</Button>
         )}
         {stepIdx < STEPS.length - 1 ? (
-          <Btn onClick={goNext} disabled={!canAdvance(stepIdx)} style={{ marginLeft: 'auto' }}>
+          <Button variant="primary" onClick={goNext} disabled={!canAdvance(stepIdx)} style={{ marginLeft: 'auto' }}>
             Next
-          </Btn>
+          </Button>
         ) : (
-          <Btn
+          <Button
+            variant="primary"
             onClick={launch}
-            disabled={saving || sendablePreview.sendable === 0}
+            loading={saving}
+            disabled={sendablePreview.sendable === 0}
             style={{ marginLeft: 'auto' }}>
             {saving ? 'Launching...' : (form.send_mode === 'now' ? 'Launch Broadcast' : 'Schedule Broadcast')}
-          </Btn>
+          </Button>
         )}
       </div>
     </Modal>

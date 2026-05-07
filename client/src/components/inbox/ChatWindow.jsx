@@ -335,7 +335,9 @@ export default function ChatWindow({ activeConvoId, active, setActive, projects,
                 </GhostButton>
                 {showProjectMenu && (
                   <div style={{
-                    position: 'absolute', top: 'calc(100% + 4px)', right: 0,
+                    position: 'absolute', top: 'calc(100% + 4px)',
+                    left: isMobile ? 0 : 'auto',
+                    right: isMobile ? 'auto' : 0,
                     background: '#fff',
                     border: border.subtle,
                     borderRadius: radius.md,
@@ -892,21 +894,18 @@ export default function ChatWindow({ activeConvoId, active, setActive, projects,
           gets its own row with horizontal scroll if it overflows. */}
       <style>{`
         @media (max-width: 640px) {
-          .chat-window-header {
-            flex-wrap: wrap;
-          }
-          .chat-window-actions {
-            width: 100%;
-            order: 99;
-            overflow-x: auto;
-            padding-top: 4px;
-            border-top: 0.5px solid #f5f3ef;
-            margin-top: 4px;
-          }
-          .chat-window-actions::-webkit-scrollbar {
-            height: 0;
-          }
-        }
+  .chat-window-header {
+    flex-wrap: wrap;
+  }
+  .chat-window-actions {
+    width: 100%;
+    order: 99;
+    flex-wrap: wrap;
+    padding-top: 4px;
+    border-top: 0.5px solid #f5f3ef;
+    margin-top: 4px;
+  }
+}
       `}</style>
     </div>
   )

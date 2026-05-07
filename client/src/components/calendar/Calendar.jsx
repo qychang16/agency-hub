@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { API } from '../../utils/constants'
 import { ink, accent, fonts, textSize, textWeight, space, radius, border } from '../../utils/designTokens'
-import Btn from '../ui/Btn'
+import Button from '../ui/Button'
 import EventModal from './EventModal'
 
 // Day name labels for the grid header (Mon-Sun, Singapore convention)
@@ -241,9 +241,9 @@ export default function Calendar({ isMobile, onOpenConversation }) {
             </div>
           </div>
           {canManage && (
-            <Btn onClick={() => setModalState({ defaultDate: new Date() })}>
+            <Button variant="primary" onClick={() => setModalState({ defaultDate: new Date() })}>
               + New Event
-            </Btn>
+            </Button>
           )}
         </div>
 

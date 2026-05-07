@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { API } from '../../utils/constants'
 import { ACCENT, ACCENT_LIGHT, NAVY } from '../../utils/designTokens'
-import Btn from '../ui/Btn'
+import Button from '../ui/Button'
 
 // Status pill styles. Reused from list view for consistency.
 const BROADCAST_STATUS_STYLES = {
@@ -150,7 +150,7 @@ export default function BroadcastDetail({ broadcastId, onBack }) {
     return (
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#faf9f7', gap: 16 }}>
         <div style={{ fontSize: 14, color: '#dc2626' }}>{error || 'Broadcast not found'}</div>
-        <Btn variant="ghost" onClick={onBack}>Back to Broadcasts</Btn>
+        <Button variant="secondary" onClick={onBack}>Back to Broadcasts</Button>
       </div>
     )
   }
@@ -211,14 +211,14 @@ export default function BroadcastDetail({ broadcastId, onBack }) {
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             {canRetry && (
-              <Btn onClick={retryFailed} disabled={actionRunning}>
+              <Button variant="primary" onClick={retryFailed} loading={actionRunning}>
                 Retry Failed ({counts.failed})
-              </Btn>
+              </Button>
             )}
             {canCancel && (
-              <Btn variant="danger" onClick={cancelBroadcast} disabled={actionRunning}>
+              <Button variant="danger" onClick={cancelBroadcast} loading={actionRunning}>
                 Cancel Broadcast
-              </Btn>
+              </Button>
             )}
           </div>
         </div>
@@ -276,7 +276,7 @@ export default function BroadcastDetail({ broadcastId, onBack }) {
             className="w-full md:w-[220px]"
             style={{ padding: '6px 10px 6px 26px', border: '0.5px solid #dcd8d0', borderRadius: 8, fontSize: 12, outline: 'none', background: '#faf9f7', color: '#14130f', boxSizing: 'border-box' }} />
         </div>
-        <Btn variant="ghost" size="sm" onClick={load}>Refresh</Btn>
+        <Button variant="secondary" size="sm" onClick={load}>Refresh</Button>
       </div>
 
       {/* Body: recipient list + sidebar */}

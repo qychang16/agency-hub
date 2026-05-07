@@ -1,13 +1,13 @@
-import { useState, useEffect, useMemo, useRef } from 'react'
+﻿import { useState, useEffect, useMemo, useRef } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { API } from '../../utils/constants'
 import { ACCENT, ACCENT_LIGHT, NAVY } from '../../utils/designTokens'
-import Btn from '../ui/Btn'
+import Button from '../ui/Button'
 import Modal from '../ui/Modal'
 
-// ─────────────────────────────────────────────────────────────
+// ----------------------------------------------------------------
 // Constants
-// ─────────────────────────────────────────────────────────────
+// ----------------------------------------------------------------
 
 const TYPE_STYLES = {
   candidate: { bg: '#eeedf5', color: '#2d2a7a', label: 'Candidate' },
@@ -65,10 +65,10 @@ function fmtDate(ts) {
   return d.toLocaleDateString('en-SG', { year: 'numeric', month: 'short', day: '2-digit' })
 }
 
-// ─────────────────────────────────────────────────────────────
-// Contact Editor — same as before, kept inline. PDPA + identity + career
+// ----------------------------------------------------------------
+// Contact Editor - same as before, kept inline. PDPA + identity + career
 // + tags. Used by both "+ New" button and row click.
-// ─────────────────────────────────────────────────────────────
+// ----------------------------------------------------------------
 function ContactEditor({ contact, onClose, onSaved }) {
   const { token } = useAuth()
   const isEdit = !!contact?.id
@@ -86,7 +86,7 @@ function ContactEditor({ contact, onClose, onSaved }) {
     notes: contact?.notes || '',
     source: contact?.source || '',
     pdpa_consented: contact?.pdpa_consented || false,
-    // Method/notes/expiry are write-only — they only matter when consent is
+    // Method/notes/expiry are write-only - they only matter when consent is
     // newly granted. We never read them back from the contact (those live in
     // pdpa_records). Defaults match the auto-log defaults so a quick toggle
     // still produces a sensible record.
@@ -190,7 +190,7 @@ function ContactEditor({ contact, onClose, onSaved }) {
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 6 }}>
             {form.tags.map(t => (
               <span key={t} style={{ fontSize: 11, padding: '3px 9px', borderRadius: 6, background: ACCENT_LIGHT, color: ACCENT, display: 'inline-flex', gap: 6, alignItems: 'center' }}>
-                {t}<button onClick={() => removeTag(t)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: ACCENT, padding: 0, fontSize: 12 }}>×</button>
+                {t}<button onClick={() => removeTag(t)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: ACCENT, padding: 0, fontSize: 12 }}>x</button>
               </span>
             ))}
           </div>
@@ -198,7 +198,7 @@ function ContactEditor({ contact, onClose, onSaved }) {
             <input value={tagInput} onChange={e => setTagInput(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addTag() } }}
               style={{ ...fieldStyle, flex: 1 }} placeholder="Type a tag and press Enter" />
-            <Btn variant="ghost" size="sm" onClick={addTag}>Add</Btn>
+            <Button variant="secondary" size="sm" onClick={addTag}>Add</Button>
           </div>
         </div>
         <div>
@@ -214,10 +214,10 @@ function ContactEditor({ contact, onClose, onSaved }) {
           <input type="checkbox" checked={form.pdpa_consented} onChange={e => update('pdpa_consented', e.target.checked)} style={{ accentColor: ACCENT }} />
           <span style={{ fontSize: 12, color: '#14130f' }}>PDPA consent received</span>
         </label>
-        {/* Expanded consent capture — only shows when consent is being granted
+        {/* Expanded consent capture - only shows when consent is being granted
             in this edit. Note we always show this when pdpa_consented is true,
             including for already-consented contacts being re-edited; the
-            backend only auto-logs a new record on the false→true transition,
+            backend only auto-logs a new record on the false->true transition,
             so showing the fields when already-true is harmless (just lets the
             director see what defaults would apply if they toggle off and on
             again). */}
@@ -284,16 +284,16 @@ function ContactEditor({ contact, onClose, onSaved }) {
       {error && (<div style={{ padding: '10px 12px', background: '#fef2f2', border: '0.5px solid #fecaca', borderRadius: 8, fontSize: 12, color: '#dc2626', marginBottom: 12 }}>{error}</div>)}
 
       <div style={{ display: 'flex', gap: 10, paddingTop: 14, borderTop: '0.5px solid #f5f3ef' }}>
-        <Btn variant="ghost" onClick={onClose} style={{ flex: 1 }}>Cancel</Btn>
-        <Btn onClick={save} disabled={saving} style={{ flex: 2 }}>{saving ? 'Saving...' : (isEdit ? 'Save Changes' : 'Create Contact')}</Btn>
+        <Button variant="secondary" onClick={onClose} style={{ flex: 1 }}>Cancel</Button>
+        <Button onClick={save} loading={saving} style={{ flex: 2 }}>{saving ? 'Saving...' : (isEdit ? 'Save Changes' : 'Create Contact')}</Button>
       </div>
     </Modal>
   )
 }
 
-// ─────────────────────────────────────────────────────────────
-// CSV Import — kept as-is from previous version
-// ─────────────────────────────────────────────────────────────
+// ----------------------------------------------------------------
+// CSV Import - kept as-is from previous version
+// ----------------------------------------------------------------
 function CsvImportModal({ onClose, onImported }) {
   const { token } = useAuth()
   const [stage, setStage] = useState('upload')
@@ -302,7 +302,7 @@ function CsvImportModal({ onClose, onImported }) {
   const [error, setError] = useState('')
   const [importing, setImporting] = useState(false)
   const [result, setResult] = useState(null)
-  // Consent capture for the import batch. Off by default — user must
+  // Consent capture for the import batch. Off by default - user must
   // explicitly affirm consent was collected before we auto-log records.
   // Default expiry of 24 months matches the manual entry flow.
   const [consentCollected, setConsentCollected] = useState(false)
@@ -451,7 +451,7 @@ function CsvImportModal({ onClose, onImported }) {
             {parsedRows.length > 10 && (<div style={{ padding: 10, textAlign: 'center', fontSize: 11, color: '#9a958c', background: '#faf9f7' }}>+ {parsedRows.length - 10} more rows</div>)}
           </div>
           {/* PDPA consent capture for the whole batch. The toggle defaults
-              OFF — Director must explicitly affirm consent was collected
+              OFF - Director must explicitly affirm consent was collected
               for these contacts. When ON, every successfully imported row
               gets a pdpa_records audit row with the configured method,
               expiry, and shared notes. */}
@@ -506,8 +506,8 @@ function CsvImportModal({ onClose, onImported }) {
           </div>
           {error && (<div style={{ marginTop: 12, padding: '10px 12px', background: '#fef2f2', border: '0.5px solid #fecaca', borderRadius: 8, fontSize: 12, color: '#dc2626' }}>{error}</div>)}
           <div style={{ display: 'flex', gap: 10, marginTop: 16, paddingTop: 14, borderTop: '0.5px solid #f5f3ef' }}>
-            <Btn variant="ghost" onClick={() => { setStage('upload'); setParsedRows([]); setHeaders([]) }}>Back</Btn>
-            <Btn onClick={doImport} disabled={importing} style={{ marginLeft: 'auto' }}>{importing ? 'Importing...' : `Import ${parsedRows.length} contact${parsedRows.length !== 1 ? 's' : ''}`}</Btn>
+            <Button variant="secondary" onClick={() => { setStage('upload'); setParsedRows([]); setHeaders([]) }}>Back</Button>
+            <Button onClick={doImport} loading={importing} style={{ marginLeft: 'auto' }}>{importing ? 'Importing...' : `Import ${parsedRows.length} contact${parsedRows.length !== 1 ? 's' : ''}`}</Button>
           </div>
         </div>
       )}
@@ -541,7 +541,7 @@ function CsvImportModal({ onClose, onImported }) {
             </div>
           )}
           <div style={{ display: 'flex', gap: 10, marginTop: 16, paddingTop: 14, borderTop: '0.5px solid #f5f3ef' }}>
-            <Btn onClick={onClose} style={{ marginLeft: 'auto' }}>Done</Btn>
+            <Button onClick={onClose} style={{ marginLeft: 'auto' }}>Done</Button>
           </div>
         </div>
       )}
@@ -549,9 +549,9 @@ function CsvImportModal({ onClose, onImported }) {
   )
 }
 
-// ─────────────────────────────────────────────────────────────
-// Small filter chip — name + remove button. Used in the active filter strip.
-// ─────────────────────────────────────────────────────────────
+// ----------------------------------------------------------------
+// Small filter chip - name + remove button. Used in the active filter strip.
+// ----------------------------------------------------------------
 function FilterChip({ label, onRemove }) {
   return (
     <span style={{
@@ -578,11 +578,11 @@ function FilterChip({ label, onRemove }) {
   )
 }
 
-// ─────────────────────────────────────────────────────────────
-// Filter Drawer — slide-in panel from the left with all filter sections.
+// ----------------------------------------------------------------
+// Filter Drawer - slide-in panel from the left with all filter sections.
 // Each section is collapsible. State lives in the parent (Contacts) so
 // changes apply immediately without an "Apply" button.
-// ─────────────────────────────────────────────────────────────
+// ----------------------------------------------------------------
 function FilterDrawer({
   open, onClose,
   contacts,
@@ -608,7 +608,7 @@ function FilterDrawer({
     return [...tagSet].sort()
   }, [contacts])
 
-  // Stage counts for the filter UI — show how many contacts are in each stage
+  // Stage counts for the filter UI - show how many contacts are in each stage
   const stageCounts = useMemo(() => {
     const counts = {}
     contacts.forEach(c => {
@@ -688,7 +688,7 @@ function FilterDrawer({
           </button>
         </div>
 
-        {/* Body — scrollable filter sections */}
+        {/* Body - scrollable filter sections */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px' }}>
           {/* Pipeline Stage */}
           <div style={{ marginBottom: 18 }}>
@@ -802,20 +802,20 @@ function FilterDrawer({
           padding: '12px 20px', borderTop: '0.5px solid #dcd8d0',
           display: 'flex', gap: 10, flexShrink: 0
         }}>
-          <Btn variant="ghost" onClick={clearAllFilters} disabled={activeFilterCount === 0} style={{ flex: 1 }}>
+          <Button variant="secondary" onClick={clearAllFilters} disabled={activeFilterCount === 0} style={{ flex: 1 }}>
             Clear all
-          </Btn>
-          <Btn onClick={onClose} style={{ flex: 1 }}>Done</Btn>
+          </Button>
+          <Button onClick={onClose} style={{ flex: 1 }}>Done</Button>
         </div>
       </div>
     </>
   )
 }
 
-// ─────────────────────────────────────────────────────────────
+// ----------------------------------------------------------------
 // Saved view tab with kebab menu for owner actions.
 // Uses a click-outside handler so the popover dismisses cleanly.
-// ─────────────────────────────────────────────────────────────
+// ----------------------------------------------------------------
 function SavedViewTab({ view, isActive, isOwner, onClick, onDelete }) {
   const [menuPos, setMenuPos] = useState(null)  // null = closed; {top, right} = open with position
   const kebabRef = useRef(null)
@@ -925,9 +925,9 @@ function SavedViewTab({ view, isActive, isOwner, onClick, onDelete }) {
   )
 }
 
-// ─────────────────────────────────────────────────────────────
-// Save view modal — name + share toggle
-// ─────────────────────────────────────────────────────────────
+// ----------------------------------------------------------------
+// Save view modal - name + share toggle
+// ----------------------------------------------------------------
 function SaveViewModal({ onSave, onClose }) {
   const [name, setName] = useState('')
   const [isShared, setIsShared] = useState(false)
@@ -961,18 +961,18 @@ function SaveViewModal({ onSave, onClose }) {
         </div>
       </div>
       <div style={{ display: 'flex', gap: 10, paddingTop: 14, borderTop: '0.5px solid #f5f3ef' }}>
-        <Btn variant="ghost" onClick={onClose} style={{ flex: 1 }}>Cancel</Btn>
-        <Btn onClick={handleSave} disabled={!name.trim() || saving} style={{ flex: 2 }}>
+        <Button variant="secondary" onClick={onClose} style={{ flex: 1 }}>Cancel</Button>
+        <Button onClick={handleSave} loading={saving} disabled={!name.trim()} style={{ flex: 2 }}>
           {saving ? 'Saving...' : 'Save view'}
-        </Btn>
+        </Button>
       </div>
     </Modal>
   )
 }
 
-// ─────────────────────────────────────────────────────────────
+// ----------------------------------------------------------------
 // Bulk Stage Change Modal
-// ─────────────────────────────────────────────────────────────
+// ----------------------------------------------------------------
 function BulkStageModal({ count, onConfirm, onClose }) {
   const [stage, setStage] = useState('contacted')
   return (
@@ -985,16 +985,16 @@ function BulkStageModal({ count, onConfirm, onClose }) {
         </select>
       </div>
       <div style={{ display: 'flex', gap: 10, paddingTop: 14, borderTop: '0.5px solid #f5f3ef' }}>
-        <Btn variant="ghost" onClick={onClose} style={{ flex: 1 }}>Cancel</Btn>
-        <Btn onClick={() => onConfirm(stage)} style={{ flex: 1 }}>Apply</Btn>
+        <Button variant="secondary" onClick={onClose} style={{ flex: 1 }}>Cancel</Button>
+        <Button onClick={() => onConfirm(stage)} style={{ flex: 1 }}>Apply</Button>
       </div>
     </Modal>
   )
 }
 
-// ─────────────────────────────────────────────────────────────
+// ----------------------------------------------------------------
 // Main page
-// ─────────────────────────────────────────────────────────────
+// ----------------------------------------------------------------
 export default function Contacts({ onNavigate }) {
   const { token, user, hasPermission } = useAuth()
   const [contacts, setContacts] = useState([])
@@ -1017,10 +1017,10 @@ export default function Contacts({ onNavigate }) {
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(50)
   const [density, setDensity] = useState('comfortable')
-  // Card layout below 768px — table swiping is broken on mobile and there
+  // Card layout below 768px - table swiping is broken on mobile and there
   // are too many columns to display anyway. Same breakpoint as Settings.jsx.
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.innerWidth < 768)
-  // PDPA expiry stats — surface as a banner so Director sees lapses
+  // PDPA expiry stats - surface as a banner so Director sees lapses
   // proactively without having to remember to visit the PDPA tab.
   const [pdpaExpiring, setPdpaExpiring] = useState(0)
   const [pdpaExpired, setPdpaExpired] = useState(0)
@@ -1032,7 +1032,7 @@ export default function Contacts({ onNavigate }) {
   }, [])
   useEffect(() => { if (!token) return; load(); loadViews(); loadPdpaCounts() }, [token])
 
-  // Lightweight fetch — only need two numbers off the dashboard endpoint.
+  // Lightweight fetch - only need two numbers off the dashboard endpoint.
   // Failures are silent because the banner is purely informational; we
   // don't want a transient API blip to throw an error toast on a page
   // that's primarily about contacts, not PDPA.
@@ -1104,7 +1104,7 @@ export default function Contacts({ onNavigate }) {
         date_range: filterDateRange,
       },
       sort: { by: sortBy, dir: sortDir },
-      columns: [],  // column visibility — not implemented yet, future use
+      columns: [],  // column visibility - not implemented yet, future use
     }
   }
 
@@ -1214,7 +1214,7 @@ export default function Contacts({ onNavigate }) {
       if (filterStages.size > 0 && !filterStages.has(c.pipeline_stage)) return false
       // Type filter
       if (filterTypes.size > 0 && !filterTypes.has(c.type)) return false
-      // Tag filter — contact must have at least one of the selected tags
+      // Tag filter - contact must have at least one of the selected tags
       if (filterTags.size > 0) {
         const cTags = Array.isArray(c.tags) ? c.tags : []
         if (!cTags.some(t => filterTags.has(t))) return false
@@ -1376,17 +1376,17 @@ export default function Contacts({ onNavigate }) {
           </div>
           {canManage && (
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <Btn variant="ghost" onClick={() => setShowImport(true)}>Import CSV</Btn>
-              <Btn onClick={() => { setEditingContact(null); setShowEditor(true) }}>+ New Contact</Btn>
+              <Button variant="secondary" onClick={() => setShowImport(true)}>Import CSV</Button>
+              <Button onClick={() => { setEditingContact(null); setShowEditor(true) }}>+ New Contact</Button>
             </div>
           )}
         </div>
 
-        {/* PDPA compliance banners — surface lapsing/lapsed consent without
+        {/* PDPA compliance banners - surface lapsing/lapsed consent without
             requiring Director to visit the PDPA tab. Two stacked banners:
             red for already-expired (highest urgency), amber for upcoming
             within 30 days. Both clickable to navigate to the PDPA tab.
-            Single dismiss state for the session — won't re-open until
+            Single dismiss state for the session - won't re-open until
             page reload, since the underlying counts are unchanged. */}
         {!pdpaBannerDismissed && (pdpaExpired > 0 || pdpaExpiring > 0) && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
@@ -1587,13 +1587,13 @@ export default function Contacts({ onNavigate }) {
             </div>
             {canManage && contacts.length === 0 && (
               <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
-                <Btn onClick={() => { setEditingContact(null); setShowEditor(true) }}>+ Add your first contact</Btn>
-                <Btn variant="ghost" onClick={() => setShowImport(true)}>Import CSV</Btn>
+                <Button onClick={() => { setEditingContact(null); setShowEditor(true) }}>+ Add your first contact</Button>
+                <Button variant="secondary" onClick={() => setShowImport(true)}>Import CSV</Button>
               </div>
             )}
           </div>
         ) : isMobile ? (
-          // ─── Mobile: card list ────────────────────────────────────────
+          // --- Mobile: card list ---
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '8px 12px' }}>
             {pageRows.map(c => {
               const isSelected = selected.has(c.id)
@@ -1665,7 +1665,7 @@ export default function Contacts({ onNavigate }) {
             })}
           </div>
         ) : (
-          // ─── Desktop: table ──────────────────────────────────────────
+          // --- Desktop: table ---
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: rowFontSize }}>
             <thead style={{ position: 'sticky', top: 0, background: '#fff', zIndex: 1, borderBottom: '0.5px solid #dcd8d0' }}>
               <tr>
@@ -1700,7 +1700,7 @@ export default function Contacts({ onNavigate }) {
                         {col.label}
                         {col.sortable && (
                           isActive ? (
-                            // Active sort — show direction with strong visible icon
+                            // Active sort - show direction with strong visible icon
                             <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke={ACCENT} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                               {sortDir === 'asc' ? (
                                 <polyline points="4 10 8 6 12 10"/>
@@ -1709,7 +1709,7 @@ export default function Contacts({ onNavigate }) {
                               )}
                             </svg>
                           ) : (
-                            // Inactive but sortable — dim chevron pair to signal "clickable"
+                            // Inactive but sortable - dim chevron pair to signal "clickable"
                             <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="#c4bfb6" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
                               <polyline points="4 6 8 3 12 6"/>
                               <polyline points="4 10 8 13 12 10"/>
@@ -1768,9 +1768,9 @@ export default function Contacts({ onNavigate }) {
             Showing {(safePage - 1) * pageSize + 1}{'\u2013'}{Math.min(safePage * pageSize, sorted.length)} of {sorted.length}
           </div>
           <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-            <Btn variant="ghost" size="sm" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={safePage === 1}>Prev</Btn>
+            <Button variant="secondary" size="sm" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={safePage === 1}>Prev</Button>
             <span style={{ padding: '0 8px' }}>{safePage} / {totalPages}</span>
-            <Btn variant="ghost" size="sm" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={safePage === totalPages}>Next</Btn>
+            <Button variant="secondary" size="sm" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={safePage === totalPages}>Next</Button>
           </div>
         </div>
       )}

@@ -3,7 +3,7 @@ import { useAuth } from '../../context/AuthContext'
 import { API } from '../../utils/constants'
 import { ink, accent, fonts, textSize, textWeight, space, radius } from '../../utils/designTokens'
 import Modal from '../ui/Modal'
-import Btn from '../ui/Btn'
+import Button from '../ui/Button'
 
 // Three offset presets in hours, with display labels.
 const OFFSET_OPTIONS = [
@@ -293,12 +293,15 @@ export default function ReminderModal({ eventId, eventDate, eventTime, onClose, 
 
         {/* Buttons */}
         <div style={{ display: 'flex', gap: 10, marginTop: 4, paddingTop: 16, borderTop: `0.5px solid ${ink[200]}` }}>
-          <Btn variant="ghost" onClick={onClose} style={{ flex: 1 }}>Cancel</Btn>
-          <Btn onClick={schedule}
-            disabled={scheduling || !selectedTemplateId || !offsetHours || allOffsetsInvalid}
+          <Button variant="secondary" onClick={onClose} style={{ flex: 1 }}>Cancel</Button>
+          <Button
+            variant="primary"
+            onClick={schedule}
+            loading={scheduling}
+            disabled={!selectedTemplateId || !offsetHours || allOffsetsInvalid}
             style={{ flex: 2 }}>
             {scheduling ? 'Scheduling...' : 'Schedule reminder'}
-          </Btn>
+          </Button>
         </div>
       </div>
     </Modal>

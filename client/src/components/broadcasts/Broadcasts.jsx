@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { API } from '../../utils/constants'
 import { ACCENT, ACCENT_LIGHT, NAVY } from '../../utils/designTokens'
-import Btn from '../ui/Btn'
+import Button from '../ui/Button'
 import Modal from '../ui/Modal'
 import BroadcastComposer from './BroadcastComposer'
 
@@ -103,13 +103,13 @@ function BroadcastCard({ b, isDirector, onOpen, onDelete }) {
         <span>{'\u00b7'}</span>
         <span>{fmtTs(b.created_at)}</span>
         {isDirector && b.status === 'draft' && (
-          <Btn
+          <Button
             variant="danger"
             size="sm"
             onClick={(e) => { e.stopPropagation(); onDelete(b) }}
             style={{ marginLeft: 'auto' }}>
             Delete
-          </Btn>
+          </Button>
         )}
       </div>
     </div>
@@ -189,7 +189,7 @@ export default function Broadcasts({ onOpen }) {
             </div>
           </div>
           {canCreate && (
-            <Btn onClick={() => setShowComposer(true)}>+ New Broadcast</Btn>
+            <Button variant="primary" onClick={() => setShowComposer(true)}>+ New Broadcast</Button>
           )}
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
@@ -256,7 +256,7 @@ export default function Broadcasts({ onOpen }) {
                 : 'Broadcasts matching this filter will appear here.'}
             </div>
             {canCreate && activeTab === 'all' && (
-              <Btn onClick={() => setShowComposer(true)}>+ Create your first broadcast</Btn>
+              <Button variant="primary" onClick={() => setShowComposer(true)}>+ Create your first broadcast</Button>
             )}
           </div>
         ) : (

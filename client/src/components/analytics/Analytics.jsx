@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { API } from '../../utils/constants'
 import { ACCENT, ACCENT_LIGHT, NAVY } from '../../utils/designTokens'
-import Btn from '../ui/Btn'
+import Button from '../ui/Button'
 
 // ─────────────────────────────────────────────────────────────
 // Constants
@@ -486,7 +486,7 @@ export default function Analytics() {
     return (
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#faf9f7', gap: 14 }}>
         <div style={{ fontSize: 14, color: '#dc2626' }}>{error || 'No data available'}</div>
-        <Btn variant="ghost" onClick={load}>Retry</Btn>
+        <Button variant="secondary" onClick={load}>Retry</Button>
       </div>
     )
   }
@@ -508,15 +508,18 @@ export default function Analytics() {
               Workspace overview {'\u00b7'} updated {fmtDate(data.computed_at)}
             </div>
           </div>
-          <Btn variant="ghost" onClick={load} disabled={refreshing}>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <Button
+            variant="secondary"
+            onClick={load}
+            loading={refreshing}
+            icon={
               <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M14 8a6 6 0 11-1.5-3.97" />
                 <polyline points="14 2 14 5 11 5" />
               </svg>
-              {refreshing ? 'Refreshing...' : 'Refresh'}
-            </span>
-          </Btn>
+            }>
+            {refreshing ? 'Refreshing...' : 'Refresh'}
+          </Button>
         </div>
       </div>
 

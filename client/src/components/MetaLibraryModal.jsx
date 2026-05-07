@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { API } from '../utils/constants'
 import Modal from './ui/Modal'
-import Btn from './ui/Btn'
+import Button from './ui/Button'
 import IPhonePreview from './IPhonePreview'
 
 function prettify(value) {
@@ -367,10 +367,10 @@ export default function MetaLibraryModal({ open, onClose, onInstalled }) {
                     paddingTop: 14, borderTop: '0.5px solid #f5f3ef',
                     display: 'flex', gap: 8, justifyContent: 'flex-end'
                   }}>
-                    <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
-                    <Btn variant="meta" onClick={handleInstall} disabled={installing}>
+                    <Button variant="secondary" onClick={onClose}>Cancel</Button>
+                    <Button variant="primary" onClick={handleInstall} loading={installing}>
                       {installing ? 'Installing...' : 'Install template'}
-                    </Btn>
+                    </Button>
                   </div>
                 </div>
 

@@ -3,7 +3,7 @@ import { useAuth } from '../../context/AuthContext'
 import { API } from '../../utils/constants'
 import { ink, accent, fonts, textSize, textWeight, space, radius, border } from '../../utils/designTokens'
 import Modal from '../ui/Modal'
-import Btn from '../ui/Btn'
+import Button from '../ui/Button'
 import ReminderModal from './ReminderModal'
 
 // Formats a Date as YYYY-MM-DD for HTML date input
@@ -549,16 +549,16 @@ export default function EventModal({ event, defaultDate, eventTypes, onClose, on
         {/* Buttons */}
         <div style={{ display: 'flex', gap: 10, marginTop: 8, paddingTop: 16, borderTop: `0.5px solid ${ink[200]}` }}>
           {isEdit && (
-            <Btn variant="danger" onClick={deleteEvent} disabled={saving || deleting}>
+            <Button variant="danger" onClick={deleteEvent} loading={deleting} disabled={saving}>
               {deleting ? 'Deleting...' : 'Delete'}
-            </Btn>
+            </Button>
           )}
-          <Btn variant="ghost" onClick={onClose} style={{ marginLeft: isEdit ? 'auto' : 0, flex: isEdit ? 0 : 1 }}>
+          <Button variant="secondary" onClick={onClose} style={{ marginLeft: isEdit ? 'auto' : 0, flex: isEdit ? 0 : 1 }}>
             Cancel
-          </Btn>
-          <Btn onClick={save} disabled={saving || deleting} style={{ flex: isEdit ? 0 : 2, minWidth: 120 }}>
+          </Button>
+          <Button variant="primary" onClick={save} loading={saving} disabled={deleting} style={{ flex: isEdit ? 0 : 2, minWidth: 120 }}>
             {saving ? 'Saving...' : (isEdit ? 'Save Changes' : 'Create Event')}
-          </Btn>
+          </Button>
         </div>
       </div>
 

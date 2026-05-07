@@ -206,7 +206,7 @@ export default function EventModal({ event, defaultDate, eventTypes, onClose, on
         </div>
 
         {/* Date + Time row */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div>
             <label style={labelStyle}>
               Date <span style={{ color: '#ef4444' }}>*</span>

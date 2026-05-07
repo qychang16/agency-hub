@@ -234,7 +234,7 @@ export default function ScheduledComposer({ onClose, onSaved, prefillContact, pr
         {/* Content */}
         <div style={{ flex: 1, overflowY: 'auto', padding: 24 }}>
           {step === 1 ? (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               {/* Left column */}
               <div>
                 {/* Channel selector */}
@@ -414,7 +414,7 @@ export default function ScheduledComposer({ onClose, onSaved, prefillContact, pr
             </div>
           ) : (
             /* Step 2 — Preview */
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               {/* Preview */}
               <div>
                 <div style={{ fontSize: 12, fontWeight: 600, color: '#4a4742', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.4px' }}>Message Preview</div>

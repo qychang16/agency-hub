@@ -215,7 +215,7 @@ export default function AuditLog() {
                             </div>
                           </div>
                           {(log.old_values || log.new_values) && (
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                               {log.old_values && (
                                 <div>
                                   <div style={{ fontSize: 10, fontWeight: 600, color: '#9a958c', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 6 }}>Before</div>

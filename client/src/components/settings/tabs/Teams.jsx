@@ -123,7 +123,7 @@ function TeamModal({ team, agents, onClose, onSave }) {
       </Field>
 
       <Field label="Team Type" hint="Determines routing behaviour and analytics categorisation">
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {TEAM_TYPES.map(t => (
             <div key={t.value} onClick={() => setForm(p => ({ ...p, type: t.value }))}
               style={{ display: 'flex', gap: 10, padding: '10px 12px', borderRadius: 8, border: `1.5px solid ${form.type === t.value ? ACCENT : '#dcd8d0'}`, cursor: 'pointer', background: form.type === t.value ? ACCENT_LIGHT : '#fff', transition: 'all .1s' }}>
@@ -137,7 +137,7 @@ function TeamModal({ team, agents, onClose, onSave }) {
         </div>
       </Field>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <Field label="Team Lead" hint="Lead is notified on SLA breaches and escalations">
           <Select value={form.lead_user_id} onChange={e => setForm(p => ({ ...p, lead_user_id: e.target.value }))} options={[
             { value: '', label: 'No lead assigned' },

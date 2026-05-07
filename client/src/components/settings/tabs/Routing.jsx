@@ -312,7 +312,7 @@ export default function Routing() {
                           </div>
                         </div>
 
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-2">
                           <div>
                             <div style={{ fontSize: 10, color: '#9a958c', marginBottom: 4, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.3px' }}>Escalate to</div>
                             <Select value={step.type} onChange={e => updateStep(i, 'type', e.target.value)} options={[

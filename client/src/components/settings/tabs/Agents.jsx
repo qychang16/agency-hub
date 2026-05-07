@@ -243,7 +243,7 @@ function AgentModal({ agent, teams, onClose, onSave }) {
 
   return (
     <Modal title={isEdit ? `Edit Agent — ${agent.name}` : 'Add New Agent'} subtitle={isEdit ? 'Update agent details and role' : 'Agent will receive login credentials'} onClose={onClose}>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <Field label="Full Name">
           <Input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} placeholder="e.g. Sarah Lim" />
         </Field>
@@ -251,7 +251,7 @@ function AgentModal({ agent, teams, onClose, onSave }) {
           <Input type="email" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} placeholder="sarah@company.com" disabled={isEdit} />
         </Field>
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <Field label="Role">
           <Select value={form.role} onChange={e => setForm(p => ({ ...p, role: e.target.value }))} options={ROLE_OPTIONS} />
         </Field>

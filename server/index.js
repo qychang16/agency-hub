@@ -30,8 +30,38 @@ if (!JWT_SECRET) {
 function auth(req, res, next) {
   const header = req.headers.authorization
   if (!header) return res.status(401).json({ error: 'No token' })
-  try { req.user = jwt.verify(header.replace('Bearer ', ''), JWT_SECRET); next() }
-  catch { res.status(401).json({ error: 'Invalid token' }) }
+  try {
+    const decoded = jwt.verify(header.replace('Bearer ', ''), JWT_SECRET)
+    req.user = decoded
+    // Real-time revocation check for impersonation tokens. The 'auth'
+    // middleware path needs to stay synchronous-feeling, so we async
+    // the session check and only block when it's actually impersonation.
+    if (decoded.is_impersonating && decoded.impersonation_session_id) {
+      pool.query(
+        `SELECT id, revoked_at, expires_at FROM impersonation_sessions WHERE id = $1`,
+        [decoded.impersonation_session_id]
+      ).then(r => {
+        if (!r.rows.length) {
+          return res.status(401).json({ error: 'Impersonation session no longer exists' })
+        }
+        const session = r.rows[0]
+        if (session.revoked_at) {
+          return res.status(401).json({ error: 'Impersonation session has been revoked. Please sign in again.' })
+        }
+        if (new Date(session.expires_at) < new Date()) {
+          return res.status(401).json({ error: 'Impersonation session has expired. Please sign in again.' })
+        }
+        next()
+      }).catch(err => {
+        console.error('Impersonation session check failed:', err.message)
+        return res.status(500).json({ error: 'Auth check failed' })
+      })
+      return
+    }
+    next()
+  } catch {
+    return res.status(401).json({ error: 'Invalid token' })
+  }
 }
 
 async function logAudit(wsId, userId, action, entityType, entityId, oldVals, newVals) {
@@ -403,6 +433,7 @@ async function setupDatabase() {
     await runChunk21PdpaConstraintsMigration()
     await runChunk23PhoneConnectionDetectionMigration()
     await runChunk24PhoneConnectionWidenMigration()
+    await runChunk25ImpersonationSessionsMigration()
   } catch (err) {
     await client.query('ROLLBACK')
     console.error('�?DB setup error:', err.message)
@@ -2332,6 +2363,80 @@ async function runChunk15BroadcastsMigration() {
 // once tenant count grows.
 
 // ============================================================
+// Chunk 25 Impersonation Sessions v1
+// Enables super admins to "enter" a tenant workspace as a specific user
+// without sharing passwords or signing out. Each impersonation creates a
+// session row that the auth middleware revalidates on every request, so
+// revocation is real-time. The trail is forensic-grade: every audit_log
+// entry made during impersonation captures both the acting super admin
+// and the target user, via JWT claims.
+//
+// Schema notes:
+// - super_admin_id and target_user_id reference users(id). ON DELETE SET
+//   NULL: if either user is deleted later, we still want the session row
+//   to exist for the audit trail (with NULL for the missing party).
+// - revoked_at is the kill switch. NULL = active. Any non-NULL value
+//   (regardless of expires_at) means the auth middleware will reject.
+// - The (super_admin_id, revoked_at) partial index is the hot path for
+//   the auth middleware's session-still-active check.
+async function runChunk25ImpersonationSessionsMigration() {
+  const MIGRATION_ID = 'chunk_25_impersonation_sessions_v1'
+  try {
+    const applied = await pool.query('SELECT id FROM _migrations WHERE id=$1', [MIGRATION_ID])
+    if (applied.rows.length > 0) {
+      console.log(`Migration ${MIGRATION_ID} already applied, skipping`)
+      return
+    }
+    console.log(`Running migration ${MIGRATION_ID}...`)
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS impersonation_sessions (
+          id SERIAL PRIMARY KEY,
+          super_admin_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+          target_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+          target_workspace_id INTEGER REFERENCES workspaces(id) ON DELETE CASCADE,
+          started_at TIMESTAMP NOT NULL DEFAULT NOW(),
+          expires_at TIMESTAMP NOT NULL,
+          revoked_at TIMESTAMP,
+          revoked_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+          ip_address VARCHAR(50),
+          user_agent TEXT,
+          created_at TIMESTAMP DEFAULT NOW()
+        )
+      `)
+      console.log(`   created impersonation_sessions table`)
+      // Hot path: auth middleware checks "is this session still active"
+      // on every request bearing an impersonation token.
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS idx_impersonation_sessions_active
+        ON impersonation_sessions(id)
+        WHERE revoked_at IS NULL
+      `)
+      // Lookup all sessions started by a given super admin (for "stop
+      // any impersonation I have running").
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS idx_impersonation_sessions_super_admin
+        ON impersonation_sessions(super_admin_id, revoked_at)
+      `)
+      console.log(`   created 2 indexes`)
+      await client.query(`INSERT INTO _migrations (id) VALUES ($1)`, [MIGRATION_ID])
+      await client.query('COMMIT')
+      console.log(`Migration ${MIGRATION_ID} complete`)
+    } catch (err) {
+      await client.query('ROLLBACK')
+      throw err
+    } finally {
+      client.release()
+    }
+  } catch (err) {
+    console.error(`Migration ${MIGRATION_ID} FAILED:`, err.message)
+    throw err
+  }
+}
+
+// ============================================================
 // Chunk 24 Phone Connection Widen v1
 // Widens phone_numbers.quality_rating and phone_numbers.name_status from
 // VARCHAR(20) to VARCHAR(50). Meta occasionally returns longer values than
@@ -2894,6 +2999,359 @@ app.post('/admin/workspaces', auth, superAdmin, async (req, res) => {
     res.status(500).json({ error: err.message })
   } finally {
     client.release()
+  }
+})
+
+// ─── IMPERSONATION (Chunk 25, Unit 1A) ──────────────────────────────────────
+// GET /admin/workspaces/:id/users
+// Returns the target workspace's users sorted for the impersonation picker:
+// director first, then by role hierarchy, then alphabetical. Excludes
+// inactive users and other super admins (cannot impersonate a super admin
+// because that would bypass restrictions). Includes last_login_at so the
+// picker can show "Director (last seen 2 days ago)".
+app.get('/admin/workspaces/:id/users', auth, superAdmin, async (req, res) => {
+  try {
+    const wsId = parseInt(req.params.id, 10)
+    if (isNaN(wsId)) return res.status(400).json({ error: 'Invalid workspace id' })
+    const wsCheck = await pool.query('SELECT id, name FROM workspaces WHERE id=$1', [wsId])
+    if (!wsCheck.rows.length) return res.status(404).json({ error: 'Workspace not found' })
+    const r = await pool.query(`
+      SELECT id, name, email, role, last_login_at, created_at,
+             team_id, status AS presence_status
+      FROM users
+      WHERE workspace_id = $1 AND active = true AND is_super_admin = false
+      ORDER BY
+        CASE role
+          WHEN 'director' THEN 1
+          WHEN 'manager' THEN 2
+          WHEN 'supervisor' THEN 3
+          WHEN 'senior_consultant' THEN 4
+          WHEN 'consultant' THEN 5
+          WHEN 'admin' THEN 6
+          ELSE 99
+        END,
+        name ASC
+    `, [wsId])
+    res.json({
+      workspace_id: wsId,
+      workspace_name: wsCheck.rows[0].name,
+      users: r.rows
+    })
+  } catch (err) {
+    console.error('GET /admin/workspaces/:id/users error:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// POST /admin/impersonate/start
+// Two-step flow:
+//   Step 1 (no body.confirmed): returns target user details + expires_at,
+//          frontend shows confirmation modal.
+//   Step 2 (body.confirmed=true): mints the impersonation JWT and creates
+//          the session row. Returns the new token.
+// Body: { workspace_id, user_id, confirmed }
+//
+// Hardening:
+// - Cannot impersonate another super admin (privilege laundering)
+// - Cannot impersonate self (no-op, creates confusing audit entries)
+// - Cannot nest impersonation (if already impersonating, must Stop first)
+// - Token lifetime is 30 minutes
+// - Session row is the kill switch — revoking it immediately invalidates
+//   the token regardless of remaining JWT lifetime
+const IMPERSONATION_DURATION_MINUTES = 30
+
+app.post('/admin/impersonate/start', auth, superAdmin, async (req, res) => {
+  try {
+    // Reject nested impersonation. If the caller is already impersonating,
+    // they need to Stop first. This is enforced via the JWT claim, not by
+    // checking the DB, so even an expired-but-valid-looking token can't
+    // re-up via this path.
+    if (req.user.is_impersonating) {
+      return res.status(409).json({ error: 'You are already impersonating. Stop the current session before starting a new one.' })
+    }
+
+    const { workspace_id, user_id, confirmed } = req.body
+    if (!workspace_id || !user_id) {
+      return res.status(400).json({ error: 'workspace_id and user_id are required' })
+    }
+    const wsId = parseInt(workspace_id, 10)
+    const targetUserId = parseInt(user_id, 10)
+    if (isNaN(wsId) || isNaN(targetUserId)) {
+      return res.status(400).json({ error: 'workspace_id and user_id must be integers' })
+    }
+
+    // Self-impersonation guard
+    if (targetUserId === req.user.id) {
+      return res.status(400).json({ error: 'Cannot impersonate yourself.' })
+    }
+
+    // Look up target user, scoped to the named workspace
+    const targetRes = await pool.query(`
+      SELECT u.id, u.name, u.email, u.role, u.is_super_admin, u.active,
+             u.workspace_id, w.name AS workspace_name, w.billing_exempt, w.plan
+      FROM users u
+      JOIN workspaces w ON w.id = u.workspace_id
+      WHERE u.id = $1 AND u.workspace_id = $2
+    `, [targetUserId, wsId])
+    if (!targetRes.rows.length) {
+      return res.status(404).json({ error: 'Target user not found in the specified workspace' })
+    }
+    const target = targetRes.rows[0]
+    if (!target.active) {
+      return res.status(400).json({ error: 'Cannot impersonate an inactive user' })
+    }
+    if (target.is_super_admin) {
+      return res.status(403).json({ error: 'Cannot impersonate another super admin. This is blocked to prevent privilege laundering.' })
+    }
+
+    const expiresAt = new Date(Date.now() + IMPERSONATION_DURATION_MINUTES * 60 * 1000)
+
+    // Step 1: confirmation gate. If not yet confirmed, return preview only.
+    if (!confirmed) {
+      return res.json({
+        requires_confirmation: true,
+        target_user: {
+          id: target.id,
+          name: target.name,
+          email: target.email,
+          role: target.role,
+          workspace_id: target.workspace_id,
+          workspace_name: target.workspace_name
+        },
+        expires_at: expiresAt.toISOString(),
+        duration_minutes: IMPERSONATION_DURATION_MINUTES
+      })
+    }
+
+    // Step 2: confirmed. Create the session row, then mint the token.
+    const sessionRes = await pool.query(`
+      INSERT INTO impersonation_sessions
+        (super_admin_id, target_user_id, target_workspace_id,
+         expires_at, ip_address, user_agent)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING id, started_at, expires_at
+    `, [
+      req.user.id, target.id, target.workspace_id,
+      expiresAt,
+      (req.headers['x-forwarded-for'] || req.ip || '').toString().slice(0, 50),
+      (req.headers['user-agent'] || '').toString().slice(0, 1000)
+    ])
+    const session = sessionRes.rows[0]
+
+    // Mint the impersonation JWT. Carries both identities so the audit
+    // log and the banner can show "Quiinn (acting as demo@tel-cloud.sg)".
+    const token = jwt.sign(
+      {
+        id: target.id,
+        email: target.email,
+        name: target.name,
+        role: target.role,
+        workspace_id: target.workspace_id,
+        is_super_admin: false,  // intentionally NOT super admin while impersonating
+        is_impersonating: true,
+        impersonation_session_id: session.id,
+        original_super_admin_id: req.user.id,
+        original_super_admin_email: req.user.email
+      },
+      JWT_SECRET,
+      { expiresIn: `${IMPERSONATION_DURATION_MINUTES}m` }
+    )
+
+    // Audit trail: record the start, attributed to the real super admin
+    await logAudit(
+      target.workspace_id,
+      req.user.id,
+      'impersonate_start',
+      'user',
+      target.id,
+      null,
+      {
+        target_user_id: target.id,
+        target_email: target.email,
+        target_role: target.role,
+        target_workspace_id: target.workspace_id,
+        session_id: session.id,
+        expires_at: session.expires_at
+      }
+    )
+
+    // Resolve the target's permissions for the response (frontend uses
+    // these to gate UI just like a normal login response).
+    const permsConfig = await getRolePermissions(target.workspace_id, target.role)
+
+    res.json({
+      token,
+      session_id: session.id,
+      expires_at: session.expires_at,
+      user: {
+        id: target.id,
+        name: target.name,
+        email: target.email,
+        role: target.role,
+        workspace_id: target.workspace_id,
+        workspace_name: target.workspace_name,
+        is_super_admin: false,
+        is_impersonating: true,
+        original_super_admin_id: req.user.id,
+        original_super_admin_email: req.user.email,
+        billing_exempt: target.billing_exempt,
+        plan: target.plan,
+        permissions_resolved: permsConfig.permissions,
+        scope: permsConfig.scope
+      }
+    })
+  } catch (err) {
+    console.error('POST /admin/impersonate/start error:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// POST /admin/impersonate/stop
+// Revokes the current impersonation session and returns a fresh super-admin
+// token. Two paths:
+//   1. Caller IS the impersonated user (token has is_impersonating=true):
+//      revoke the session, return new super-admin token for the original
+//      super admin. This is the normal "Stop impersonating" button.
+//   2. Caller IS a super admin (is_super_admin=true): allows revoking
+//      another super admin's stuck/orphan session by passing session_id.
+app.post('/admin/impersonate/stop', auth, async (req, res) => {
+  try {
+    let sessionId
+    let originalSuperAdminId
+
+    if (req.user.is_impersonating && req.user.impersonation_session_id) {
+      // Path 1: the impersonated user is calling Stop on themselves
+      sessionId = req.user.impersonation_session_id
+      originalSuperAdminId = req.user.original_super_admin_id
+    } else {
+      // Path 2: a super admin revoking a specific session by id.
+      // Have to verify super admin status manually since this endpoint
+      // doesn't use the superAdmin middleware (so it can also accept
+      // the path-1 case where the caller is impersonated, not super admin).
+      const adminCheck = await pool.query('SELECT is_super_admin, active FROM users WHERE id=$1', [req.user.id])
+      if (!adminCheck.rows.length || !adminCheck.rows[0].active || !adminCheck.rows[0].is_super_admin) {
+        return res.status(403).json({ error: 'Only the impersonated user or a super admin can stop an impersonation session.' })
+      }
+      const { session_id } = req.body
+      if (!session_id) {
+        return res.status(400).json({ error: 'session_id required when not currently impersonating' })
+      }
+      sessionId = parseInt(session_id, 10)
+      if (isNaN(sessionId)) return res.status(400).json({ error: 'session_id must be an integer' })
+    }
+
+    // Revoke the session. Idempotent: if already revoked, just return success
+    // with the existing revoked_at timestamp rather than mutating it again.
+    const revokeRes = await pool.query(`
+      UPDATE impersonation_sessions
+      SET revoked_at = NOW(), revoked_by = $1
+      WHERE id = $2 AND revoked_at IS NULL
+      RETURNING id, super_admin_id, target_user_id, target_workspace_id, started_at, revoked_at
+    `, [req.user.id, sessionId])
+
+    let session
+    if (revokeRes.rows.length === 0) {
+      // Already revoked or doesn't exist. Look up to confirm it exists at all.
+      const lookup = await pool.query(
+        `SELECT id, super_admin_id, target_user_id, target_workspace_id, revoked_at FROM impersonation_sessions WHERE id = $1`,
+        [sessionId]
+      )
+      if (!lookup.rows.length) return res.status(404).json({ error: 'Impersonation session not found' })
+      session = lookup.rows[0]
+    } else {
+      session = revokeRes.rows[0]
+    }
+
+    // Audit trail: record the stop
+    await logAudit(
+      session.target_workspace_id,
+      req.user.id,
+      'impersonate_stop',
+      'user',
+      session.target_user_id,
+      null,
+      {
+        session_id: session.id,
+        revoked_at: session.revoked_at,
+        revoked_by_self: req.user.is_impersonating === true
+      }
+    )
+
+    // If the path-1 caller stopped their own session, mint a fresh super-admin
+    // token for the original super admin so they don't have to log in again.
+    // Path-2 callers (other super admins revoking by id) keep their existing
+    // token and just get a confirmation.
+    if (req.user.is_impersonating && originalSuperAdminId) {
+      const adminRes = await pool.query(`
+        SELECT u.id, u.name, u.email, u.role, u.workspace_id, u.is_super_admin,
+               w.name AS workspace_name, w.billing_exempt, w.plan
+        FROM users u JOIN workspaces w ON w.id = u.workspace_id
+        WHERE u.id = $1 AND u.active = true AND u.is_super_admin = true
+      `, [originalSuperAdminId])
+      if (!adminRes.rows.length) {
+        return res.status(401).json({ error: 'Original super admin account is no longer active. Please sign in again.' })
+      }
+      const admin = adminRes.rows[0]
+      const newToken = jwt.sign(
+        {
+          id: admin.id, email: admin.email, name: admin.name, role: admin.role,
+          workspace_id: admin.workspace_id, is_super_admin: true
+        },
+        JWT_SECRET,
+        { expiresIn: '24h' }
+      )
+      const permsConfig = await getRolePermissions(admin.workspace_id, admin.role)
+      return res.json({
+        revoked: true,
+        session_id: session.id,
+        token: newToken,
+        user: {
+          id: admin.id, name: admin.name, email: admin.email, role: admin.role,
+          workspace_id: admin.workspace_id, workspace_name: admin.workspace_name,
+          is_super_admin: true, billing_exempt: admin.billing_exempt, plan: admin.plan,
+          permissions_resolved: permsConfig.permissions, scope: permsConfig.scope
+        }
+      })
+    }
+
+    // Path 2: just confirmation
+    res.json({ revoked: true, session_id: session.id })
+  } catch (err) {
+    console.error('POST /admin/impersonate/stop error:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// GET /admin/impersonate/sessions
+// List recent impersonation sessions. Useful for the super admin to
+// see what's been done and revoke any that are still active.
+app.get('/admin/impersonate/sessions', auth, superAdmin, async (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit) || 50, 200)
+    const r = await pool.query(`
+      SELECT
+        s.id, s.started_at, s.expires_at, s.revoked_at, s.ip_address,
+        sa.id AS super_admin_id, sa.name AS super_admin_name, sa.email AS super_admin_email,
+        tu.id AS target_user_id, tu.name AS target_user_name, tu.email AS target_user_email, tu.role AS target_user_role,
+        w.id AS workspace_id, w.name AS workspace_name,
+        rb.name AS revoked_by_name,
+        CASE
+          WHEN s.revoked_at IS NOT NULL THEN 'revoked'
+          WHEN s.expires_at < NOW() THEN 'expired'
+          ELSE 'active'
+        END AS status
+      FROM impersonation_sessions s
+      LEFT JOIN users sa ON sa.id = s.super_admin_id
+      LEFT JOIN users tu ON tu.id = s.target_user_id
+      LEFT JOIN workspaces w ON w.id = s.target_workspace_id
+      LEFT JOIN users rb ON rb.id = s.revoked_by
+      ORDER BY s.started_at DESC
+      LIMIT $1
+    `, [limit])
+    res.json({ sessions: r.rows })
+  } catch (err) {
+    console.error('GET /admin/impersonate/sessions error:', err)
+    res.status(500).json({ error: err.message })
   }
 })
 

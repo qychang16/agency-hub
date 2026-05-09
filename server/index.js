@@ -3105,7 +3105,7 @@ async function checkPhoneConnection(workspaceId, phoneNumberId) {
     throw err
   }
 
-  const fields = 'verified_name,display_phone_number,quality_rating,messaging_limit,name_status'
+  const fields = 'verified_name,display_phone_number,quality_rating,messaging_limit_tier,name_status'
   const url = `https://graph.facebook.com/${apiVersion}/${waPhoneId}?fields=${fields}`
 
   let status = 'ERROR'
@@ -3124,7 +3124,7 @@ async function checkPhoneConnection(workspaceId, phoneNumberId) {
     if (res.ok && data.verified_name) {
       status = 'CONNECTED'
       qualityRating = data.quality_rating || 'UNKNOWN'
-      messagingLimit = data.messaging_limit || null
+      messagingLimit = data.messaging_limit_tier || null
       nameStatus = data.name_status || null
     } else {
       const code = data && data.error ? data.error.code : null

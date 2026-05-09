@@ -402,6 +402,7 @@ async function setupDatabase() {
     await runChunk20EmailSettingsMigration()
     await runChunk21PdpaConstraintsMigration()
     await runChunk23PhoneConnectionDetectionMigration()
+    await runChunk24PhoneConnectionWidenMigration()
   } catch (err) {
     await client.query('ROLLBACK')
     console.error('�?DB setup error:', err.message)
@@ -2329,6 +2330,45 @@ async function runChunk15BroadcastsMigration() {
 // Schema decision: separate columns (not JSONB) because each field has its
 // own UI surface and we want to filter/sort by them in workspace dashboards
 // once tenant count grows.
+
+// ============================================================
+// Chunk 24 Phone Connection Widen v1
+// Widens phone_numbers.quality_rating and phone_numbers.name_status from
+// VARCHAR(20) to VARCHAR(50). Meta occasionally returns longer values than
+// our original column width allowed (e.g. "UNKNOWN_LIMITED_TIER" for tier,
+// or composite name_status strings on numbers in unusual states).
+// ALTER COLUMN TYPE on a VARCHAR widening is fast and non-blocking on
+// Postgres — no row rewrite needed since both old and new use varlena.
+async function runChunk24PhoneConnectionWidenMigration() {
+  const MIGRATION_ID = 'chunk_24_phone_connection_widen_v1'
+  try {
+    const applied = await pool.query('SELECT id FROM _migrations WHERE id=$1', [MIGRATION_ID])
+    if (applied.rows.length > 0) {
+      console.log(`Migration ${MIGRATION_ID} already applied, skipping`)
+      return
+    }
+    console.log(`Running migration ${MIGRATION_ID}...`)
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+      await client.query(`ALTER TABLE phone_numbers ALTER COLUMN quality_rating TYPE VARCHAR(50)`)
+      await client.query(`ALTER TABLE phone_numbers ALTER COLUMN name_status TYPE VARCHAR(50)`)
+      console.log(`   widened quality_rating and name_status to VARCHAR(50)`)
+      await client.query(`INSERT INTO _migrations (id) VALUES ($1)`, [MIGRATION_ID])
+      await client.query('COMMIT')
+      console.log(`Migration ${MIGRATION_ID} complete`)
+    } catch (err) {
+      await client.query('ROLLBACK')
+      throw err
+    } finally {
+      client.release()
+    }
+  } catch (err) {
+    console.error(`Migration ${MIGRATION_ID} FAILED:`, err.message)
+    throw err
+  }
+}
+
 async function runChunk23PhoneConnectionDetectionMigration() {
   const MIGRATION_ID = 'chunk_23_phone_connection_detection_v1'
   try {
@@ -3123,9 +3163,12 @@ async function checkPhoneConnection(workspaceId, phoneNumberId) {
 
     if (res.ok && data.verified_name) {
       status = 'CONNECTED'
-      qualityRating = data.quality_rating || 'UNKNOWN'
-      messagingLimit = data.messaging_limit_tier || null
-      nameStatus = data.name_status || null
+      // Defensive truncation: Meta occasionally returns longer values than our
+      // VARCHAR columns expect (e.g. "UNKNOWN_LIMITED_TIER"). Slice to column
+      // width to avoid 22001 string-data-right-truncation errors.
+      qualityRating = String(data.quality_rating || 'UNKNOWN').slice(0, 50)
+      messagingLimit = data.messaging_limit_tier ? String(data.messaging_limit_tier).slice(0, 30) : null
+      nameStatus = data.name_status ? String(data.name_status).slice(0, 50) : null
     } else {
       const code = data && data.error ? data.error.code : null
       const subcode = data && data.error ? data.error.error_subcode : null

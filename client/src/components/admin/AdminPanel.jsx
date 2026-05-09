@@ -38,7 +38,7 @@ function TelCloudLogo({ size = 36 }) {
 
 // --- MAIN PANEL ---
 export default function AdminPanel() {
-  const { user, logout, authHeader } = useAuth()
+  const { user, logout, authHeader, applyImpersonation } = useAuth()
   const [workspaces, setWorkspaces] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -48,6 +48,7 @@ export default function AdminPanel() {
   const [editWs, setEditWs] = useState(null)
   const [newCreds, setNewCreds] = useState(null)
   const [rolesWs, setRolesWs] = useState(null)
+  const [impersonateWs, setImpersonateWs] = useState(null)
 
   async function fetchWorkspaces() {
     setLoading(true)
@@ -273,6 +274,7 @@ export default function AdminPanel() {
                   </td>
                   <td style={{ ...tdStyle, textAlign: 'right' }}>
                     <div style={{ display: 'inline-flex', gap: space[1] }}>
+                      <button onClick={() => setImpersonateWs(w)} style={btnSmGhost} title="Sign in as a user in this workspace">Sign in as...</button>
                       <button onClick={() => setRolesWs(w)} style={btnSmGhost}>Roles</button>
                       <button onClick={() => setEditWs(w)} style={btnSmGhost}>Edit</button>
                     </div>
@@ -289,6 +291,18 @@ export default function AdminPanel() {
       {editWs && <EditWorkspaceModal workspace={editWs} onClose={() => setEditWs(null)} onSaved={() => { setEditWs(null); fetchWorkspaces() }} />}
       {rolesWs && <RolesModal workspace={rolesWs} onClose={() => setRolesWs(null)} />}
       {newCreds && <PasswordRevealModal data={newCreds} onClose={() => setNewCreds(null)} />}
+      {impersonateWs && (
+        <ImpersonateModal
+          workspace={impersonateWs}
+          onClose={() => setImpersonateWs(null)}
+          onConfirmed={(payload) => {
+            applyImpersonation(payload.token, payload.user)
+            // Hard reload so the whole app re-routes through AppWithAuth
+            // and lands in MainApp as the impersonated user.
+            window.location.href = '/'
+          }}
+        />
+      )}
     </div>
   )
 }
@@ -695,6 +709,273 @@ const btnGhost = {
   border: `0.5px solid ${ink[300]}`, borderRadius: radius.md,
   fontSize: '13px', fontWeight: textWeight.medium, fontFamily: fonts.body,
   cursor: 'pointer', transition: 'background .15s',
+}
+
+// --- IMPERSONATE MODAL ---
+// Two-step impersonation flow:
+//   1. Mount: load the workspace's users from the backend
+//   2. User picks who to impersonate (defaults to director, the first
+//      result from the backend's role-sorted list)
+//   3. Click "Sign in as..." -> first call returns preview (requires_confirmation)
+//   4. Confirmation panel shows what's about to happen
+//   5. Click "Confirm" -> second call returns token + user, parent applies
+//      impersonation and redirects to /
+function ImpersonateModal({ workspace, onClose, onConfirmed }) {
+  const { authHeader } = useAuth()
+  const [users, setUsers] = useState([])
+  const [loadingUsers, setLoadingUsers] = useState(true)
+  const [loadError, setLoadError] = useState('')
+  const [selectedUserId, setSelectedUserId] = useState('')
+  const [preview, setPreview] = useState(null)
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    let cancelled = false
+    async function load() {
+      setLoadingUsers(true)
+      setLoadError('')
+      try {
+        const res = await fetch(`${API}/admin/workspaces/${workspace.id}/users`, { headers: authHeader })
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.error || 'Failed to load users')
+        if (cancelled) return
+        setUsers(data.users || [])
+        // Default selection: director (first in the list, as backend sorts).
+        if (data.users && data.users.length > 0) {
+          setSelectedUserId(String(data.users[0].id))
+        }
+      } catch (e) {
+        if (!cancelled) setLoadError(e.message)
+      } finally {
+        if (!cancelled) setLoadingUsers(false)
+      }
+    }
+    load()
+    return () => { cancelled = true }
+  }, [workspace.id])
+
+  // Step 1: request preview from backend
+  async function requestPreview() {
+    setError('')
+    if (!selectedUserId) return setError('Pick a user to impersonate')
+    setSubmitting(true)
+    try {
+      const res = await fetch(`${API}/admin/impersonate/start`, {
+        method: 'POST',
+        headers: { ...authHeader, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          workspace_id: workspace.id,
+          user_id: parseInt(selectedUserId, 10)
+        })
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to start impersonation')
+      if (!data.requires_confirmation) {
+        // Backend returned a final token without going through preview.
+        // Treat it as already-confirmed.
+        return onConfirmed(data)
+      }
+      setPreview(data)
+    } catch (e) {
+      setError(e.message)
+    }
+    setSubmitting(false)
+  }
+
+  // Step 2: send confirmed=true -- returns the actual token
+  async function confirm() {
+    setError('')
+    setSubmitting(true)
+    try {
+      const res = await fetch(`${API}/admin/impersonate/start`, {
+        method: 'POST',
+        headers: { ...authHeader, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          workspace_id: workspace.id,
+          user_id: parseInt(selectedUserId, 10),
+          confirmed: true
+        })
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to start impersonation')
+      onConfirmed(data)
+    } catch (e) {
+      setError(e.message)
+      setSubmitting(false)
+    }
+  }
+
+  // Helper: format last_login_at as "last seen" or "never"
+  function lastSeenLabel(iso) {
+    if (!iso) return 'never logged in'
+    const ageSec = Math.floor((Date.now() - new Date(iso).getTime()) / 1000)
+    if (ageSec < 60) return 'last seen just now'
+    if (ageSec < 3600) return `last seen ${Math.floor(ageSec / 60)}m ago`
+    if (ageSec < 86400) return `last seen ${Math.floor(ageSec / 3600)}h ago`
+    if (ageSec < 86400 * 30) return `last seen ${Math.floor(ageSec / 86400)}d ago`
+    return `last seen ${new Date(iso).toLocaleDateString()}`
+  }
+
+  // Format role for display: "senior_consultant" -> "Senior consultant"
+  function formatRole(role) {
+    if (!role) return ''
+    return role.charAt(0).toUpperCase() + role.slice(1).replace(/_/g, ' ')
+  }
+
+  return (
+    <ModalShell
+      title={preview ? 'Confirm impersonation' : `Sign in as a user`}
+      subtitle={preview ? null : `Workspace: ${workspace.name}`}
+      onClose={onClose}
+      width={520}>
+      {error && <ErrorBanner message={error} />}
+
+      {!preview ? (
+        <>
+          {loadingUsers ? (
+            <div style={{ padding: '20px 0', textAlign: 'center', fontSize: 13, color: ink[500] }}>
+              Loading users in this workspace...
+            </div>
+          ) : loadError ? (
+            <ErrorBanner message={loadError} />
+          ) : users.length === 0 ? (
+            <div style={{ padding: '20px 0', textAlign: 'center', fontSize: 13, color: ink[600] }}>
+              No active users in this workspace.
+            </div>
+          ) : (
+            <>
+              <SectionLabel>Select user</SectionLabel>
+              <div style={{ fontSize: 12, color: ink[600], marginBottom: space[3] }}>
+                Director is selected by default. Pick another user to see the workspace from their perspective.
+              </div>
+              <div style={{
+                border: `0.5px solid ${ink[300]}`,
+                borderRadius: radius.md,
+                background: ink[50],
+                maxHeight: 280,
+                overflowY: 'auto'
+              }}>
+                {users.map(u => {
+                  const isSelected = String(u.id) === selectedUserId
+                  return (
+                    <label
+                      key={u.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: space[3],
+                        padding: '10px 14px',
+                        borderBottom: `0.5px solid ${ink[200]}`,
+                        cursor: 'pointer',
+                        background: isSelected ? accent.soft : 'transparent',
+                        transition: 'background .15s'
+                      }}>
+                      <input
+                        type="radio"
+                        name="impersonate-user"
+                        value={String(u.id)}
+                        checked={isSelected}
+                        onChange={e => setSelectedUserId(e.target.value)}
+                        style={{ flexShrink: 0 }}
+                      />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: textWeight.semibold, color: ink[900] }}>
+                          {u.name}
+                          {u.role === 'director' && (
+                            <span style={{
+                              marginLeft: space[2],
+                              fontSize: 9,
+                              padding: '2px 6px',
+                              borderRadius: radius.sm,
+                              background: accent.DEFAULT,
+                              color: '#fff',
+                              fontWeight: textWeight.semibold,
+                              letterSpacing: '0.4px',
+                              textTransform: 'uppercase'
+                            }}>
+                              Director
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ fontSize: 11, color: ink[600], marginTop: 2 }}>
+                          {u.email}  &middot;  {formatRole(u.role)}  &middot;  {lastSeenLabel(u.last_login_at)}
+                        </div>
+                      </div>
+                    </label>
+                  )
+                })}
+              </div>
+              <div style={{
+                marginTop: space[4],
+                padding: '10px 12px',
+                background: '#fffbeb',
+                border: '0.5px solid #fde68a',
+                borderRadius: radius.md,
+                fontSize: 11,
+                color: '#92400e',
+                lineHeight: 1.5
+              }}>
+                <strong>Heads up:</strong> Impersonation is logged and visible in the audit trail. Your actions while impersonating will be attributed to you, the original super admin.
+              </div>
+              <div style={{ display: 'flex', gap: space[2], justifyContent: 'flex-end', marginTop: space[5] }}>
+                <button onClick={onClose} disabled={submitting} style={btnGhost}>Cancel</button>
+                <button onClick={requestPreview} disabled={submitting || !selectedUserId} style={{ ...btnPrimary, opacity: (submitting || !selectedUserId) ? 0.6 : 1 }}>
+                  {submitting ? 'Loading...' : 'Continue'}
+                </button>
+              </div>
+            </>
+          )}
+        </>
+      ) : (
+        <>
+          <div style={{
+            padding: '14px 16px',
+            background: accent.soft,
+            border: `0.5px solid ${accent.DEFAULT}`,
+            borderRadius: radius.md,
+            marginBottom: space[4]
+          }}>
+            <div style={{
+              fontSize: 10,
+              fontWeight: textWeight.semibold,
+              color: accent.DEFAULT,
+              textTransform: 'uppercase',
+              letterSpacing: '0.6px',
+              marginBottom: space[1]
+            }}>
+              You will be signed in as
+            </div>
+            <div style={{ fontSize: 16, fontWeight: textWeight.semibold, color: ink[900], marginBottom: 4 }}>
+              {preview.target_user.name}
+            </div>
+            <div style={{ fontSize: 12, color: ink[700], marginBottom: 8 }}>
+              {preview.target_user.email}  &middot;  {formatRole(preview.target_user.role)}
+            </div>
+            <div style={{ fontSize: 11, color: ink[600] }}>
+              Workspace: <strong>{preview.target_user.workspace_name}</strong>
+            </div>
+          </div>
+
+          <div style={{ fontSize: 12, color: ink[700], lineHeight: 1.6, marginBottom: space[4] }}>
+            <ul style={{ paddingLeft: 18, margin: 0 }}>
+              <li>Your session will expire automatically in {preview.duration_minutes} minutes.</li>
+              <li>You can stop impersonating at any time using the banner at the top of the page.</li>
+              <li>You will not have super admin privileges while impersonating.</li>
+              <li>All actions you take are logged with your real identity (super admin).</li>
+            </ul>
+          </div>
+
+          <div style={{ display: 'flex', gap: space[2], justifyContent: 'flex-end', marginTop: space[5] }}>
+            <button onClick={() => setPreview(null)} disabled={submitting} style={btnGhost}>Back</button>
+            <button onClick={confirm} disabled={submitting} style={{ ...btnPrimary, opacity: submitting ? 0.6 : 1 }}>
+              {submitting ? 'Signing in...' : `Sign in as ${preview.target_user.name}`}
+            </button>
+          </div>
+        </>
+      )}
+    </ModalShell>
+  )
 }
 
 // --- ROLES MODAL ---

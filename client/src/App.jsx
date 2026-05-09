@@ -25,6 +25,7 @@ const JobOrders = lazy(() => import('./components/jobs/JobOrders'))
 const Contacts = lazy(() => import('./components/contacts/Contacts'))
 const PDPA = lazy(() => import('./components/pdpa/PDPA'))
 const AdminPanel = lazy(() => import('./components/admin/AdminPanel'))
+import ImpersonationBanner from './components/layout/ImpersonationBanner'
 
 // ─── LOGIN SCREEN ──────────────────────────────────────────────────────────────
 function LoginScreen() {
@@ -612,14 +613,20 @@ function AppWithAuth() {
   if (!user) return <LoginScreen />
   if (user.is_super_admin) {
     return (
-      <Suspense fallback={<PageLoader />}>
-        <AdminPanel />
-      </Suspense>
+      <>
+        <ImpersonationBanner />
+        <Suspense fallback={<PageLoader />}>
+          <AdminPanel />
+        </Suspense>
+      </>
     )
   }
   return (
-    <WorkspaceProvider>
-      <MainApp />
-    </WorkspaceProvider>
+    <>
+      <ImpersonationBanner />
+      <WorkspaceProvider>
+        <MainApp />
+      </WorkspaceProvider>
+    </>
   )
 }

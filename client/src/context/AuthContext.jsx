@@ -96,6 +96,26 @@ export function AuthProvider({ children }) {
     localStorage.setItem('user', JSON.stringify(updated))
   }
 
+  // Impersonation: swap to a target user's identity. The backend has
+  // already minted the new token and resolved permissions; we just
+  // commit the swap to local state + storage. Caller is responsible
+  // for backing up the original session before calling this.
+  function applyImpersonation(impToken, impUser) {
+    setToken(impToken)
+    setUser(impUser)
+    localStorage.setItem('token', impToken)
+    localStorage.setItem('user', JSON.stringify(impUser))
+  }
+
+  // Stop impersonation: backend returns a fresh super-admin token + user.
+  // Same swap pattern as applyImpersonation, just in the reverse direction.
+  function applyStopImpersonation(adminToken, adminUser) {
+    setToken(adminToken)
+    setUser(adminUser)
+    localStorage.setItem('token', adminToken)
+    localStorage.setItem('user', JSON.stringify(adminUser))
+  }
+
   // Permission helper — checks if the current user has a named permission.
   // Director and super_admin always return true.
   function hasPermission(permName) {
@@ -120,6 +140,7 @@ export function AuthProvider({ children }) {
     <AuthContext.Provider value={{
       user, token, loading,
       login, loginWithGoogle, logout, updateUser,
+      applyImpersonation, applyStopImpersonation,
       isDirector, isManager, isSeniorConsultant,
       hasPermission, getScope,
       authHeader: token ? { Authorization: 'Bearer ' + token } : {}

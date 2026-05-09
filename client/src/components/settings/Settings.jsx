@@ -4,6 +4,7 @@ import { ACCENT, ACCENT_LIGHT, NAVY } from '../../utils/designTokens'
 
 // Tab imports
 import AgencyProfile from './tabs/AgencyProfile'
+import Billing from './tabs/Billing'
 import PhoneNumbers from './tabs/PhoneNumbers'
 import Agents from './tabs/Agents'
 import Teams from './tabs/Teams'
@@ -21,6 +22,7 @@ const ICON_PROPS = { width: 16, height: 16, viewBox: '0 0 24 24', fill: 'none', 
 
 const Icons = {
   profile: <svg {...ICON_PROPS}><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01"/><path d="M16 6h.01"/><path d="M12 6h.01"/><path d="M12 10h.01"/><path d="M12 14h.01"/><path d="M16 10h.01"/><path d="M16 14h.01"/><path d="M8 10h.01"/><path d="M8 14h.01"/></svg>,
+  billing: <svg {...ICON_PROPS}><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>,
   phone_numbers: <svg {...ICON_PROPS}><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M12 18h.01"/></svg>,
   agents: <svg {...ICON_PROPS}><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>,
   teams: <svg {...ICON_PROPS}><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>,
@@ -37,6 +39,7 @@ const Icons = {
 
 const TABS = [
   { key: 'profile', label: 'Agency Profile' },
+  { key: 'billing', label: 'Billing' },
   { key: 'phone_numbers', label: 'Phone Numbers' },
   { key: 'agents', label: 'Agents' },
   { key: 'teams', label: 'Teams' },
@@ -101,6 +104,9 @@ export default function Settings() {
     // Roles & Permissions tab — gated by explicit permission (Chunk 5)
     if (tab.key === 'roles') return hasPermission('manage_role_permissions')
 
+    // Billing tab — gated by manage_billing permission (Chunk 26, director-only by default)
+    if (tab.key === 'billing') return hasPermission('manage_billing')
+
     // Legacy role-based gates for other tabs
     if (user?.role === 'director' || user?.role === 'manager') return true
     if (tab.key === 'notifications' || tab.key === 'security') return true
@@ -111,6 +117,7 @@ export default function Settings() {
   function renderTab() {
     switch (activeTab) {
       case 'profile': return <AgencyProfile />
+      case 'billing': return <Billing />
       case 'phone_numbers': return <PhoneNumbers />
       case 'agents': return <Agents />
       case 'teams': return <Teams />

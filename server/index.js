@@ -401,6 +401,7 @@ async function setupDatabase() {
     await runChunk19NotificationPreferencesMigration()
     await runChunk20EmailSettingsMigration()
     await runChunk21PdpaConstraintsMigration()
+    await runChunk23PhoneConnectionDetectionMigration()
   } catch (err) {
     await client.query('ROLLBACK')
     console.error('�?DB setup error:', err.message)
@@ -2273,6 +2274,90 @@ async function runChunk15BroadcastsMigration() {
         WHERE status = 'scheduled'
       `)
       console.log(`   created 4 indexes`)
+
+      await client.query(`INSERT INTO _migrations (id) VALUES ($1)`, [MIGRATION_ID])
+      await client.query('COMMIT')
+      console.log(`Migration ${MIGRATION_ID} complete`)
+    } catch (err) {
+      await client.query('ROLLBACK')
+      throw err
+    } finally {
+      client.release()
+    }
+  } catch (err) {
+    console.error(`Migration ${MIGRATION_ID} FAILED:`, err.message)
+    throw err
+  }
+}
+
+// ============================================================
+// Chunk 23 Phone Connection Detection v1
+// Adds structured connection state to phone_numbers. Replaces the binary
+// 'connected' boolean (which is kept for backward compatibility) with a
+// richer status field plus quality, name, and tier metadata pulled from
+// Meta's Graph API. Three layers consume these columns:
+//   1. Manual "Test Connection" button (synchronous user action)
+//   2. Lazy auto-check on Phone Numbers page load (>6h staleness threshold)
+//   3. Background worker (hourly poll, notifies on status change)
+//
+// Schema decision: separate columns (not JSONB) because each field has its
+// own UI surface and we want to filter/sort by them in workspace dashboards
+// once tenant count grows.
+async function runChunk23PhoneConnectionDetectionMigration() {
+  const MIGRATION_ID = 'chunk_23_phone_connection_detection_v1'
+  try {
+    const applied = await pool.query('SELECT id FROM _migrations WHERE id=$1', [MIGRATION_ID])
+    if (applied.rows.length > 0) {
+      console.log(`Migration ${MIGRATION_ID} already applied, skipping`)
+      return
+    }
+    console.log(`Running migration ${MIGRATION_ID}...`)
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+
+      // connection_status: structured replacement for the binary 'connected' flag.
+      // Values: UNCHECKED, CONNECTED, TOKEN_INVALID, NUMBER_NOT_FOUND, RESTRICTED, ERROR.
+      // Existing rows backfill to UNCHECKED so the UI prompts a first check.
+      await client.query(`ALTER TABLE phone_numbers ADD COLUMN IF NOT EXISTS connection_status VARCHAR(30) DEFAULT 'UNCHECKED'`)
+
+      // connection_error: human-readable Meta error message when a check fails.
+      // Cleared to NULL on the next successful check.
+      await client.query(`ALTER TABLE phone_numbers ADD COLUMN IF NOT EXISTS connection_error TEXT`)
+
+      // quality_rating: Meta's GREEN / YELLOW / RED quality signal. UNKNOWN on
+      // numbers Meta has not yet rated (very new test numbers, etc.).
+      await client.query(`ALTER TABLE phone_numbers ADD COLUMN IF NOT EXISTS quality_rating VARCHAR(20)`)
+
+      // messaging_limit_tier: Meta's per-number 24h send tier. Values like
+      // TIER_50 / TIER_250 / TIER_1K / TIER_10K / TIER_100K / TIER_UNLIMITED.
+      // Read by the broadcast worker's checkTierLimit helper for safety caps.
+      await client.query(`ALTER TABLE phone_numbers ADD COLUMN IF NOT EXISTS messaging_limit_tier VARCHAR(30)`)
+
+      // name_status: APPROVED / PENDING / DECLINED. Numbers in PENDING can
+      // still send template messages but not free-form, so the UI surfaces
+      // this as a non-blocking warning rather than a fail state.
+      await client.query(`ALTER TABLE phone_numbers ADD COLUMN IF NOT EXISTS name_status VARCHAR(20)`)
+
+      // last_connection_check_at: drives staleness logic. NULL means never
+      // checked. Layer 2 (lazy page-load auto-check) re-pings any row with
+      // age > 6h. Layer 3 (worker) updates this on every cycle regardless.
+      await client.query(`ALTER TABLE phone_numbers ADD COLUMN IF NOT EXISTS last_connection_check_at TIMESTAMP`)
+
+      console.log(`   added 6 columns to phone_numbers`)
+
+      // Backfill existing rows: if connected=true was set manually previously,
+      // mark the new connection_status as UNCHECKED anyway. The user must run
+      // a real check to validate the row against Meta's current state. This is
+      // safer than auto-promoting unverified rows to CONNECTED.
+      const backfilled = await client.query(
+        `UPDATE phone_numbers
+         SET connection_status = 'UNCHECKED'
+         WHERE connection_status IS NULL`
+      )
+      if (backfilled.rowCount > 0) {
+        console.log(`   backfilled connection_status='UNCHECKED' on ${backfilled.rowCount} rows`)
+      }
 
       await client.query(`INSERT INTO _migrations (id) VALUES ($1)`, [MIGRATION_ID])
       await client.query('COMMIT')

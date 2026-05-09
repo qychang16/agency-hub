@@ -63,6 +63,163 @@ function Card({ children, style }) {
   )
 }
 
+// Convert ISO timestamp to human-readable relative time. Falls back to
+// the absolute date if older than 30 days.
+function relativeTime(iso) {
+  if (!iso) return 'never'
+  const then = new Date(iso).getTime()
+  const now = Date.now()
+  const diffSec = Math.floor((now - then) / 1000)
+  if (diffSec < 60) return 'just now'
+  if (diffSec < 3600) return Math.floor(diffSec / 60) + 'm ago'
+  if (diffSec < 86400) return Math.floor(diffSec / 3600) + 'h ago'
+  if (diffSec < 86400 * 30) return Math.floor(diffSec / 86400) + 'd ago'
+  return new Date(iso).toLocaleDateString()
+}
+
+// Returns true if the row needs an auto-refresh on tab mount.
+function isStale(iso, hoursThreshold = 6) {
+  if (!iso) return true
+  const ageMs = Date.now() - new Date(iso).getTime()
+  return ageMs > hoursThreshold * 3600 * 1000
+}
+
+// Map connection_status to UI styling (color, background, label).
+function statusStyle(status) {
+  switch (status) {
+    case 'CONNECTED':
+      return { bg: '#dcfce7', fg: '#15803d', label: 'Connected', dot: '#16a34a' }
+    case 'TOKEN_INVALID':
+      return { bg: '#fee2e2', fg: '#b91c1c', label: 'Token invalid', dot: '#dc2626' }
+    case 'NUMBER_NOT_FOUND':
+      return { bg: '#fef3c7', fg: '#92400e', label: 'Number not found', dot: '#d97706' }
+    case 'RESTRICTED':
+      return { bg: '#fee2e2', fg: '#b91c1c', label: 'Restricted by Meta', dot: '#dc2626' }
+    case 'ERROR':
+      return { bg: '#fef3c7', fg: '#92400e', label: 'Check failed', dot: '#d97706' }
+    case 'UNCHECKED':
+    default:
+      return { bg: '#f5f3ef', fg: '#6e6a63', label: 'Not yet checked', dot: '#9a958c' }
+  }
+}
+
+// Map quality_rating to color. Meta uses GREEN/YELLOW/RED, with UNKNOWN
+// for new numbers without enough message history.
+function qualityColor(rating) {
+  switch (rating) {
+    case 'GREEN': return '#16a34a'
+    case 'YELLOW': return '#d97706'
+    case 'RED': return '#dc2626'
+    default: return '#9a958c'
+  }
+}
+
+// Connection status block: renders inline beneath the main phone row.
+// Takes a phone object plus a "checking" flag and an onCheckClick handler.
+function ConnectionStatusBlock({ phone, checking, canManage, onCheckClick }) {
+  const cs = phone.connection_status || 'UNCHECKED'
+  const sty = statusStyle(cs)
+  const stale = isStale(phone.last_connection_check_at, 24)
+  const fadedColor = stale && cs !== 'UNCHECKED' ? 0.6 : 1
+
+  return (
+    <div style={{
+      marginTop: 12,
+      padding: '12px 14px',
+      background: '#faf9f7',
+      borderRadius: 10,
+      border: '0.5px solid #ece8e0'
+    }}>
+      {/* Top row: status pill + last checked + button */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: cs === 'UNCHECKED' ? 0 : 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 10, padding: '3px 9px', borderRadius: 10, fontWeight: 700, background: sty.bg, color: sty.fg, display: 'inline-flex', alignItems: 'center', gap: 5, letterSpacing: '0.3px' }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: sty.dot, display: 'inline-block' }} />
+            {sty.label.toUpperCase()}
+          </span>
+          {phone.last_connection_check_at && (
+            <span
+              title={new Date(phone.last_connection_check_at).toLocaleString()}
+              style={{ fontSize: 11, color: stale ? '#92400e' : '#9a958c' }}>
+              Checked {relativeTime(phone.last_connection_check_at)}
+              {stale && cs !== 'UNCHECKED' ? ' (stale)' : ''}
+            </span>
+          )}
+          {checking && (
+            <span style={{ fontSize: 11, color: '#6e6a63', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+              <span style={{ width: 10, height: 10, border: '1.5px solid #c2bdb3', borderTopColor: '#6e6a63', borderRadius: '50%', display: 'inline-block', animation: 'tcSpin 0.8s linear infinite' }} />
+              Checking with Meta...
+            </span>
+          )}
+        </div>
+        {canManage && (
+          <Button variant="secondary" size="sm" onClick={onCheckClick} disabled={checking}>
+            {checking ? 'Checking...' : 'Test Connection'}
+          </Button>
+        )}
+      </div>
+
+      {/* Metadata grid: only shown when we have data */}
+      {cs !== 'UNCHECKED' && (
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(3, 1fr)',
+          gap: 10,
+          opacity: fadedColor
+        }}>
+          <div style={{ background: '#fff', borderRadius: 8, padding: '8px 10px', border: '0.5px solid #ece8e0' }}>
+            <div style={{ fontSize: 9, fontWeight: 700, color: '#9a958c', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 3 }}>Quality</div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: qualityColor(phone.quality_rating), display: 'flex', alignItems: 'center', gap: 5 }}>
+              {phone.quality_rating && phone.quality_rating !== 'UNKNOWN' && (
+                <span style={{ width: 7, height: 7, borderRadius: '50%', background: qualityColor(phone.quality_rating), display: 'inline-block' }} />
+              )}
+              {phone.quality_rating || '—'}
+            </div>
+          </div>
+          <div style={{ background: '#fff', borderRadius: 8, padding: '8px 10px', border: '0.5px solid #ece8e0' }}>
+            <div style={{ fontSize: 9, fontWeight: 700, color: '#9a958c', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 3 }}>Send Tier</div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: '#14130f' }}>
+              {phone.messaging_limit_tier ? phone.messaging_limit_tier.replace('TIER_', '') + '/24h' : '—'}
+            </div>
+          </div>
+          <div style={{ background: '#fff', borderRadius: 8, padding: '8px 10px', border: '0.5px solid #ece8e0' }}>
+            <div style={{ fontSize: 9, fontWeight: 700, color: '#9a958c', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 3 }}>Display Name</div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: '#14130f' }} title={phone.name_status || ''}>
+              {phone.name_status === 'AVAILABLE_WITHOUT_REVIEW' ? 'Available' :
+               phone.name_status === 'APPROVED' ? 'Approved' :
+               phone.name_status === 'PENDING_REVIEW' ? 'Pending review' :
+               phone.name_status === 'DECLINED' ? 'Declined' :
+               phone.name_status || '—'}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Error block: only when connection_error is set */}
+      {phone.connection_error && (
+        <div style={{
+          marginTop: 10,
+          padding: '10px 12px',
+          background: '#fef2f2',
+          border: '0.5px solid #fecaca',
+          borderRadius: 8,
+          fontSize: 12,
+          color: '#b91c1c',
+          display: 'flex',
+          gap: 8
+        }}>
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: 1 }}>
+            <circle cx="8" cy="8" r="6.5"/>
+            <line x1="8" y1="5" x2="8" y2="9"/>
+            <circle cx="8" cy="11.5" r="0.5" fill="currentColor"/>
+          </svg>
+          <div style={{ lineHeight: 1.5 }}><strong>Meta says:</strong> {phone.connection_error}</div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function PhoneNumbers() {
   const { token, hasPermission } = useAuth()
   const [numbers, setNumbers] = useState([])
@@ -72,10 +229,76 @@ export default function PhoneNumbers() {
   const [form, setForm] = useState({ number: '', display_name: '', whatsapp_phone_id: '', is_primary: false, owner_user_id: '', project_id: '' })
   const [agents, setAgents] = useState([])
   const [projects, setProjects] = useState([])
+  // Per-phone in-flight check state, keyed by phone id. Lets multiple
+  // checks run in parallel without blocking each other or the page.
+  const [checking, setChecking] = useState({})
   // Hook handles save state, error capture, and UI feedback
   const { save: apiSave, saving, error: saveError, clearError } = useApiSave(token)
 
   useEffect(() => { load(); loadAgents(); loadProjects() }, [])
+
+  // Lazy auto-check (Layer 2): when numbers load, check any phone whose
+  // last_connection_check_at is null or older than 6 hours. Runs once
+  // per load. Failures populate connection_error like a manual check.
+  useEffect(() => {
+    if (loading || numbers.length === 0) return
+    const stalePhones = numbers.filter(n => isStale(n.last_connection_check_at, 6))
+    stalePhones.forEach(n => {
+      if (!checking[n.id]) checkConnection(n.id, { silent: true })
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, numbers.length])
+
+  // Update one phone in the list without refetching the whole list.
+  // Used by checkConnection to merge connection metadata back in.
+  function updatePhoneInState(id, patch) {
+    setNumbers(prev => prev.map(p => p.id === id ? { ...p, ...patch } : p))
+  }
+
+  // Layer 1 (manual button) and Layer 2 (lazy auto) share this function.
+  // silent=true suppresses error popups; manual clicks get an alert on
+  // total failure (network etc.) but field-level errors always populate
+  // connection_error like a normal failed-check result.
+  async function checkConnection(phoneId, opts = {}) {
+    const { silent = false } = opts
+    setChecking(c => ({ ...c, [phoneId]: true }))
+    try {
+      const r = await fetch(`${API}/phone-numbers/${phoneId}/check-connection`, {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }
+      })
+      if (!r.ok) {
+        // 4xx/5xx with no useful body. Still update last_checked so we
+        // don't loop forever on a broken endpoint.
+        let body = {}
+        try { body = await r.json() } catch {}
+        if (!silent) alert('Connection check failed: ' + (body.error || ('HTTP ' + r.status)))
+        // Patch row with an ERROR state so the UI shows what happened
+        updatePhoneInState(phoneId, {
+          connection_status: 'ERROR',
+          connection_error: body.error || ('HTTP ' + r.status),
+          last_connection_check_at: new Date().toISOString()
+        })
+        return
+      }
+      const updated = await r.json()
+      // Server returns the full updated phone row — merge it in.
+      updatePhoneInState(phoneId, updated)
+    } catch (err) {
+      if (!silent) alert('Connection check failed: ' + err.message)
+      updatePhoneInState(phoneId, {
+        connection_status: 'ERROR',
+        connection_error: err.message,
+        last_connection_check_at: new Date().toISOString()
+      })
+    } finally {
+      setChecking(c => {
+        const next = { ...c }
+        delete next[phoneId]
+        return next
+      })
+    }
+  }
 
   async function loadAgents() {
     try {
@@ -258,6 +481,14 @@ export default function PhoneNumbers() {
                 </div>
               </div>
             )}
+
+            {/* Connection status (Unit 2C, Layers 1+2) */}
+            <ConnectionStatusBlock
+              phone={n}
+              checking={!!checking[n.id]}
+              canManage={hasPermission('manage_phone_numbers')}
+              onCheckClick={() => checkConnection(n.id)}
+            />
           </Card>
         ))
       )}
@@ -333,6 +564,9 @@ export default function PhoneNumbers() {
           don't overlap the info block. Desktop layout (horizontal) is the
           default and stays untouched. */}
       <style>{`
+        @keyframes tcSpin {
+          to { transform: rotate(360deg); }
+        }
         @media (max-width: 640px) {
           .phone-number-card-row {
             flex-direction: column;

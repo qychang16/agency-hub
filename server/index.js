@@ -1024,17 +1024,21 @@ async function runChunk21PdpaConstraintsMigration() {
       // is deleted. CASCADE delete removes consent history along with the
       // contact — this is intentional, no separate audit trail expected
       // beyond the contact-level events.
-      // Wrapped in try/catch + duplicate_object swallow because Postgres
-      // does not support ADD CONSTRAINT IF NOT EXISTS. State drift (FK
-      // already exists from a prior partial run) must not block migration.
+      // Wrapped in SAVEPOINT because Postgres aborts the entire outer
+      // transaction on any error, even one we catch in JS. SAVEPOINT lets
+      // us roll back just the failed ALTER and continue the migration.
+      // 42710 = duplicate_object (constraint name already exists).
+      await client.query('SAVEPOINT add_contact_fk')
       try {
         await client.query(`
           ALTER TABLE pdpa_records
           ADD CONSTRAINT pdpa_records_contact_id_fkey
           FOREIGN KEY (contact_id) REFERENCES contacts(id) ON DELETE CASCADE
         `)
+        await client.query('RELEASE SAVEPOINT add_contact_fk')
         console.log(`   added contact_id FK constraint`)
       } catch (err) {
+        await client.query('ROLLBACK TO SAVEPOINT add_contact_fk')
         if (err.code === '42710') {
           console.log(`   contact_id FK already exists, skipping`)
         } else {
@@ -1045,14 +1049,17 @@ async function runChunk21PdpaConstraintsMigration() {
       // collected_by FK: SET NULL on user delete because losing the agent
       // who recorded consent should not destroy the record itself — the
       // consent is still valid, just unattributed.
+      await client.query('SAVEPOINT add_collected_by_fk')
       try {
         await client.query(`
           ALTER TABLE pdpa_records
           ADD CONSTRAINT pdpa_records_collected_by_fkey
           FOREIGN KEY (collected_by) REFERENCES users(id) ON DELETE SET NULL
         `)
+        await client.query('RELEASE SAVEPOINT add_collected_by_fk')
         console.log(`   added collected_by FK constraint`)
       } catch (err) {
+        await client.query('ROLLBACK TO SAVEPOINT add_collected_by_fk')
         if (err.code === '42710') {
           console.log(`   collected_by FK already exists, skipping`)
         } else {

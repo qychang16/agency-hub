@@ -434,6 +434,7 @@ async function setupDatabase() {
     await runChunk23PhoneConnectionDetectionMigration()
     await runChunk24PhoneConnectionWidenMigration()
     await runChunk25ImpersonationSessionsMigration()
+    await runChunk26BillingMigration()
   } catch (err) {
     await client.query('ROLLBACK')
     console.error('�?DB setup error:', err.message)
@@ -2421,6 +2422,237 @@ async function runChunk25ImpersonationSessionsMigration() {
         ON impersonation_sessions(super_admin_id, revoked_at)
       `)
       console.log(`   created 2 indexes`)
+      await client.query(`INSERT INTO _migrations (id) VALUES ($1)`, [MIGRATION_ID])
+      await client.query('COMMIT')
+      console.log(`Migration ${MIGRATION_ID} complete`)
+    } catch (err) {
+      await client.query('ROLLBACK')
+      throw err
+    } finally {
+      client.release()
+    }
+  } catch (err) {
+    console.error(`Migration ${MIGRATION_ID} FAILED:`, err.message)
+    throw err
+  }
+}
+
+// ============================================================
+// Chunk 26 Billing Schema v1
+// Establishes Tel-Cloud's billing data model. Four concerns:
+//
+// 1. Subscription state - extends workspaces with Stripe linkage columns,
+//    pilot tracking columns, and industry_vertical for future preset work.
+//    One workspace = one subscription, so subscription state lives ON the
+//    workspace row (mirrors whatsapp_token / outlook_token pattern).
+//
+// 2. Plan catalog - new plans table seeded with Starter/Professional/
+//    Business/Enterprise. Limits as integers, -1 means unlimited. Pricing
+//    in SGD cents to avoid float precision. Annual prices pre-computed
+//    at 15% discount.
+//
+// 3. Wallet ledger - wallets (one per workspace), wallet_transactions
+//    (append-only ledger), invoices (mirror of Stripe invoices). Every
+//    workspace gets a wallet on backfill - billing_exempt ones get
+//    markup_percent=0 so the wallet still tracks Meta cost passthrough.
+//
+// 4. Permission - adds manage_billing key to role_permissions JSONB on
+//    every existing workspace, default director-only.
+//
+// Idempotent. Safe to re-run. Wrapped in transaction.
+async function runChunk26BillingMigration() {
+  const MIGRATION_ID = 'chunk_26_billing_v1'
+  try {
+    const applied = await pool.query('SELECT id FROM _migrations WHERE id=$1', [MIGRATION_ID])
+    if (applied.rows.length > 0) {
+      console.log(`Migration ${MIGRATION_ID} already applied, skipping`)
+      return
+    }
+    console.log(`Running migration ${MIGRATION_ID}...`)
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+
+      // -------- 1. Extend workspaces table --------
+      await client.query(`
+        ALTER TABLE workspaces
+          ADD COLUMN IF NOT EXISTS stripe_customer_id VARCHAR(255),
+          ADD COLUMN IF NOT EXISTS stripe_subscription_id VARCHAR(255),
+          ADD COLUMN IF NOT EXISTS subscription_status VARCHAR(50),
+          ADD COLUMN IF NOT EXISTS subscription_plan_slug VARCHAR(50),
+          ADD COLUMN IF NOT EXISTS subscription_billing_cycle VARCHAR(20),
+          ADD COLUMN IF NOT EXISTS subscription_current_period_end TIMESTAMP,
+          ADD COLUMN IF NOT EXISTS subscription_cancel_at_period_end BOOLEAN DEFAULT false,
+          ADD COLUMN IF NOT EXISTS pilot_ends_at TIMESTAMP,
+          ADD COLUMN IF NOT EXISTS pilot_credited BOOLEAN DEFAULT false,
+          ADD COLUMN IF NOT EXISTS industry_vertical VARCHAR(50) DEFAULT 'recruitment'
+      `)
+      console.log(`   extended workspaces with 10 billing columns`)
+
+      // -------- 2. Plans catalog --------
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS plans (
+          id SERIAL PRIMARY KEY,
+          slug VARCHAR(50) UNIQUE NOT NULL,
+          display_name VARCHAR(100) NOT NULL,
+          monthly_price_cents INTEGER NOT NULL,
+          annual_price_cents INTEGER NOT NULL,
+          annual_monthly_equivalent_cents INTEGER NOT NULL,
+          currency VARCHAR(3) DEFAULT 'SGD',
+          markup_percent INTEGER NOT NULL,
+          max_users INTEGER NOT NULL,
+          max_phone_numbers INTEGER NOT NULL,
+          max_conversations_per_month INTEGER NOT NULL,
+          max_contacts INTEGER NOT NULL,
+          is_active BOOLEAN DEFAULT true,
+          is_custom BOOLEAN DEFAULT false,
+          sort_order INTEGER NOT NULL,
+          stripe_product_id VARCHAR(255),
+          stripe_monthly_price_id VARCHAR(255),
+          stripe_annual_price_id VARCHAR(255),
+          features JSONB DEFAULT '[]'::jsonb,
+          created_at TIMESTAMP DEFAULT NOW(),
+          updated_at TIMESTAMP DEFAULT NOW()
+        )
+      `)
+      console.log(`   created plans table`)
+
+      // -------- 3. Wallets table --------
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS wallets (
+          id SERIAL PRIMARY KEY,
+          workspace_id INTEGER NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+          balance_cents BIGINT NOT NULL DEFAULT 0,
+          currency VARCHAR(3) NOT NULL DEFAULT 'SGD',
+          markup_percent INTEGER NOT NULL DEFAULT 20,
+          low_balance_threshold_cents BIGINT NOT NULL DEFAULT 1000,
+          auto_topup_enabled BOOLEAN DEFAULT false,
+          auto_topup_amount_cents BIGINT,
+          auto_topup_threshold_cents BIGINT,
+          last_low_balance_alert_at TIMESTAMP,
+          created_at TIMESTAMP DEFAULT NOW(),
+          updated_at TIMESTAMP DEFAULT NOW(),
+          UNIQUE(workspace_id)
+        )
+      `)
+      await client.query(`CREATE INDEX IF NOT EXISTS idx_wallets_workspace ON wallets(workspace_id)`)
+      console.log(`   created wallets table`)
+
+      // -------- 4. Wallet transactions (append-only ledger) --------
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS wallet_transactions (
+          id SERIAL PRIMARY KEY,
+          wallet_id INTEGER NOT NULL REFERENCES wallets(id) ON DELETE CASCADE,
+          workspace_id INTEGER NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+          type VARCHAR(40) NOT NULL,
+          direction VARCHAR(10) NOT NULL,
+          amount_cents BIGINT NOT NULL,
+          balance_after_cents BIGINT NOT NULL,
+          currency VARCHAR(3) NOT NULL DEFAULT 'SGD',
+          description TEXT,
+          stripe_payment_intent_id VARCHAR(255),
+          stripe_charge_id VARCHAR(255),
+          related_message_id INTEGER,
+          related_broadcast_id INTEGER,
+          related_invoice_id INTEGER,
+          meta_cost_cents BIGINT,
+          markup_cents BIGINT,
+          metadata JSONB DEFAULT '{}'::jsonb,
+          created_at TIMESTAMP DEFAULT NOW(),
+          created_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL
+        )
+      `)
+      await client.query(`CREATE INDEX IF NOT EXISTS idx_wallet_tx_wallet ON wallet_transactions(wallet_id)`)
+      await client.query(`CREATE INDEX IF NOT EXISTS idx_wallet_tx_workspace ON wallet_transactions(workspace_id)`)
+      await client.query(`CREATE INDEX IF NOT EXISTS idx_wallet_tx_created ON wallet_transactions(created_at DESC)`)
+      await client.query(`CREATE INDEX IF NOT EXISTS idx_wallet_tx_type ON wallet_transactions(type)`)
+      console.log(`   created wallet_transactions table with 4 indexes`)
+
+      // -------- 5. Invoices table --------
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS invoices (
+          id SERIAL PRIMARY KEY,
+          workspace_id INTEGER NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+          stripe_invoice_id VARCHAR(255) UNIQUE,
+          stripe_invoice_number VARCHAR(100),
+          status VARCHAR(40) NOT NULL,
+          amount_due_cents BIGINT NOT NULL DEFAULT 0,
+          amount_paid_cents BIGINT NOT NULL DEFAULT 0,
+          amount_remaining_cents BIGINT NOT NULL DEFAULT 0,
+          currency VARCHAR(3) NOT NULL DEFAULT 'SGD',
+          period_start TIMESTAMP,
+          period_end TIMESTAMP,
+          due_date TIMESTAMP,
+          paid_at TIMESTAMP,
+          hosted_invoice_url TEXT,
+          invoice_pdf_url TEXT,
+          line_items JSONB DEFAULT '[]'::jsonb,
+          metadata JSONB DEFAULT '{}'::jsonb,
+          created_at TIMESTAMP DEFAULT NOW(),
+          updated_at TIMESTAMP DEFAULT NOW()
+        )
+      `)
+      await client.query(`CREATE INDEX IF NOT EXISTS idx_invoices_workspace ON invoices(workspace_id)`)
+      await client.query(`CREATE INDEX IF NOT EXISTS idx_invoices_status ON invoices(status)`)
+      await client.query(`CREATE INDEX IF NOT EXISTS idx_invoices_created ON invoices(created_at DESC)`)
+      console.log(`   created invoices table with 3 indexes`)
+
+      // -------- 6. Seed plans --------
+      // Starter      S$89/mo   S$908/yr  (S$76/mo)   25% markup   3 users    1 phone   1K conv/mo  500 contacts
+      // Professional S$229/mo  S$2338/yr (S$195/mo)  20% markup   10 users   3 phones  5K conv/mo  5K contacts
+      // Business     S$549/mo  S$5599/yr (S$467/mo)  15% markup   25 users   10 phones 20K conv/mo 25K contacts
+      // Enterprise   S$899/mo  custom    (custom)    10% markup   unlimited  all      custom      custom
+      await client.query(`
+        INSERT INTO plans (slug, display_name, monthly_price_cents, annual_price_cents, annual_monthly_equivalent_cents, markup_percent, max_users, max_phone_numbers, max_conversations_per_month, max_contacts, is_custom, sort_order, features)
+        VALUES
+          ('starter', 'Starter', 8900, 90800, 7600, 25, 3, 1, 1000, 500, false, 1,
+            '["Unified inbox","Template library","Basic broadcasts","Email support"]'::jsonb),
+          ('professional', 'Professional', 22900, 233800, 19500, 20, 10, 3, 5000, 5000, false, 2,
+            '["Everything in Starter","Pipeline management","Job orders","Scheduled messages","Calendar integration","Priority support"]'::jsonb),
+          ('business', 'Business', 54900, 559900, 46700, 15, 25, 10, 20000, 25000, false, 3,
+            '["Everything in Professional","Advanced analytics","Audit logs","Custom roles","API access","Phone support"]'::jsonb),
+          ('enterprise', 'Enterprise', 89900, 0, 0, 10, -1, -1, -1, -1, true, 4,
+            '["Everything in Business","Unlimited users","Unlimited phones","Custom volumes","Dedicated CSM","SLA guarantees","Custom onboarding"]'::jsonb)
+        ON CONFLICT (slug) DO NOTHING
+      `)
+      console.log(`   seeded 4 plans`)
+
+      // -------- 7. Backfill wallets for existing workspaces --------
+      // Every workspace gets a wallet. billing_exempt ones get markup=0
+      // so they still track Meta cost passthrough (Eque's model).
+      const walletBackfill = await client.query(`
+        INSERT INTO wallets (workspace_id, balance_cents, currency, markup_percent)
+        SELECT w.id, 0, 'SGD',
+          CASE WHEN w.billing_exempt = true THEN 0 ELSE 20 END
+        FROM workspaces w
+        WHERE NOT EXISTS (SELECT 1 FROM wallets WHERE workspace_id = w.id)
+        RETURNING id
+      `)
+      console.log(`   backfilled ${walletBackfill.rowCount} wallets`)
+
+      // -------- 8. Add manage_billing permission to all existing workspaces --------
+      // Default: director only. Other roles can be granted by director later.
+      const permBackfill = await client.query(`
+        UPDATE role_permissions
+        SET permissions = jsonb_set(
+          permissions,
+          '{manage_billing}',
+          CASE WHEN role = 'director' THEN 'true'::jsonb ELSE 'false'::jsonb END,
+          true
+        )
+        WHERE NOT (permissions ? 'manage_billing')
+      `)
+      console.log(`   backfilled manage_billing on ${permBackfill.rowCount} role_permissions rows`)
+
+      // -------- 9. Mark existing workspaces as recruitment vertical --------
+      // Defensive: any rows with NULL get set to 'recruitment' explicitly.
+      const verticalBackfill = await client.query(`
+        UPDATE workspaces SET industry_vertical = 'recruitment'
+        WHERE industry_vertical IS NULL
+      `)
+      console.log(`   set industry_vertical='recruitment' on ${verticalBackfill.rowCount} workspaces`)
+
+      // -------- 10. Record migration --------
       await client.query(`INSERT INTO _migrations (id) VALUES ($1)`, [MIGRATION_ID])
       await client.query('COMMIT')
       console.log(`Migration ${MIGRATION_ID} complete`)

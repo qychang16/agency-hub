@@ -222,7 +222,7 @@ async function updateRolePermissions(workspaceId, role, scope, permissions) {
     err.statusCode = 400
     throw err
   }
-  // Ensure all 13 permissions are present (prevent partial updates from corrupting state)
+  // Ensure all 18 permissions are present (prevent partial updates from corrupting state)
   const validKeys = Object.keys(ALL_PERMISSIONS_TRUE)
   const cleanPermissions = {}
   for (const key of validKeys) {
@@ -266,7 +266,8 @@ const ALL_PERMISSIONS_TRUE = {
   manage_quick_replies: true,
   manage_calendar: true,
   manage_broadcasts: true,
-  manage_pdpa: true
+  manage_pdpa: true,
+  manage_billing: true
 }
 const ALL_PERMISSIONS_FALSE = {
   send_messages: false, write_notes: false, manage_conversations: false,
@@ -278,13 +279,14 @@ const ALL_PERMISSIONS_FALSE = {
   manage_quick_replies: false,
   manage_calendar: false,
   manage_broadcasts: false,
-  manage_pdpa: false
+  manage_pdpa: false,
+  manage_billing: false
 }
 const DEFAULT_ROLE_PERMISSIONS = {
   manager: {
-    scope: 'workspace_wide',
-    permissions: { ...ALL_PERMISSIONS_TRUE, manage_role_permissions: false }
-  },
+  scope: 'workspace_wide',
+  permissions: { ...ALL_PERMISSIONS_TRUE, manage_role_permissions: false, manage_billing: false }
+},
   supervisor: {
     scope: 'project_only',
     permissions: {
@@ -6120,6 +6122,390 @@ app.patch('/email-settings', auth, requirePermission('manage_workspace_settings'
     res.status(500).json({ error: err.message })
   }
 })
+
+// ─── BILLING ───────────────────────────────────────────────────────────────
+// Tel-Cloud's billing surface. Eight endpoints covering the four panels in
+// the Settings > Billing tab: plan summary, wallet, invoices, payment method.
+//
+// Permission model:
+//   - GET /billing/summary, GET /billing/plans : just `auth` (any logged-in
+//     user can see what plan they're on and what plans exist)
+//   - All others : `manage_billing` permission (director-only by default,
+//     director can grant to other roles via Roles & Permissions tab)
+//
+// Schema source: chunk_26_billing_v1 migration. See workspaces table
+// extensions (stripe_*, pilot_*, industry_vertical), plus four new tables
+// (plans, wallets, wallet_transactions, invoices).
+//
+// Stripe integration: NOT YET WIRED. Endpoints return data from our own
+// tables only. POST /billing/wallet/topup returns 501 until we create the
+// Tel-Cloud product in Stripe and add stripe-node to the deps. Same for
+// GET /billing/payment-method.
+
+// GET /billing/summary
+// At-a-glance dashboard. Returns plan info, wallet state, subscription
+// status, pilot countdown, industry vertical. One round-trip for the
+// Billing tab's main panel.
+app.get('/billing/summary', auth, async (req, res) => {
+  try {
+    const wsId = await getWorkspaceId(req.user.id)
+
+    // Workspace-level state (subscription + pilot + industry + exempt flag)
+    const wsRes = await pool.query(`
+      SELECT
+        id, name, billing_exempt, plan, industry_vertical,
+        stripe_customer_id, stripe_subscription_id,
+        subscription_status, subscription_plan_slug, subscription_billing_cycle,
+        subscription_current_period_end, subscription_cancel_at_period_end,
+        pilot_ends_at, pilot_credited
+      FROM workspaces WHERE id = $1
+    `, [wsId])
+    if (!wsRes.rows.length) return res.status(404).json({ error: 'Workspace not found' })
+    const ws = wsRes.rows[0]
+
+    // Resolve current plan. Priority: subscription_plan_slug (real Stripe
+    // sub) -> plan column (legacy field, set during workspace creation).
+    // Fall back to 'starter' if neither is set.
+    const planSlug = ws.subscription_plan_slug || ws.plan || 'starter'
+    const planRes = await pool.query(
+      `SELECT * FROM plans WHERE slug = $1 LIMIT 1`,
+      [planSlug]
+    )
+    const plan = planRes.rows[0] || null
+
+    // Wallet (always exists post-migration; one row per workspace)
+    const walletRes = await pool.query(
+      `SELECT * FROM wallets WHERE workspace_id = $1 LIMIT 1`,
+      [wsId]
+    )
+    const wallet = walletRes.rows[0] || null
+
+    // Current month's wallet usage. Sum debits (wallet spend on Meta msgs).
+    const usageRes = await pool.query(`
+      SELECT
+        COALESCE(SUM(amount_cents), 0)::bigint AS spent_this_month_cents,
+        COUNT(*)::int AS transactions_this_month
+      FROM wallet_transactions
+      WHERE workspace_id = $1
+        AND direction = 'debit'
+        AND created_at >= DATE_TRUNC('month', NOW())
+    `, [wsId])
+    const usage = usageRes.rows[0] || { spent_this_month_cents: 0, transactions_this_month: 0 }
+
+    // Latest invoice (if any) for the "next bill" preview
+    const lastInvRes = await pool.query(`
+      SELECT id, status, amount_due_cents, currency, due_date, period_end, hosted_invoice_url
+      FROM invoices
+      WHERE workspace_id = $1
+      ORDER BY created_at DESC
+      LIMIT 1
+    `, [wsId])
+    const last_invoice = lastInvRes.rows[0] || null
+
+    res.json({
+      workspace: {
+        id: ws.id,
+        name: ws.name,
+        billing_exempt: ws.billing_exempt === true,
+        industry_vertical: ws.industry_vertical || 'recruitment'
+      },
+      plan,
+      subscription: {
+        status: ws.subscription_status,
+        billing_cycle: ws.subscription_billing_cycle,
+        current_period_end: ws.subscription_current_period_end,
+        cancel_at_period_end: ws.subscription_cancel_at_period_end === true,
+        stripe_customer_id: ws.stripe_customer_id,
+        stripe_subscription_id: ws.stripe_subscription_id
+      },
+      pilot: {
+        ends_at: ws.pilot_ends_at,
+        credited: ws.pilot_credited === true,
+        is_active: ws.pilot_ends_at && new Date(ws.pilot_ends_at) > new Date()
+      },
+      wallet,
+      usage_this_month: {
+        spent_cents: parseInt(usage.spent_this_month_cents) || 0,
+        transactions: parseInt(usage.transactions_this_month) || 0
+      },
+      last_invoice
+    })
+  } catch (err) {
+    console.error('GET /billing/summary error:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// GET /billing/plans
+// All active plan tiers. Used by the plan picker UI on upgrade/downgrade.
+// Excludes deactivated plans (is_active=false) so legacy tiers don't show.
+app.get('/billing/plans', auth, async (req, res) => {
+  try {
+    const r = await pool.query(`
+      SELECT
+        id, slug, display_name, monthly_price_cents, annual_price_cents,
+        annual_monthly_equivalent_cents, currency, markup_percent,
+        max_users, max_phone_numbers, max_conversations_per_month, max_contacts,
+        is_custom, sort_order, features
+      FROM plans
+      WHERE is_active = true
+      ORDER BY sort_order ASC
+    `)
+    res.json(r.rows)
+  } catch (err) {
+    console.error('GET /billing/plans error:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// GET /billing/wallet
+// Wallet detail. Balance, currency, markup, alert thresholds, auto-topup
+// settings. The transactions list is paginated separately (next endpoint).
+app.get('/billing/wallet', auth, requirePermission('manage_billing'), async (req, res) => {
+  try {
+    const wsId = await getWorkspaceId(req.user.id)
+    const r = await pool.query(
+      `SELECT * FROM wallets WHERE workspace_id = $1 LIMIT 1`,
+      [wsId]
+    )
+    if (!r.rows.length) {
+      // Defensive: should never happen post-migration. Create on the fly
+      // mirroring the migration's logic (markup=0 if exempt, else 20).
+      const wsRes = await pool.query(
+        `SELECT billing_exempt FROM workspaces WHERE id = $1`,
+        [wsId]
+      )
+      const exempt = wsRes.rows[0]?.billing_exempt === true
+      const created = await pool.query(`
+        INSERT INTO wallets (workspace_id, balance_cents, currency, markup_percent)
+        VALUES ($1, 0, 'SGD', $2)
+        RETURNING *
+      `, [wsId, exempt ? 0 : 20])
+      return res.json(created.rows[0])
+    }
+    res.json(r.rows[0])
+  } catch (err) {
+    console.error('GET /billing/wallet error:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// PATCH /billing/wallet
+// Update alert thresholds and auto-topup settings. Cannot directly set
+// balance_cents - balance only changes via wallet_transactions append.
+// Cannot change markup_percent - that's tier-driven (tied to plan).
+app.patch('/billing/wallet', auth, requirePermission('manage_billing'), async (req, res) => {
+  try {
+    const wsId = await getWorkspaceId(req.user.id)
+    const ALLOWED = [
+      'low_balance_threshold_cents',
+      'auto_topup_enabled',
+      'auto_topup_amount_cents',
+      'auto_topup_threshold_cents'
+    ]
+    const updates = []
+    const values = []
+    let idx = 1
+    for (const field of ALLOWED) {
+      if (!Object.prototype.hasOwnProperty.call(req.body, field)) continue
+      let val = req.body[field]
+      // Coerce booleans for the toggle field
+      if (field === 'auto_topup_enabled') val = val === true
+      // Threshold and amount fields: must be non-negative integers
+      else if (val !== null && val !== undefined) {
+        const parsed = parseInt(val)
+        if (isNaN(parsed) || parsed < 0) {
+          return res.status(400).json({ error: `${field} must be a non-negative integer (cents)` })
+        }
+        val = parsed
+      }
+      updates.push(`${field}=$${idx++}`)
+      values.push(val)
+    }
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'No valid fields provided to update' })
+    }
+    updates.push(`updated_at=NOW()`)
+    values.push(wsId)
+    const sql = `UPDATE wallets SET ${updates.join(', ')} WHERE workspace_id=$${idx} RETURNING *`
+    const r = await pool.query(sql, values)
+    if (!r.rows.length) return res.status(404).json({ error: 'Wallet not found' })
+    res.json(r.rows[0])
+  } catch (err) {
+    console.error('PATCH /billing/wallet error:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// GET /billing/wallet/transactions
+// Paginated transaction history. Append-only ledger. Most recent first.
+// Default page size 50, max 200 to keep response sizes reasonable.
+app.get('/billing/wallet/transactions', auth, requirePermission('manage_billing'), async (req, res) => {
+  try {
+    const wsId = await getWorkspaceId(req.user.id)
+    const limit = Math.min(parseInt(req.query.limit) || 50, 200)
+    const offset = parseInt(req.query.offset) || 0
+    const type = req.query.type  // optional filter: 'topup' | 'message_charge' | 'refund' | etc.
+
+    let sql = `
+      SELECT
+        wt.id, wt.type, wt.direction, wt.amount_cents, wt.balance_after_cents,
+        wt.currency, wt.description, wt.meta_cost_cents, wt.markup_cents,
+        wt.related_message_id, wt.related_broadcast_id, wt.related_invoice_id,
+        wt.created_at, wt.created_by_user_id,
+        u.name AS created_by_name
+      FROM wallet_transactions wt
+      LEFT JOIN users u ON u.id = wt.created_by_user_id
+      WHERE wt.workspace_id = $1
+    `
+    const params = [wsId]
+    let p = 2
+    if (type) {
+      sql += ` AND wt.type = $${p++}`
+      params.push(type)
+    }
+    sql += ` ORDER BY wt.created_at DESC LIMIT $${p++} OFFSET $${p++}`
+    params.push(limit, offset)
+    const r = await pool.query(sql, params)
+
+    // Total count for pagination UI
+    const countSql = type
+      ? `SELECT COUNT(*)::int AS total FROM wallet_transactions WHERE workspace_id=$1 AND type=$2`
+      : `SELECT COUNT(*)::int AS total FROM wallet_transactions WHERE workspace_id=$1`
+    const countParams = type ? [wsId, type] : [wsId]
+    const countRes = await pool.query(countSql, countParams)
+
+    res.json({
+      transactions: r.rows,
+      total: countRes.rows[0].total,
+      limit,
+      offset
+    })
+  } catch (err) {
+    console.error('GET /billing/wallet/transactions error:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// POST /billing/wallet/topup
+// Initiate a wallet top-up via Stripe. NOT YET IMPLEMENTED.
+// Returns 501 with a clear message until:
+//   1. Tel-Cloud product + price IDs are created in Stripe
+//   2. stripe-node is added to package.json (both root and server/)
+//   3. STRIPE_SECRET_KEY env var is set
+//   4. Webhook handler /billing/webhook/stripe is built (separate ticket)
+// The frontend will display "Connect payment method to enable" until this
+// endpoint moves from 501 to real Stripe integration.
+app.post('/billing/wallet/topup', auth, requirePermission('manage_billing'), async (req, res) => {
+  return res.status(501).json({
+    error: 'Wallet top-up is not yet available. Stripe integration pending.',
+    pending_steps: [
+      'Create Tel-Cloud product in Stripe',
+      'Add stripe-node to package.json',
+      'Configure STRIPE_SECRET_KEY environment variable',
+      'Build /billing/webhook/stripe handler'
+    ]
+  })
+})
+
+// GET /billing/invoices
+// List invoices for this workspace. Most recent first. Supports filtering
+// by status (paid, open, draft, void, uncollectible).
+app.get('/billing/invoices', auth, requirePermission('manage_billing'), async (req, res) => {
+  try {
+    const wsId = await getWorkspaceId(req.user.id)
+    const limit = Math.min(parseInt(req.query.limit) || 50, 200)
+    const offset = parseInt(req.query.offset) || 0
+    const status = req.query.status
+
+    let sql = `
+      SELECT
+        id, stripe_invoice_id, stripe_invoice_number, status,
+        amount_due_cents, amount_paid_cents, amount_remaining_cents, currency,
+        period_start, period_end, due_date, paid_at,
+        hosted_invoice_url, invoice_pdf_url,
+        created_at, updated_at
+      FROM invoices
+      WHERE workspace_id = $1
+    `
+    const params = [wsId]
+    let p = 2
+    if (status) {
+      sql += ` AND status = $${p++}`
+      params.push(status)
+    }
+    sql += ` ORDER BY created_at DESC LIMIT $${p++} OFFSET $${p++}`
+    params.push(limit, offset)
+    const r = await pool.query(sql, params)
+
+    const countSql = status
+      ? `SELECT COUNT(*)::int AS total FROM invoices WHERE workspace_id=$1 AND status=$2`
+      : `SELECT COUNT(*)::int AS total FROM invoices WHERE workspace_id=$1`
+    const countParams = status ? [wsId, status] : [wsId]
+    const countRes = await pool.query(countSql, countParams)
+
+    res.json({
+      invoices: r.rows,
+      total: countRes.rows[0].total,
+      limit,
+      offset
+    })
+  } catch (err) {
+    console.error('GET /billing/invoices error:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// GET /billing/invoices/:id
+// Single invoice with full line items. Workspace-scoped (cannot view
+// another workspace's invoice even with the id).
+app.get('/billing/invoices/:id', auth, requirePermission('manage_billing'), async (req, res) => {
+  try {
+    const wsId = await getWorkspaceId(req.user.id)
+    const r = await pool.query(`
+      SELECT * FROM invoices WHERE id = $1 AND workspace_id = $2 LIMIT 1
+    `, [req.params.id, wsId])
+    if (!r.rows.length) return res.status(404).json({ error: 'Invoice not found' })
+    res.json(r.rows[0])
+  } catch (err) {
+    console.error('GET /billing/invoices/:id error:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// GET /billing/payment-method
+// Card on file for this workspace. NOT YET IMPLEMENTED.
+// Will fetch via Stripe API once the customer has been created and a
+// payment method attached. For now returns a 501-ish placeholder so the
+// frontend can render "No payment method on file - connect via Stripe".
+app.get('/billing/payment-method', auth, requirePermission('manage_billing'), async (req, res) => {
+  try {
+    const wsId = await getWorkspaceId(req.user.id)
+    const r = await pool.query(
+      `SELECT stripe_customer_id FROM workspaces WHERE id = $1`,
+      [wsId]
+    )
+    const customerId = r.rows[0]?.stripe_customer_id
+    if (!customerId) {
+      return res.json({
+        has_payment_method: false,
+        stripe_customer_id: null,
+        message: 'No Stripe customer record yet. Will be created on first top-up or subscription.'
+      })
+    }
+    // Customer exists but we haven't wired Stripe SDK yet
+    return res.json({
+      has_payment_method: false,
+      stripe_customer_id: customerId,
+      message: 'Stripe customer exists but payment method retrieval is not yet implemented.',
+      pending: true
+    })
+  } catch (err) {
+    console.error('GET /billing/payment-method error:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
 // ─── PDPA RECORDS ──────────────────────────────────────────────────────────
 // Singapore PDPA compliance: every contact's consent state needs an audit
 // trail (when given, when withdrawn, by whom, through what channel). The

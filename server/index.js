@@ -3262,10 +3262,17 @@ app.post('/admin/impersonate/stop', auth, async (req, res) => {
       session = revokeRes.rows[0]
     }
 
-    // Audit trail: record the stop
+    // Audit trail: record the stop. Attribute to the original super admin
+    // (not the impersonated identity) so start and stop events are linked
+    // to the same actor in the audit log. The revoked_by_self flag still
+    // captures whether the impersonator stopped themselves vs another
+    // super admin revoking the session.
+    const stopActorId = req.user.is_impersonating
+      ? (req.user.original_super_admin_id || req.user.id)
+      : req.user.id
     await logAudit(
       session.target_workspace_id,
-      req.user.id,
+      stopActorId,
       'impersonate_stop',
       'user',
       session.target_user_id,
@@ -3273,7 +3280,9 @@ app.post('/admin/impersonate/stop', auth, async (req, res) => {
       {
         session_id: session.id,
         revoked_at: session.revoked_at,
-        revoked_by_self: req.user.is_impersonating === true
+        revoked_by_self: req.user.is_impersonating === true,
+        actor_user_id: stopActorId,
+        impersonated_user_id: req.user.is_impersonating ? req.user.id : null
       }
     )
 

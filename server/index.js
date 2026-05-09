@@ -7306,6 +7306,79 @@ function startScheduledMessageWorker() {
 }
 
 // ============================================================
+// PHONE CONNECTION WORKER (Unit 2D, Layer 3)
+// ============================================================
+// Polls every 6 hours: scans all phone_numbers across all workspaces,
+// finds rows whose last_connection_check_at is null or older than the
+// staleness threshold, and runs checkPhoneConnection() on each.
+//
+// Layered design recap:
+//   Layer 1 — Manual button (Unit 2C UI: "Test Connection")
+//   Layer 2 — Lazy on tab mount (Unit 2C effect, when row > 6h stale)
+//   Layer 3 — Background worker (this function), the safety net for
+//             phones whose tabs are never opened (e.g. dormant tenants)
+//
+// 500ms gap between checks protects against Meta API rate limits at
+// scale. The 6-hour cycle is intentionally aligned with Layer 2's
+// staleness threshold: if Layer 2 already refreshed a row, Layer 3
+// silently skips it on its next pass.
+const PHONE_WORKER_INTERVAL_MS = 6 * 60 * 60 * 1000  // 6 hours
+const PHONE_WORKER_STALE_HOURS = 6
+const PHONE_WORKER_GAP_MS = 500
+
+async function pollPhoneConnections() {
+  try {
+    const r = await pool.query(`
+      SELECT id, workspace_id, number, last_connection_check_at
+      FROM phone_numbers
+      WHERE
+        last_connection_check_at IS NULL
+        OR last_connection_check_at < (NOW() - INTERVAL '${PHONE_WORKER_STALE_HOURS} hours')
+      ORDER BY
+        last_connection_check_at ASC NULLS FIRST
+    `)
+
+    if (r.rows.length === 0) {
+      console.log('[phone-worker] no stale phones to check')
+      return
+    }
+
+    console.log(`[phone-worker] starting cycle, ${r.rows.length} stale phone(s) to check`)
+    let succeeded = 0
+    let failed = 0
+
+    for (const phone of r.rows) {
+      try {
+        const result = await checkPhoneConnection(phone.workspace_id, phone.id)
+        if (result && result.connection_status === 'CONNECTED') {
+          succeeded++
+        } else {
+          failed++
+        }
+      } catch (err) {
+        console.error(`[phone-worker] phone ${phone.id} (ws ${phone.workspace_id}) check raised:`, err.message)
+        failed++
+      }
+      await new Promise(resolve => setTimeout(resolve, PHONE_WORKER_GAP_MS))
+    }
+
+    console.log(`[phone-worker] cycle done: ${succeeded} connected, ${failed} unhealthy/errored`)
+  } catch (err) {
+    console.error('[phone-worker] cycle failed entirely:', err.message)
+  }
+}
+
+function startPhoneConnectionWorker() {
+  console.log(`[phone-worker] starting (poll every ${PHONE_WORKER_INTERVAL_MS / 1000}s, stale threshold ${PHONE_WORKER_STALE_HOURS}h)`)
+  // Run once shortly after boot so newly-added phones get checked
+  // without waiting a full cycle. 30s delay gives the DB pool, schema
+  // migrations, and other workers time to finish initializing.
+  setTimeout(() => { pollPhoneConnections() }, 30 * 1000)
+  // Then settle into the 6-hour rhythm
+  setInterval(() => { pollPhoneConnections() }, PHONE_WORKER_INTERVAL_MS)
+}
+
+// ============================================================
 // BROADCAST WORKER (chunk 18)
 // ============================================================
 // Sends one broadcast at a time end-to-end. Each broadcast iterates its
@@ -7739,5 +7812,6 @@ setupDatabase().then(() => {
     startScheduledMessageWorker()
     startBroadcastWorker()
     startPdpaExpiryWorker()
+    startPhoneConnectionWorker()
   })
 })

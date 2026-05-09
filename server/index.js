@@ -1024,22 +1024,41 @@ async function runChunk21PdpaConstraintsMigration() {
       // is deleted. CASCADE delete removes consent history along with the
       // contact — this is intentional, no separate audit trail expected
       // beyond the contact-level events.
-      await client.query(`
-        ALTER TABLE pdpa_records
-        ADD CONSTRAINT pdpa_records_contact_id_fkey
-        FOREIGN KEY (contact_id) REFERENCES contacts(id) ON DELETE CASCADE
-      `)
-      console.log(`   added contact_id FK constraint`)
+      // Wrapped in try/catch + duplicate_object swallow because Postgres
+      // does not support ADD CONSTRAINT IF NOT EXISTS. State drift (FK
+      // already exists from a prior partial run) must not block migration.
+      try {
+        await client.query(`
+          ALTER TABLE pdpa_records
+          ADD CONSTRAINT pdpa_records_contact_id_fkey
+          FOREIGN KEY (contact_id) REFERENCES contacts(id) ON DELETE CASCADE
+        `)
+        console.log(`   added contact_id FK constraint`)
+      } catch (err) {
+        if (err.code === '42710') {
+          console.log(`   contact_id FK already exists, skipping`)
+        } else {
+          throw err
+        }
+      }
 
       // collected_by FK: SET NULL on user delete because losing the agent
       // who recorded consent should not destroy the record itself — the
       // consent is still valid, just unattributed.
-      await client.query(`
-        ALTER TABLE pdpa_records
-        ADD CONSTRAINT pdpa_records_collected_by_fkey
-        FOREIGN KEY (collected_by) REFERENCES users(id) ON DELETE SET NULL
-      `)
-      console.log(`   added collected_by FK constraint`)
+      try {
+        await client.query(`
+          ALTER TABLE pdpa_records
+          ADD CONSTRAINT pdpa_records_collected_by_fkey
+          FOREIGN KEY (collected_by) REFERENCES users(id) ON DELETE SET NULL
+        `)
+        console.log(`   added collected_by FK constraint`)
+      } catch (err) {
+        if (err.code === '42710') {
+          console.log(`   collected_by FK already exists, skipping`)
+        } else {
+          throw err
+        }
+      }
 
       // Compound index for the most common query: "history for this
       // contact, newest first". Sort direction is part of the index so

@@ -3056,6 +3056,273 @@ app.delete('/phone-numbers/:id', auth, requirePermission('manage_phone_numbers')
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
+// ─── PHONE CONNECTION CHECK (Chunk 23, Unit 2B) ────────────────────────────
+// Verifies a phone number against Meta's Graph API and writes structured
+// connection state to the new chunk 23 columns. Used by all three layers:
+//   1. Manual "Test Connection" button in Settings > Phone Numbers
+//   2. Lazy auto-check on page load when last_connection_check_at > 6h
+//   3. Background worker (hourly poll, future unit)
+//
+// The check is synchronous - caller waits for Meta's response (~1-2s).
+// Returns the updated phone_numbers row with new connection state.
+//
+// Connection status values:
+//   CONNECTED        - 200 OK with verified_name present
+//   TOKEN_INVALID    - 401 / 190 (expired or invalid access token)
+//   NUMBER_NOT_FOUND - 100 / 803 (phone_number_id doesn't exist)
+//   RESTRICTED       - 10 / 200 (account or number restricted by Meta)
+//   ERROR            - any other failure mode (network, parse, etc.)
+//   UNCHECKED        - default, never overwritten by this endpoint
+async function checkPhoneConnection(workspaceId, phoneNumberId) {
+  const phoneRow = await pool.query(
+    `SELECT id, whatsapp_phone_id FROM phone_numbers WHERE id=$1 AND workspace_id=$2`,
+    [phoneNumberId, workspaceId]
+  )
+  if (!phoneRow.rows.length) {
+    const err = new Error('Phone number not found in this workspace')
+    err.statusCode = 404
+    throw err
+  }
+  const waPhoneId = phoneRow.rows[0].whatsapp_phone_id
+  if (!waPhoneId || !waPhoneId.trim()) {
+    await pool.query(
+      `UPDATE phone_numbers
+         SET connection_status='ERROR',
+             connection_error='No WhatsApp Phone ID linked. Add one in the phone number settings.',
+             last_connection_check_at=NOW()
+       WHERE id=$1`,
+      [phoneNumberId]
+    )
+    const updated = await pool.query(`SELECT * FROM phone_numbers WHERE id=$1`, [phoneNumberId])
+    return updated.rows[0]
+  }
+
+  const token = process.env.META_ACCESS_TOKEN
+  const apiVersion = process.env.META_API_VERSION || 'v25.0'
+  if (!token) {
+    const err = new Error('META_ACCESS_TOKEN not configured on server')
+    err.statusCode = 500
+    throw err
+  }
+
+  const fields = 'verified_name,display_phone_number,quality_rating,messaging_limit,name_status'
+  const url = `https://graph.facebook.com/${apiVersion}/${waPhoneId}?fields=${fields}`
+
+  let status = 'ERROR'
+  let errorText = null
+  let qualityRating = null
+  let messagingLimit = null
+  let nameStatus = null
+
+  try {
+    const res = await fetch(url, {
+      method: 'GET',
+      headers: { 'Authorization': 'Bearer ' + token }
+    })
+    const data = await res.json()
+
+    if (res.ok && data.verified_name) {
+      status = 'CONNECTED'
+      qualityRating = data.quality_rating || 'UNKNOWN'
+      messagingLimit = data.messaging_limit || null
+      nameStatus = data.name_status || null
+    } else {
+      const code = data && data.error ? data.error.code : null
+      const subcode = data && data.error ? data.error.error_subcode : null
+      const msg = (data && data.error && data.error.message) || ('HTTP ' + res.status)
+      errorText = msg.slice(0, 500)
+
+      if (code === 190 || code === 102 || code === 401 || res.status === 401) {
+        status = 'TOKEN_INVALID'
+      } else if (code === 100 || code === 803 || code === 33) {
+        status = 'NUMBER_NOT_FOUND'
+      } else if (code === 10 || code === 200 || subcode === 2494051) {
+        status = 'RESTRICTED'
+      } else {
+        status = 'ERROR'
+      }
+      console.warn('[connection check] Meta returned code=' + code + ' subcode=' + subcode + ': ' + msg)
+    }
+  } catch (fetchErr) {
+    status = 'ERROR'
+    errorText = ('Network error: ' + fetchErr.message).slice(0, 500)
+    console.error('[connection check] Fetch failed:', fetchErr.message)
+  }
+
+  await pool.query(
+    `UPDATE phone_numbers
+       SET connection_status=$1,
+           connection_error=$2,
+           quality_rating=$3,
+           messaging_limit_tier=$4,
+           name_status=$5,
+           last_connection_check_at=NOW(),
+           connected = ($1 = 'CONNECTED')
+     WHERE id=$6`,
+    [
+      status,
+      status === 'CONNECTED' ? null : errorText,
+      status === 'CONNECTED' ? qualityRating : null,
+      status === 'CONNECTED' ? messagingLimit : null,
+      status === 'CONNECTED' ? nameStatus : null,
+      phoneNumberId
+    ]
+  )
+
+  const updated = await pool.query(`SELECT * FROM phone_numbers WHERE id=$1`, [phoneNumberId])
+  return updated.rows[0]
+}
+
+app.post('/phone-numbers/:id/check-connection', auth, requirePermission('manage_phone_numbers'), async (req, res) => {
+  try {
+    const wsId = await getWorkspaceId(req.user.id)
+    const result = await checkPhoneConnection(wsId, req.params.id)
+    res.json(result)
+  } catch (err) {
+    console.error('POST /phone-numbers/:id/check-connection error:', err)
+    res.status(err.statusCode || 500).json({ error: err.message })
+  }
+})
+
+// ─── PHONE CONNECTION CHECK (Chunk 23, Unit 2B) ────────────────────────────
+// Verifies a phone number against Meta's Graph API and writes structured
+// connection state to the new chunk 23 columns. Used by all three layers:
+//   1. Manual "Test Connection" button in Settings > Phone Numbers
+//   2. Lazy auto-check on page load when last_connection_check_at > 6h
+//   3. Background worker (hourly poll, future unit)
+//
+// The check is synchronous — caller waits for Meta's response (~1-2s).
+// Returns the updated phone_numbers row with new connection state.
+//
+// Connection status values:
+//   CONNECTED        - 200 OK with verified_name present
+//   TOKEN_INVALID    - 401 / 190 (expired or invalid access token)
+//   NUMBER_NOT_FOUND - 100 / 803 (phone_number_id doesn't exist)
+//   RESTRICTED       - 10 / 200 (account or number restricted by Meta)
+//   ERROR            - any other failure mode (network, parse, etc.)
+//   UNCHECKED        - default, never overwritten by this endpoint
+async function checkPhoneConnection(workspaceId, phoneNumberId) {
+  const phoneRow = await pool.query(
+    `SELECT id, whatsapp_phone_id FROM phone_numbers WHERE id=$1 AND workspace_id=$2`,
+    [phoneNumberId, workspaceId]
+  )
+  if (!phoneRow.rows.length) {
+    const err = new Error('Phone number not found in this workspace')
+    err.statusCode = 404
+    throw err
+  }
+  const waPhoneId = phoneRow.rows[0].whatsapp_phone_id
+  if (!waPhoneId || !waPhoneId.trim()) {
+    // No Meta ID linked yet — write a deterministic state and return.
+    // Frontend uses this to show "Link to Meta first" hint.
+    await pool.query(
+      `UPDATE phone_numbers
+         SET connection_status='ERROR',
+             connection_error='No WhatsApp Phone ID linked. Add one in the phone number settings.',
+             last_connection_check_at=NOW()
+       WHERE id=$1`,
+      [phoneNumberId]
+    )
+    const updated = await pool.query(`SELECT * FROM phone_numbers WHERE id=$1`, [phoneNumberId])
+    return updated.rows[0]
+  }
+
+  const token = process.env.META_ACCESS_TOKEN
+  const apiVersion = process.env.META_API_VERSION || 'v25.0'
+  if (!token) {
+    const err = new Error('META_ACCESS_TOKEN not configured on server')
+    err.statusCode = 500
+    throw err
+  }
+
+  // Meta Graph API: GET /{phone-number-id}?fields=...
+  // verified_name + display_phone_number confirm the number is registered.
+  // quality_rating + messaging_limit + name_status give us the health metadata.
+  const fields = 'verified_name,display_phone_number,quality_rating,messaging_limit,name_status'
+  const url = `https://graph.facebook.com/${apiVersion}/${waPhoneId}?fields=${fields}`
+
+  let status = 'ERROR'
+  let errorText = null
+  let qualityRating = null
+  let messagingLimit = null
+  let nameStatus = null
+
+  try {
+    const res = await fetch(url, {
+      method: 'GET',
+      headers: { 'Authorization': 'Bearer ' + token }
+    })
+    const data = await res.json()
+
+    if (res.ok && data.verified_name) {
+      status = 'CONNECTED'
+      qualityRating = data.quality_rating || 'UNKNOWN'
+      // Meta returns messaging_limit as e.g. "TIER_1K" — store as-is
+      messagingLimit = data.messaging_limit || null
+      nameStatus = data.name_status || null
+    } else {
+      // Map Meta's error codes to our status values
+      const code = data?.error?.code
+      const subcode = data?.error?.error_subcode
+      const msg = data?.error?.message || `HTTP ${res.status}`
+      errorText = msg.slice(0, 500)
+
+      if (code === 190 || code === 102 || code === 401 || res.status === 401) {
+        status = 'TOKEN_INVALID'
+      } else if (code === 100 || code === 803 || code === 33) {
+        status = 'NUMBER_NOT_FOUND'
+      } else if (code === 10 || code === 200 || subcode === 2494051) {
+        status = 'RESTRICTED'
+      } else {
+        status = 'ERROR'
+      }
+      console.warn(`[connection check] Meta returned code=${code} subcode=${subcode}: ${msg}`)
+    }
+  } catch (fetchErr) {
+    // Network failure, JSON parse error, etc.
+    status = 'ERROR'
+    errorText = `Network error: ${fetchErr.message}`.slice(0, 500)
+    console.error('[connection check] Fetch failed:', fetchErr.message)
+  }
+
+  // Write the result. On CONNECTED we clear connection_error; on failure
+  // we keep the error text and clear the metadata fields so stale data
+  // doesn't linger from a previous successful check.
+  await pool.query(
+    `UPDATE phone_numbers
+       SET connection_status=$1,
+           connection_error=$2,
+           quality_rating=$3,
+           messaging_limit_tier=$4,
+           name_status=$5,
+           last_connection_check_at=NOW(),
+           connected = ($1 = 'CONNECTED')
+     WHERE id=$6`,
+    [
+      status,
+      status === 'CONNECTED' ? null : errorText,
+      status === 'CONNECTED' ? qualityRating : null,
+      status === 'CONNECTED' ? messagingLimit : null,
+      status === 'CONNECTED' ? nameStatus : null,
+      phoneNumberId
+    ]
+  )
+
+  const updated = await pool.query(`SELECT * FROM phone_numbers WHERE id=$1`, [phoneNumberId])
+  return updated.rows[0]
+}
+
+app.post('/phone-numbers/:id/check-connection', auth, requirePermission('manage_phone_numbers'), async (req, res) => {
+  try {
+    const wsId = await getWorkspaceId(req.user.id)
+    const result = await checkPhoneConnection(wsId, req.params.id)
+    res.json(result)
+  } catch (err) {
+    console.error('POST /phone-numbers/:id/check-connection error:', err)
+    res.status(err.statusCode || 500).json({ error: err.message })
+  }
+})
+
 // ─── CHUNK 5: Role Permissions (Director-facing) ─────────────────────────────
 // Director manages role permissions for their own workspace.
 // Requires the 'manage_role_permissions' permission.

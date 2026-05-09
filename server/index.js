@@ -437,6 +437,7 @@ async function setupDatabase() {
     await runChunk24PhoneConnectionWidenMigration()
     await runChunk25ImpersonationSessionsMigration()
     await runChunk26BillingMigration()
+    await runChunk26bBillingTimestamptzMigration()
   } catch (err) {
     await client.query('ROLLBACK')
     console.error('�?DB setup error:', err.message)
@@ -2655,6 +2656,106 @@ async function runChunk26BillingMigration() {
       console.log(`   set industry_vertical='recruitment' on ${verticalBackfill.rowCount} workspaces`)
 
       // -------- 10. Record migration --------
+      await client.query(`INSERT INTO _migrations (id) VALUES ($1)`, [MIGRATION_ID])
+      await client.query('COMMIT')
+      console.log(`Migration ${MIGRATION_ID} complete`)
+    } catch (err) {
+      await client.query('ROLLBACK')
+      throw err
+    } finally {
+      client.release()
+    }
+  } catch (err) {
+    console.error(`Migration ${MIGRATION_ID} FAILED:`, err.message)
+    throw err
+  }
+}
+
+// ============================================================
+// Chunk 26b Billing Timestamps to TIMESTAMPTZ
+// Converts billing-critical timestamp columns from TIMESTAMP (no tz, ambiguous)
+// to TIMESTAMPTZ (timezone-aware, stores UTC, converts on read).
+//
+// Why: billing has legal/financial consequences. A subscription that ends
+// at "2026-12-01 00:00:00" (no tz) is ambiguous - is that midnight UTC,
+// midnight SGT, or midnight wherever the writer was? TIMESTAMPTZ removes
+// ambiguity: stores UTC internally, converts to display timezone on read.
+//
+// Conversion is safe: Postgres interprets existing TIMESTAMP values as
+// "without timezone" and converts them to TIMESTAMPTZ assuming UTC. Since
+// existing rows were written via NOW() (UTC under the hood), values map
+// correctly without shifting.
+async function runChunk26bBillingTimestamptzMigration() {
+  const MIGRATION_ID = 'chunk_26b_billing_timestamptz_v1'
+  try {
+    const applied = await pool.query('SELECT id FROM _migrations WHERE id=$1', [MIGRATION_ID])
+    if (applied.rows.length > 0) {
+      console.log(`Migration ${MIGRATION_ID} already applied, skipping`)
+      return
+    }
+    console.log(`Running migration ${MIGRATION_ID}...`)
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+
+      // workspaces: subscription + pilot timestamps
+      await client.query(`
+        ALTER TABLE workspaces
+          ALTER COLUMN subscription_current_period_end TYPE TIMESTAMPTZ
+            USING subscription_current_period_end AT TIME ZONE 'UTC',
+          ALTER COLUMN pilot_ends_at TYPE TIMESTAMPTZ
+            USING pilot_ends_at AT TIME ZONE 'UTC'
+      `)
+      console.log(`   converted workspaces billing timestamps`)
+
+      // plans timestamps
+      await client.query(`
+        ALTER TABLE plans
+          ALTER COLUMN created_at TYPE TIMESTAMPTZ
+            USING created_at AT TIME ZONE 'UTC',
+          ALTER COLUMN updated_at TYPE TIMESTAMPTZ
+            USING updated_at AT TIME ZONE 'UTC'
+      `)
+      console.log(`   converted plans timestamps`)
+
+      // wallets timestamps
+      await client.query(`
+        ALTER TABLE wallets
+          ALTER COLUMN last_low_balance_alert_at TYPE TIMESTAMPTZ
+            USING last_low_balance_alert_at AT TIME ZONE 'UTC',
+          ALTER COLUMN created_at TYPE TIMESTAMPTZ
+            USING created_at AT TIME ZONE 'UTC',
+          ALTER COLUMN updated_at TYPE TIMESTAMPTZ
+            USING updated_at AT TIME ZONE 'UTC'
+      `)
+      console.log(`   converted wallets timestamps`)
+
+      // wallet_transactions: append-only ledger
+      await client.query(`
+        ALTER TABLE wallet_transactions
+          ALTER COLUMN created_at TYPE TIMESTAMPTZ
+            USING created_at AT TIME ZONE 'UTC'
+      `)
+      console.log(`   converted wallet_transactions.created_at`)
+
+      // invoices: financial-critical timestamps
+      await client.query(`
+        ALTER TABLE invoices
+          ALTER COLUMN period_start TYPE TIMESTAMPTZ
+            USING period_start AT TIME ZONE 'UTC',
+          ALTER COLUMN period_end TYPE TIMESTAMPTZ
+            USING period_end AT TIME ZONE 'UTC',
+          ALTER COLUMN due_date TYPE TIMESTAMPTZ
+            USING due_date AT TIME ZONE 'UTC',
+          ALTER COLUMN paid_at TYPE TIMESTAMPTZ
+            USING paid_at AT TIME ZONE 'UTC',
+          ALTER COLUMN created_at TYPE TIMESTAMPTZ
+            USING created_at AT TIME ZONE 'UTC',
+          ALTER COLUMN updated_at TYPE TIMESTAMPTZ
+            USING updated_at AT TIME ZONE 'UTC'
+      `)
+      console.log(`   converted invoices timestamps`)
+
       await client.query(`INSERT INTO _migrations (id) VALUES ($1)`, [MIGRATION_ID])
       await client.query('COMMIT')
       console.log(`Migration ${MIGRATION_ID} complete`)

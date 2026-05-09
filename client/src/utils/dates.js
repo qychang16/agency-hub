@@ -95,3 +95,9 @@ export function isWithinBusinessHours(businessHours) {
   if (!todayHours || !todayHours.open) return false
   return time >= todayHours.start && time <= todayHours.end
 }
+
+export function daysUntil(isoString) {
+  if (!isoString) return 0
+  const ms = new Date(isoString) - new Date()
+  return Math.ceil(ms / 86400000)
+}

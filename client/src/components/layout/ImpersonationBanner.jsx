@@ -53,10 +53,10 @@ export default function ImpersonationBanner() {
         throw new Error('Server did not return a fresh super admin token. Please sign in again.')
       }
       applyStopImpersonation(data.token, data.user)
-      // Snap to AdminPanel -- it's the natural starting point for the
-      // super admin and avoids landing them on a workspace-2 page they
-      // can no longer see.
-      window.location.href = '/admin/workspaces'
+      // Snap to root. The app routes by is_super_admin (not URL path),
+      // so / will naturally render AdminPanel for the restored super
+      // admin. Avoids hitting Vercel's 404 for /admin/workspaces.
+      window.location.href = '/'
     } catch (e) {
       setError(e.message)
       setStopping(false)

@@ -8527,7 +8527,6 @@ const PORT = process.env.PORT || 4000
 setupDatabase().then(() => {
   httpServer.listen(PORT, () => {
     console.log(`🚀 Tel-Cloud server running on port ${PORT}`)
-    console.log(`📧 Super admin login: superadmin@tel-cloud.com / admin123`)
     startScheduledMessageWorker()
     startBroadcastWorker()
     startPdpaExpiryWorker()

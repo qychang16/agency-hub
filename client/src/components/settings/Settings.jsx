@@ -16,43 +16,88 @@ import WhatsAppAPI from './tabs/WhatsAppAPI'
 import NotificationSettings from './tabs/NotificationSettings'
 import SecuritySettings from './tabs/SecuritySettings'
 import AuditLog from './tabs/AuditLog'
-import PDPA from '../pdpa/PDPA'
+import PDPA from './tabs/PDPA'
 
 const ICON_PROPS = { width: 16, height: 16, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.7, strokeLinecap: 'round', strokeLinejoin: 'round' }
 
 const Icons = {
   profile: <svg {...ICON_PROPS}><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01"/><path d="M16 6h.01"/><path d="M12 6h.01"/><path d="M12 10h.01"/><path d="M12 14h.01"/><path d="M16 10h.01"/><path d="M16 14h.01"/><path d="M8 10h.01"/><path d="M8 14h.01"/></svg>,
+  business_hours: <svg {...ICON_PROPS}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
   billing: <svg {...ICON_PROPS}><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>,
-  phone_numbers: <svg {...ICON_PROPS}><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M12 18h.01"/></svg>,
   agents: <svg {...ICON_PROPS}><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>,
   teams: <svg {...ICON_PROPS}><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>,
-  routing: <svg {...ICON_PROPS}><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg>,
   roles: <svg {...ICON_PROPS}><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>,
-  business_hours: <svg {...ICON_PROPS}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
-  email: <svg {...ICON_PROPS}><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>,
+  routing: <svg {...ICON_PROPS}><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg>,
+  phone_numbers: <svg {...ICON_PROPS}><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M12 18h.01"/></svg>,
   whatsapp: <svg {...ICON_PROPS}><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>,
+  email: <svg {...ICON_PROPS}><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>,
   notifications: <svg {...ICON_PROPS}><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>,
   security: <svg {...ICON_PROPS}><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>,
   audit: <svg {...ICON_PROPS}><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8"/><path d="M8 11h8"/><path d="M8 15h5"/></svg>,
   pdpa: <svg {...ICON_PROPS}><path d="M12 2L4 6v6c0 5 3.5 9 8 10 4.5-1 8-5 8-10V6l-8-4z"/><path d="M9 12l2 2 4-4"/></svg>,
 }
 
-const TABS = [
-  { key: 'profile', label: 'Agency Profile' },
-  { key: 'billing', label: 'Billing' },
-  { key: 'phone_numbers', label: 'Phone Numbers' },
-  { key: 'agents', label: 'Agents' },
-  { key: 'teams', label: 'Teams' },
-  { key: 'routing', label: 'Routing Rules' },
-  { key: 'roles', label: 'Roles & Permissions' },
-  { key: 'business_hours', label: 'Business Hours' },
-  { key: 'email', label: 'Email Integration' },
-  { key: 'whatsapp', label: 'WhatsApp API' },
-  { key: 'notifications', label: 'Notifications' },
-  { key: 'security', label: 'Security' },
-  { key: 'audit', label: 'Audit Log' },
-  { key: 'pdpa', label: 'PDPA Compliance' },
+// Sidebar structure with section headers. Order is intentional: workspace
+// identity & money first, then people, then how conversations flow, then
+// external integrations, then governance/compliance at the bottom. Each
+// section has a heading; tabs within a section are flat-listed.
+const SECTIONS = [
+  {
+    section: 'Workspace',
+    tabs: [
+      { key: 'profile', label: 'Agency Profile' },
+      { key: 'business_hours', label: 'Business Hours' },
+      { key: 'billing', label: 'Billing' },
+    ],
+  },
+  {
+    section: 'People',
+    tabs: [
+      { key: 'agents', label: 'Agents' },
+      { key: 'teams', label: 'Teams' },
+      { key: 'roles', label: 'Roles & Permissions' },
+    ],
+  },
+  {
+    section: 'Workflow',
+    tabs: [
+      { key: 'routing', label: 'Routing Rules' },
+      { key: 'phone_numbers', label: 'Phone Numbers' },
+    ],
+  },
+  {
+    section: 'Integrations',
+    tabs: [
+      { key: 'whatsapp', label: 'WhatsApp API' },
+      { key: 'email', label: 'Email Integration' },
+    ],
+  },
+  {
+    section: 'Compliance',
+    tabs: [
+      { key: 'notifications', label: 'Notifications' },
+      { key: 'security', label: 'Security' },
+      { key: 'audit', label: 'Audit Log' },
+      { key: 'pdpa', label: 'PDPA Compliance' },
+    ],
+  },
 ]
+
+// Flat-list view of all tabs — used by routing, gating, and the mobile
+// dropdown (which doesn't show section headers).
+const ALL_TABS = SECTIONS.flatMap(s => s.tabs)
+
+function isTabVisible(tab, user, hasPermission) {
+  // Roles & Permissions tab — gated by explicit permission (Chunk 5)
+  if (tab.key === 'roles') return hasPermission('manage_role_permissions')
+  // Billing tab — gated by manage_billing permission (Chunk 26, director-only by default)
+  if (tab.key === 'billing') return hasPermission('manage_billing')
+  // Legacy role-based gates for other tabs
+  if (user?.role === 'director' || user?.role === 'manager') return true
+  if (tab.key === 'notifications' || tab.key === 'security') return true
+  if (tab.key === 'agents' || tab.key === 'teams') return user?.role === 'senior_consultant'
+  return false
+}
 
 function MobileTabMenu({ tabs, activeTab, icons, onSelect }) {
   const [open, setOpen] = useState(false)
@@ -100,32 +145,28 @@ export default function Settings() {
     return () => window.removeEventListener('resize', onResize)
   }, [])
 
-  const visibleTabs = TABS.filter(tab => {
-    // Roles & Permissions tab — gated by explicit permission (Chunk 5)
-    if (tab.key === 'roles') return hasPermission('manage_role_permissions')
+  // Compute which sections to render: a section is shown only if at least
+  // one of its tabs is visible to the current user. Empty sections collapse
+  // entirely (no orphan headers).
+  const visibleSections = SECTIONS
+    .map(s => ({ ...s, tabs: s.tabs.filter(t => isTabVisible(t, user, hasPermission)) }))
+    .filter(s => s.tabs.length > 0)
 
-    // Billing tab — gated by manage_billing permission (Chunk 26, director-only by default)
-    if (tab.key === 'billing') return hasPermission('manage_billing')
-
-    // Legacy role-based gates for other tabs
-    if (user?.role === 'director' || user?.role === 'manager') return true
-    if (tab.key === 'notifications' || tab.key === 'security') return true
-    if (tab.key === 'agents' || tab.key === 'teams') return user?.role === 'senior_consultant'
-    return false
-  })
+  // Flat list for the mobile dropdown (no section headers there)
+  const visibleTabs = visibleSections.flatMap(s => s.tabs)
 
   function renderTab() {
     switch (activeTab) {
       case 'profile': return <AgencyProfile />
+      case 'business_hours': return <BusinessHours />
       case 'billing': return <Billing />
-      case 'phone_numbers': return <PhoneNumbers />
       case 'agents': return <Agents />
       case 'teams': return <Teams />
-      case 'routing': return <Routing />
       case 'roles': return <RolesPermissions />
-      case 'business_hours': return <BusinessHours />
-      case 'email': return <EmailIntegration />
+      case 'routing': return <Routing />
+      case 'phone_numbers': return <PhoneNumbers />
       case 'whatsapp': return <WhatsAppAPI />
+      case 'email': return <EmailIntegration />
       case 'notifications': return <NotificationSettings />
       case 'security': return <SecuritySettings />
       case 'audit': return <AuditLog />
@@ -143,24 +184,37 @@ export default function Settings() {
 
   return (
     <div className="flex-col md:flex-row" style={{ display: 'flex', flex: 1, overflow: 'hidden', background: '#faf9f7' }}>
-      {/* Sidebar */}
+      {/* Sidebar (desktop only) */}
       {!isMobile && (
-        <div style={{ width: 220, flexShrink: 0, background: '#fff', borderRight: '0.5px solid #dcd8d0', overflowY: 'auto', padding: '16px 10px' }}>
+        <div style={{ width: 220, flexShrink: 0, background: '#fff', borderRight: '0.5px solid #dcd8d0', overflowY: 'auto', padding: '16px 10px', display: 'flex', flexDirection: 'column' }}>
           <div style={{ fontSize: 10, fontWeight: 700, color: '#9a958c', textTransform: 'uppercase', letterSpacing: '0.6px', padding: '4px 10px', marginBottom: 10 }}>
             Settings
           </div>
-          {visibleTabs.map(tab => (
-            <button key={tab.key} onClick={() => setActiveTab(tab.key)}
-              style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 9, padding: '9px 10px', borderRadius: 8, border: 'none', background: activeTab === tab.key ? ACCENT_LIGHT : 'transparent', color: activeTab === tab.key ? ACCENT : '#4a4742', cursor: 'pointer', fontSize: 12, fontWeight: activeTab === tab.key ? 600 : 400, textAlign: 'left', marginBottom: 2, transition: 'all .1s' }}
-              onMouseEnter={e => { if (activeTab !== tab.key) e.currentTarget.style.background = '#faf9f7' }}
-              onMouseLeave={e => { if (activeTab !== tab.key) e.currentTarget.style.background = 'transparent' }}>
-              <span style={{ display: 'flex', alignItems: 'center', color: 'currentColor' }}>{Icons[tab.key]}</span>
-              {tab.label}
-            </button>
-          ))}
 
-          {/* Version info */}
-          <div style={{ marginTop: 'auto', padding: '16px 10px 4px', borderTop: '0.5px solid #f5f3ef', marginLeft: -10, marginRight: -10, paddingLeft: 10 }}>
+          {/* Sections with sub-headings */}
+          <div style={{ flex: 1 }}>
+            {visibleSections.map((section, sIdx) => (
+              <div key={section.section} style={{ marginBottom: sIdx < visibleSections.length - 1 ? 14 : 0 }}>
+                {/* Section header */}
+                <div style={{ fontSize: 9, fontWeight: 600, color: '#c2bdb3', textTransform: 'uppercase', letterSpacing: '0.7px', padding: '6px 10px 4px' }}>
+                  {section.section}
+                </div>
+                {/* Tabs in this section */}
+                {section.tabs.map(tab => (
+                  <button key={tab.key} onClick={() => setActiveTab(tab.key)}
+                    style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 9, padding: '9px 10px', borderRadius: 8, border: 'none', background: activeTab === tab.key ? ACCENT_LIGHT : 'transparent', color: activeTab === tab.key ? ACCENT : '#4a4742', cursor: 'pointer', fontSize: 12, fontWeight: activeTab === tab.key ? 600 : 400, textAlign: 'left', marginBottom: 2, transition: 'all .1s' }}
+                    onMouseEnter={e => { if (activeTab !== tab.key) e.currentTarget.style.background = '#faf9f7' }}
+                    onMouseLeave={e => { if (activeTab !== tab.key) e.currentTarget.style.background = 'transparent' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', color: 'currentColor' }}>{Icons[tab.key]}</span>
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+            ))}
+          </div>
+
+          {/* Version info — pinned to bottom */}
+          <div style={{ padding: '16px 10px 4px', borderTop: '0.5px solid #f5f3ef', marginLeft: -10, marginRight: -10, paddingLeft: 10 }}>
             <div style={{ fontSize: 10, color: '#9a958c' }}>Tel-Cloud v2.0.0</div>
             <div style={{ fontSize: 10, color: '#c2bdb3', marginTop: 2 }}>© 2026 Y.E.C Consultancy</div>
           </div>

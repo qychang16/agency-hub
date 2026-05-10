@@ -23,7 +23,6 @@ const Settings = lazy(() => import('./components/settings/Settings'))
 const Pipeline = lazy(() => import('./components/pipeline/Pipeline'))
 const JobOrders = lazy(() => import('./components/jobs/JobOrders'))
 const Contacts = lazy(() => import('./components/contacts/Contacts'))
-const PDPA = lazy(() => import('./components/pdpa/PDPA'))
 const AdminPanel = lazy(() => import('./components/admin/AdminPanel'))
 import ImpersonationBanner from './components/layout/ImpersonationBanner'
 
@@ -534,7 +533,6 @@ function MainApp() {
         case 'pipeline': return <Pipeline />
         case 'jobs': return <JobOrders />
         case 'contacts': return <Contacts onNavigate={setActiveNav} />
-        case 'pdpa': return <PDPA onNavigate={setActiveNav} />
         default: return <ComingSoon name={activeNav} />
       }
     })()

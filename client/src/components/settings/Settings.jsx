@@ -17,6 +17,7 @@ import NotificationSettings from './tabs/NotificationSettings'
 import SecuritySettings from './tabs/SecuritySettings'
 import AuditLog from './tabs/AuditLog'
 import PDPA from './tabs/PDPA'
+import Industry from './tabs/Industry'
 
 const ICON_PROPS = { width: 16, height: 16, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.7, strokeLinecap: 'round', strokeLinejoin: 'round' }
 
@@ -35,6 +36,7 @@ const Icons = {
   security: <svg {...ICON_PROPS}><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>,
   audit: <svg {...ICON_PROPS}><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8"/><path d="M8 11h8"/><path d="M8 15h5"/></svg>,
   pdpa: <svg {...ICON_PROPS}><path d="M12 2L4 6v6c0 5 3.5 9 8 10 4.5-1 8-5 8-10V6l-8-4z"/><path d="M9 12l2 2 4-4"/></svg>,
+  industry: <svg {...ICON_PROPS}><path d="M3 21V8l9-5 9 5v13"/><path d="M9 21V12h6v9"/><path d="M3 21h18"/></svg>,
 }
 
 // Sidebar structure with section headers. Order is intentional: workspace
@@ -48,6 +50,7 @@ const SECTIONS = [
       { key: 'profile', label: 'Agency Profile' },
       { key: 'business_hours', label: 'Business Hours' },
       { key: 'billing', label: 'Billing' },
+      { key: 'industry', label: 'Industry' },
     ],
   },
   {
@@ -160,6 +163,7 @@ export default function Settings() {
       case 'profile': return <AgencyProfile />
       case 'business_hours': return <BusinessHours />
       case 'billing': return <Billing />
+      case 'industry': return <Industry />
       case 'agents': return <Agents />
       case 'teams': return <Teams />
       case 'roles': return <RolesPermissions />

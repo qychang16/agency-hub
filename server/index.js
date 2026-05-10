@@ -439,6 +439,7 @@ async function setupDatabase() {
     await runChunk26BillingMigration()
     await runChunk26bBillingTimestamptzMigration()
     await runChunk27ConversationRoutingColumnsMigration()
+    await runChunk28aIndustryCaptureMigration()
   } catch (err) {
     await client.query('ROLLBACK')
     console.error('�?DB setup error:', err.message)
@@ -2838,6 +2839,136 @@ async function runChunk27ConversationRoutingColumnsMigration() {
           AND assigned_at IS NULL
       `)
       console.log(`   backfilled ${backfill.rowCount} existing assigned conversations`)
+
+      await client.query(`INSERT INTO _migrations (id) VALUES ($1)`, [MIGRATION_ID])
+      await client.query('COMMIT')
+      console.log(`Migration ${MIGRATION_ID} complete`)
+    } catch (err) {
+      await client.query('ROLLBACK')
+      throw err
+    } finally {
+      client.release()
+    }
+  } catch (err) {
+    console.error(`Migration ${MIGRATION_ID} FAILED:`, err.message)
+    throw err
+  }
+}
+
+// ============================================================
+// Chunk 28a Industry Decision Capture + TIMESTAMPTZ Cleanup v1
+// Captures the workspace's industry vertical choice (recruitment,
+// real_estate, etc) and stores per-workspace customization in
+// industry_presets. Workspaces have an industry_locked_at timestamp;
+// once set, the choice is permanent without support intervention.
+//
+// Also batches 4 TIMESTAMPTZ conversions identified by audit:
+//   contacts.pdpa_consented_at  (audit/legal evidence)
+//   projects.archived_at        (consistency)
+//   templates.approved_at       (Meta API submitted to UTC)
+//   templates.submitted_at      (Meta API submitted to UTC)
+//
+// Existing 3 workspaces are auto-locked to recruitment because they
+// already have real recruitment data; the wizard would add no value.
+async function runChunk28aIndustryCaptureMigration() {
+  const MIGRATION_ID = 'chunk_28a_industry_capture_v1'
+  try {
+    const applied = await pool.query('SELECT id FROM _migrations WHERE id=$1', [MIGRATION_ID])
+    if (applied.rows.length > 0) {
+      console.log(`Migration ${MIGRATION_ID} already applied, skipping`)
+      return
+    }
+    console.log(`Running migration ${MIGRATION_ID}...`)
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+
+      await client.query(`
+        ALTER TABLE workspaces
+          ADD COLUMN IF NOT EXISTS industry_locked_at TIMESTAMPTZ
+      `)
+      console.log(`   added industry_locked_at to workspaces`)
+
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS industry_presets (
+          id SERIAL PRIMARY KEY,
+          workspace_id INTEGER NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+          vertical VARCHAR(50) NOT NULL,
+          pipeline_stages JSONB NOT NULL DEFAULT '[]'::jsonb,
+          custom_fields JSONB NOT NULL DEFAULT '[]'::jsonb,
+          ui_labels JSONB NOT NULL DEFAULT '{}'::jsonb,
+          template_library_seed VARCHAR(100),
+          created_at TIMESTAMPTZ DEFAULT NOW(),
+          updated_at TIMESTAMPTZ DEFAULT NOW(),
+          UNIQUE(workspace_id)
+        )
+      `)
+      console.log(`   created industry_presets table`)
+
+      await client.query(`
+        ALTER TABLE contacts
+          ALTER COLUMN pdpa_consented_at TYPE TIMESTAMPTZ
+          USING pdpa_consented_at AT TIME ZONE 'Asia/Singapore'
+      `)
+      await client.query(`
+        ALTER TABLE projects
+          ALTER COLUMN archived_at TYPE TIMESTAMPTZ
+          USING archived_at AT TIME ZONE 'Asia/Singapore'
+      `)
+      await client.query(`
+        ALTER TABLE templates
+          ALTER COLUMN approved_at TYPE TIMESTAMPTZ
+          USING approved_at AT TIME ZONE 'Asia/Singapore'
+      `)
+      await client.query(`
+        ALTER TABLE templates
+          ALTER COLUMN submitted_at TYPE TIMESTAMPTZ
+          USING submitted_at AT TIME ZONE 'Asia/Singapore'
+      `)
+      console.log(`   converted 4 timestamp columns to TIMESTAMPTZ`)
+
+      const backfillPresets = await client.query(`
+        INSERT INTO industry_presets (
+          workspace_id,
+          vertical,
+          pipeline_stages,
+          custom_fields,
+          ui_labels,
+          template_library_seed
+        )
+        SELECT
+          id,
+          'recruitment',
+          '["new","contacted","screening","interviewing","offered","placed","rejected"]'::jsonb,
+          '[
+            {"key":"candidate_role","label":"Role","type":"text","required":false},
+            {"key":"current_company","label":"Current Company","type":"text","required":false},
+            {"key":"expected_salary","label":"Expected Salary (SGD)","type":"number","required":false},
+            {"key":"notice_period","label":"Notice Period","type":"text","required":false},
+            {"key":"linkedin_url","label":"LinkedIn URL","type":"url","required":false}
+          ]'::jsonb,
+          '{
+            "contact_singular":"candidate",
+            "contact_plural":"candidates",
+            "agent_role":"consultant",
+            "primary_artifact_singular":"job order",
+            "primary_artifact_plural":"job orders",
+            "outcome_singular":"placement",
+            "outcome_plural":"placements"
+          }'::jsonb,
+          'recruitment'
+        FROM workspaces
+        ON CONFLICT (workspace_id) DO NOTHING
+      `)
+      console.log(`   backfilled ${backfillPresets.rowCount} recruitment preset rows`)
+
+      const autoLock = await client.query(`
+        UPDATE workspaces
+        SET industry_locked_at = NOW()
+        WHERE industry_locked_at IS NULL
+          AND industry_vertical = 'recruitment'
+      `)
+      console.log(`   auto-locked ${autoLock.rowCount} existing recruitment workspaces`)
 
       await client.query(`INSERT INTO _migrations (id) VALUES ($1)`, [MIGRATION_ID])
       await client.query('COMMIT')
@@ -7761,6 +7892,15 @@ app.get('/search', auth, async (req, res) => {
     res.status(500).json({ error: err.message })
   }
 })
+
+// Industry vertical wizard (chunk 28a)
+const createIndustryHandlers = require('./routes/industry')
+const industry = createIndustryHandlers(pool, logAudit)
+app.get   ('/industry/catalog',                auth, industry.getCatalog)
+app.get   ('/industry/preset/:workspaceId',    auth, industry.getPreset)
+app.patch ('/industry/preset/:workspaceId',    auth, industry.updatePreset)
+app.post  ('/industry/lock/:workspaceId',      auth, industry.lockIndustry)
+app.post  ('/industry/unlock/:workspaceId',    auth, industry.unlockIndustry)
 
 // ─── WHATSAPP WEBHOOK ──────────────────────────────────────────────────────────
 app.get('/webhook', (req, res) => {

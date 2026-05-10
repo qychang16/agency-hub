@@ -35,6 +35,7 @@ function getTransporter() {
 
   _transporter = nodemailer.createTransport({
     host: 'smtp.gmail.com',
+    family: 4,
     port: 465,
     secure: true,
     auth: { user, pass },

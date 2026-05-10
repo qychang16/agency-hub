@@ -1,3 +1,6 @@
+// Force IPv4 DNS resolution (Railway has no IPv6 outbound)
+require('dns').setDefaultResultOrder('ipv4first')
+
 require('dotenv').config()
 const express = require('express')
 const cors = require('cors')

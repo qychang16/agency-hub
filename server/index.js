@@ -438,6 +438,7 @@ async function setupDatabase() {
     await runChunk25ImpersonationSessionsMigration()
     await runChunk26BillingMigration()
     await runChunk26bBillingTimestamptzMigration()
+    await runChunk27ConversationRoutingColumnsMigration()
   } catch (err) {
     await client.query('ROLLBACK')
     console.error('�?DB setup error:', err.message)
@@ -2755,6 +2756,88 @@ async function runChunk26bBillingTimestamptzMigration() {
             USING updated_at AT TIME ZONE 'UTC'
       `)
       console.log(`   converted invoices timestamps`)
+
+      await client.query(`INSERT INTO _migrations (id) VALUES ($1)`, [MIGRATION_ID])
+      await client.query('COMMIT')
+      console.log(`Migration ${MIGRATION_ID} complete`)
+    } catch (err) {
+      await client.query('ROLLBACK')
+      throw err
+    } finally {
+      client.release()
+    }
+  } catch (err) {
+    console.error(`Migration ${MIGRATION_ID} FAILED:`, err.message)
+    throw err
+  }
+}
+
+// ============================================================
+// Chunk 27 Conversation Auto-Routing Columns v1
+// Adds two columns to conversations to support auto-routing decisions:
+//
+// 1. assigned_at - when the auto-router (or a human) made the assignment.
+//    Used by sticky-assignment lookback: "did this contact have a recent
+//    conversation assigned to a specific agent?". Also useful for analytics
+//    (response time = first message - assigned_at).
+//
+// 2. routing_method - how the assignment was decided. Values:
+//      'sticky'      - matched a recent conversation, kept the same agent
+//      'round_robin' - distributed within team via least-recently-assigned
+//      'team_only'   - team_id set but no individual agent picked
+//      'fallback'    - nothing matched, conversation is unassigned
+//      'manual'      - a human (manager/agent) reassigned this
+//    Useful for debugging routing decisions and for analytics dashboards.
+//
+// Both nullable. Existing conversations stay untouched - they keep their
+// current state with NULL routing_method (which is correct: we don't know
+// HOW they got assigned historically).
+//
+// TIMESTAMPTZ for assigned_at since this is a financial-adjacent timestamp
+// (response time SLAs, audit trails). Same pattern as chunk 26b.
+async function runChunk27ConversationRoutingColumnsMigration() {
+  const MIGRATION_ID = 'chunk_27_conversation_routing_columns_v1'
+  try {
+    const applied = await pool.query('SELECT id FROM _migrations WHERE id=$1', [MIGRATION_ID])
+    if (applied.rows.length > 0) {
+      console.log(`Migration ${MIGRATION_ID} already applied, skipping`)
+      return
+    }
+    console.log(`Running migration ${MIGRATION_ID}...`)
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+
+      await client.query(`
+        ALTER TABLE conversations
+          ADD COLUMN IF NOT EXISTS assigned_at TIMESTAMPTZ,
+          ADD COLUMN IF NOT EXISTS routing_method VARCHAR(50)
+      `)
+      console.log(`   added 2 columns to conversations`)
+
+      // Index for sticky-assignment lookback. The query pattern is:
+      //   "find this contact's most recent conversation assigned to an
+      //    agent, within the last N days". Index on (contact_id,
+      //    assigned_at DESC) WHERE assigned_to IS NOT NULL makes that fast
+      //    even with millions of rows.
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS idx_conversations_sticky_lookup
+        ON conversations(contact_id, assigned_at DESC)
+        WHERE assigned_to IS NOT NULL
+      `)
+      console.log(`   created idx_conversations_sticky_lookup`)
+
+      // Backfill assigned_at for existing assigned conversations. We don't
+      // know exactly when they were assigned historically, so we use
+      // updated_at as a reasonable proxy. Better than NULL for analytics.
+      const backfill = await client.query(`
+        UPDATE conversations
+        SET assigned_at = updated_at AT TIME ZONE 'UTC',
+            routing_method = 'manual'
+        WHERE assigned_to IS NOT NULL
+          AND assigned_at IS NULL
+      `)
+      console.log(`   backfilled ${backfill.rowCount} existing assigned conversations`)
 
       await client.query(`INSERT INTO _migrations (id) VALUES ($1)`, [MIGRATION_ID])
       await client.query('COMMIT')
@@ -7829,6 +7912,11 @@ app.post('/webhook', async (req, res) => {
           if (!convoId) {
             const newConvo = await pool.query(`INSERT INTO conversations (workspace_id, phone_number_id, contact_id, status, last_message_at) VALUES ($1, $2, $3, 'open', NOW()) RETURNING id`, [wsId, phoneId, contactId])
             convoId = newConvo.rows[0].id
+            // Auto-route the new conversation per workspace routing rules.
+            // Wrapped in try/catch within autoRouteConversation itself so it
+            // never crashes inbound message processing - falls back to
+            // unassigned if anything goes wrong.
+            await autoRouteConversation(pool, wsId, convoId, contactId)
           }
           const insertedMsg = await pool.query(`INSERT INTO messages (conversation_id, workspace_id, direction, text, type, status, whatsapp_message_id, sent_at) VALUES ($1, $2, 'in', $3, 'text', 'received', $4, NOW()) RETURNING *`, [convoId, wsId, text, waMessageId])
           await pool.query(`UPDATE conversations SET last_message_at=NOW(), last_message_preview=$1, unread_count=COALESCE(unread_count,0)+1, updated_at=NOW() WHERE id=$2`, [text.slice(0, 100), convoId])
@@ -7852,6 +7940,212 @@ app.post('/webhook', async (req, res) => {
     console.error('Webhook processing error:', err)
   }
 })
+
+// ─── AUTO-ROUTING ────────────────────────────────────────────────────────────
+// Decides who should own a newly-created conversation. Called from the webhook
+// handler immediately after creating a fresh conversation row. Returns the
+// routing decision; the caller updates the conversation row.
+//
+// HYBRID ROUTING MODEL (per Quiinn 11 May 2026):
+// Auto-pick ONE specific agent + set team_id. Result: conversation appears
+// in that agent's "My Conversations" with a notification ping, AND in the
+// team's "Team Inbox" view (visibility for coverage). One owner for
+// accountability, team has full visibility for backup.
+//
+// DECISION FLOW:
+//   1. Load workspace's routing_rules. If mode='manual' → fallback.
+//   2. STICKY (if enabled): look back 2 days for a conversation by this
+//      contact assigned to a still-active, still-employed agent. If found,
+//      route to same agent.
+//   3. CONTACT-TYPE TEAM ROUTING: look up contact.type ('candidate' or
+//      'client') and find the workspace's configured team for that type.
+//   4. ROUND-ROBIN within team (if enabled): pick the active agent in the
+//      team with the OLDEST last-assigned-at. Capacity is NOT enforced
+//      per Quiinn's decision (manager rebalances manually).
+//   5. TEAM-ONLY: if no individual agent picked, set team_id and leave
+//      assigned_to=NULL. Team members see it in Team Inbox.
+//   6. FALLBACK: if no team configured either, leave fully unassigned.
+//      Goes to the unassigned queue (visible to managers/directors).
+//
+// Returns: { assigned_to, team_id, routing_method }
+//   routing_method ∈ 'sticky' | 'round_robin' | 'team_only' | 'fallback'
+//
+// Side effects:
+//   - Updates conversations row with assigned_to, team_id, routing_method,
+//     assigned_at
+//   - Emits 'conversation_assigned' socket event to notify the assigned
+//     agent (their inbox should refresh)
+//
+// Failure mode: If anything throws, the function returns the fallback
+// decision (everything NULL). The webhook continues to process the
+// message. Routing failures are logged but never crash inbound processing.
+
+const STICKY_LOOKBACK_DAYS = 2
+
+async function autoRouteConversation(client, wsId, convoId, contactId) {
+  const fallback = { assigned_to: null, team_id: null, routing_method: 'fallback' }
+
+  try {
+    // ─── 1. Load routing rules ──────────────────────────────────────────
+    const rulesRes = await client.query(
+      `SELECT mode, sticky_assignment, round_robin, candidate_team_id, client_team_id
+         FROM routing_rules
+        WHERE workspace_id = $1
+        LIMIT 1`,
+      [wsId]
+    )
+    const rules = rulesRes.rows[0]
+
+    // No routing rules row at all → leave unassigned
+    if (!rules) {
+      console.log(`[auto-route] No routing_rules for workspace ${wsId}, falling back to unassigned`)
+      return await applyRouting(client, convoId, fallback)
+    }
+
+    // Manual mode → director wants everything unassigned by design
+    if (rules.mode === 'manual') {
+      console.log(`[auto-route] Workspace ${wsId} routing mode is 'manual', not auto-assigning`)
+      return await applyRouting(client, convoId, fallback)
+    }
+
+    // ─── 2. Load contact for type + sticky lookup ───────────────────────
+    const contactRes = await client.query(
+      `SELECT id, type FROM contacts WHERE id = $1 LIMIT 1`,
+      [contactId]
+    )
+    const contact = contactRes.rows[0]
+    if (!contact) {
+      console.warn(`[auto-route] Contact ${contactId} not found, falling back`)
+      return await applyRouting(client, convoId, fallback)
+    }
+
+    // ─── 3. Sticky assignment ────────────────────────────────────────────
+    // Look for a recent conversation from this contact that was assigned
+    // to a specific agent. If that agent is still active and on staff,
+    // route this new conversation to them too.
+    if (rules.sticky_assignment) {
+      const stickyRes = await client.query(
+        `SELECT c.assigned_to, u.team_id, u.active
+           FROM conversations c
+           JOIN users u ON u.id = c.assigned_to
+          WHERE c.contact_id = $1
+            AND c.workspace_id = $2
+            AND c.assigned_to IS NOT NULL
+            AND c.assigned_at >= NOW() - INTERVAL '${STICKY_LOOKBACK_DAYS} days'
+            AND u.active = true
+          ORDER BY c.assigned_at DESC
+          LIMIT 1`,
+        [contactId, wsId]
+      )
+      if (stickyRes.rows.length > 0) {
+        const sticky = stickyRes.rows[0]
+        const decision = {
+          assigned_to: sticky.assigned_to,
+          team_id: sticky.team_id,
+          routing_method: 'sticky',
+        }
+        console.log(`[auto-route] Sticky match: contact ${contactId} → agent ${sticky.assigned_to}`)
+        return await applyRouting(client, convoId, decision)
+      }
+    }
+
+    // ─── 4. Contact-type team routing ────────────────────────────────────
+    // contact.type is 'candidate' or 'client' (or other). Map to the
+    // workspace's configured team for that type.
+    let teamId = null
+    if (contact.type === 'candidate') teamId = rules.candidate_team_id
+    else if (contact.type === 'client') teamId = rules.client_team_id
+
+    // No team configured for this contact type → fully unassigned
+    if (!teamId) {
+      console.log(`[auto-route] No team configured for ${contact.type} in workspace ${wsId}, falling back`)
+      return await applyRouting(client, convoId, fallback)
+    }
+
+    // ─── 5. Round-robin within team ──────────────────────────────────────
+    // Find the active agent in the team with the OLDEST last-assigned-at.
+    // Agents who have NEVER been assigned (LEFT JOIN returns NULL) come
+    // first via NULLS FIRST - they get priority for fairness ("new joiners
+    // get conversations first to learn the ropes").
+    if (rules.round_robin) {
+      const rrRes = await client.query(
+        `SELECT u.id AS user_id, u.team_id, MAX(c.assigned_at) AS last_assigned_at
+           FROM users u
+           LEFT JOIN conversations c
+             ON c.assigned_to = u.id
+            AND c.workspace_id = $1
+          WHERE u.team_id = $2
+            AND u.active = true
+            AND u.workspace_id = $1
+          GROUP BY u.id, u.team_id
+          ORDER BY last_assigned_at ASC NULLS FIRST, u.id ASC
+          LIMIT 1`,
+        [wsId, teamId]
+      )
+      if (rrRes.rows.length > 0) {
+        const winner = rrRes.rows[0]
+        const decision = {
+          assigned_to: winner.user_id,
+          team_id: winner.team_id,
+          routing_method: 'round_robin',
+        }
+        console.log(`[auto-route] Round-robin: team ${teamId} → agent ${winner.user_id} (last assigned: ${winner.last_assigned_at || 'never'})`)
+        return await applyRouting(client, convoId, decision)
+      }
+    }
+
+    // ─── 6. Team-only fallback ───────────────────────────────────────────
+    // Round-robin disabled OR no active agents in the team. Set team_id
+    // so members see it in their Team Inbox, but leave assigned_to NULL.
+    const decision = {
+      assigned_to: null,
+      team_id: teamId,
+      routing_method: 'team_only',
+    }
+    console.log(`[auto-route] Team-only: workspace ${wsId} team ${teamId} (no individual agent picked)`)
+    return await applyRouting(client, convoId, decision)
+
+  } catch (err) {
+    // Routing must never crash inbound message processing. If something
+    // breaks, log it loudly and return fallback. The conversation will
+    // be visible to managers in the unassigned queue.
+    console.error(`[auto-route] FAILED for convo ${convoId}:`, err.message)
+    try {
+      return await applyRouting(client, convoId, fallback)
+    } catch (innerErr) {
+      console.error(`[auto-route] Even fallback persistence failed:`, innerErr.message)
+      return fallback
+    }
+  }
+}
+
+// Persists the routing decision to the conversations row and emits the
+// socket event. Separated out so all decision branches above can call it
+// uniformly.
+async function applyRouting(client, convoId, decision) {
+  await client.query(
+    `UPDATE conversations
+        SET assigned_to = $1::integer,
+            team_id = $2::integer,
+            routing_method = $3::varchar,
+            assigned_at = CASE WHEN $1::integer IS NOT NULL OR $2::integer IS NOT NULL THEN NOW() ELSE NULL END,
+            updated_at = NOW()
+      WHERE id = $4::integer`,
+    [decision.assigned_to, decision.team_id, decision.routing_method, convoId]
+  )
+
+  // Notify the assigned agent (and others viewing the conversation list)
+  // that something changed. Frontend listens for 'conversation_assigned'
+  // and refreshes the inbox.
+  io.emit('conversation_assigned', {
+    conversation_id: convoId,
+    assigned_to: decision.assigned_to,
+    team_id: decision.team_id,
+    routing_method: decision.routing_method,
+  })
+
+  return decision
+}
 
 // ─── SOCKET.IO ─────────────────────────────────────────────────────────────────
 io.on('connection', socket => {

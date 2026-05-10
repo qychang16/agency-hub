@@ -1,0 +1,118 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="x-apple-disable-message-reformatting" />
+  <title>{{workspace_name}} invitation</title>
+  <!--[if mso]>
+  <style type="text/css">
+    body, table, td { font-family: 'Segoe UI', Arial, sans-serif !important; }
+  </style>
+  <![endif]-->
+  <style type="text/css">
+    body { margin: 0; padding: 0; width: 100% !important; -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+    table { border-collapse: collapse !important; }
+    img { border: 0; height: auto; line-height: 100%; outline: none; text-decoration: none; -ms-interpolation-mode: bicubic; }
+    a { text-decoration: none; }
+    @media screen and (max-width: 600px) {
+      .container { width: 100% !important; max-width: 100% !important; }
+      .px-40 { padding-left: 24px !important; padding-right: 24px !important; }
+      .hero-title { font-size: 22px !important; }
+    }
+  </style>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f5f3ef; font-family: -apple-system, 'Segoe UI', Arial, sans-serif;">
+  <div style="display: none; max-height: 0; overflow: hidden; mso-hide: all;">
+    {{inviter_first_name}} invited you to join {{workspace_name}} on Tel-Cloud. Accept within 24 hours.
+  </div>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f5f3ef;">
+    <tr><td align="center" style="padding: 32px 16px;">
+      <table role="presentation" class="container" width="580" cellpadding="0" cellspacing="0" border="0" style="width: 580px; max-width: 580px; background-color: #faf9f7; border-radius: 14px; border: 0.5px solid #dcd8d0; overflow: hidden;">
+        <tr><td class="px-40" style="padding: 32px 40px 24px; border-bottom: 0.5px solid #f0ede5;">
+          <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
+            <td style="vertical-align: middle; padding-right: 12px;">
+              <img src="{{logo_url}}" width="40" height="40" alt="Tel-Cloud" style="display: block; border: 0;" />
+            </td>
+            <td style="vertical-align: middle; font-size: 17px; font-weight: 500; color: #14130f; letter-spacing: -0.5px;">Tel-Cloud</td>
+          </tr></table>
+        </td></tr>
+        <tr><td class="px-40" style="padding: 36px 40px 8px;">
+          <div style="font-size: 11px; font-weight: 500; color: #534ab7; letter-spacing: 1.2px; text-transform: uppercase; margin-bottom: 12px;">You're invited</div>
+          <div class="hero-title" style="font-size: 26px; font-weight: 500; color: #14130f; line-height: 1.25; letter-spacing: -0.5px; margin-bottom: 14px;">Join {{workspace_name}} on Tel-Cloud</div>
+          <div style="font-size: 14px; color: #4a4742; line-height: 1.65;">
+            Hi {{invitee_first_name}},<br /><br />
+            {{inviter_name}} has invited you to join the {{workspace_name}} team on Tel-Cloud &mdash; the platform we use to manage day-to-day communications with our contacts.
+          </div>
+        </td></tr>
+        <tr><td class="px-40" style="padding: 0 40px;">
+          <div style="height: 0.5px; background-color: #f0ede5; line-height: 0.5px; font-size: 0;">&nbsp;</div>
+          <div style="height: 28px; line-height: 28px; font-size: 0;">&nbsp;</div>
+        </td></tr>
+        <tr><td class="px-40" style="padding: 0 40px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #ffffff; border: 0.5px solid #e8e5dc; border-radius: 10px;">
+            <tr><td style="padding: 18px 20px 14px;">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
+                <td style="padding-right: 12px; vertical-align: middle;">
+                  <div style="width: 38px; height: 38px; line-height: 38px; border-radius: 9px; background-color: #ede8ff; color: #534ab7; font-weight: 500; font-size: 14px; text-align: center;">{{workspace_initials}}</div>
+                </td>
+                <td style="vertical-align: middle;">
+                  <div style="font-size: 13px; font-weight: 500; color: #14130f;">{{workspace_name}}</div>
+                  <div style="font-size: 11px; color: #9a958c; margin-top: 1px;">{{workspace_subtitle}}</div>
+                </td>
+              </tr></table>
+            </td></tr>
+            <tr><td style="padding: 0 20px;"><div style="height: 0.5px; background-color: #f0ede5; line-height: 0.5px; font-size: 0;">&nbsp;</div></td></tr>
+            <tr><td style="padding: 14px 20px 18px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="font-size: 12px;">
+                <tr><td style="color: #9a958c; padding: 4px 0; width: 90px;">Your role</td><td style="color: #14130f; font-weight: 500; padding: 4px 0;">{{role_label}}</td></tr>
+                <tr><td style="color: #9a958c; padding: 4px 0;">Your team</td><td style="color: #14130f; padding: 4px 0;">
+                  <span style="display: inline-block; width: 7px; height: 7px; border-radius: 50%; background-color: {{team_color}}; margin-right: 6px; vertical-align: middle;">&nbsp;</span>{{team_name}}
+                </td></tr>
+                <tr><td style="color: #9a958c; padding: 4px 0;">Invited by</td><td style="color: #14130f; padding: 4px 0;">{{inviter_name}} &middot; {{inviter_role}}</td></tr>
+              </table>
+            </td></tr>
+          </table>
+        </td></tr>
+        <tr><td class="px-40" align="center" style="padding: 28px 40px 8px;">
+          <!--[if mso]>
+          <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="{{accept_url}}" style="height:46px;v-text-anchor:middle;width:200px;" arcsize="20%" stroke="f" fillcolor="#14134a">
+            <w:anchorlock/>
+            <center style="color:#ffffff;font-family:Segoe UI,Arial,sans-serif;font-size:14px;font-weight:500;">Accept invitation</center>
+          </v:roundrect>
+          <![endif]-->
+          <!--[if !mso]><!-- -->
+          <a href="{{accept_url}}" style="display: inline-block; padding: 13px 36px; background-color: #14134a; color: #ffffff; text-decoration: none; border-radius: 9px; font-size: 14px; font-weight: 500; letter-spacing: 0.2px;">Accept invitation</a>
+          <!--<![endif]-->
+          <div style="font-size: 11px; color: #9a958c; margin-top: 14px;">Or paste this link into your browser:</div>
+          <div style="font-size: 11px; color: #534ab7; margin-top: 4px; word-break: break-all;">{{accept_url}}</div>
+        </td></tr>
+        <tr><td class="px-40" style="padding: 24px 40px 0;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #fef9ef; border: 0.5px solid #f5e6c0; border-radius: 8px;">
+            <tr><td style="padding: 11px 14px; font-size: 12px; color: #92400e; line-height: 1.4;">
+              &#9202; This invitation expires in <span style="font-weight: 500;">24 hours</span>. After that, ask {{inviter_first_name}} to send a new one.
+            </td></tr>
+          </table>
+        </td></tr>
+        <tr><td class="px-40" style="padding: 28px 40px 0;">
+          <div style="font-size: 12px; font-weight: 500; color: #14130f; margin-bottom: 10px;">What is Tel-Cloud?</div>
+          <div style="font-size: 12px; color: #6e6a63; line-height: 1.65;">
+            Tel-Cloud is a communications platform that gives your team a unified inbox for WhatsApp, shared message templates, a synced calendar, and tools to manage your contacts. Once you accept this invitation, you'll have your own login and your activity will be visible to your team.
+          </div>
+        </td></tr>
+        <tr><td style="padding: 32px 40px 28px; border-top: 0.5px solid #f0ede5; background-color: #f5f3ef;">
+          <div style="font-size: 11px; color: #9a958c; line-height: 1.7;">
+            Sent by Y.E.C Consultancy Pte. Ltd. &middot; UEN 202412977K<br />
+            If you weren't expecting this invitation, you can safely ignore this email.
+          </div>
+          <div style="margin-top: 14px;">
+            <a href="https://tel-cloud.sg" style="font-size: 11px; color: #534ab7; text-decoration: none; margin-right: 14px;">tel-cloud.sg</a>
+            <span style="color: #c2bdb3; font-size: 11px; margin-right: 14px;">&middot;</span>
+            <a href="mailto:support@tel-cloud.sg" style="font-size: 11px; color: #534ab7; text-decoration: none;">support@tel-cloud.sg</a>
+          </div>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>

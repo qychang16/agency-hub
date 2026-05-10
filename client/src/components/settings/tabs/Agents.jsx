@@ -5,6 +5,9 @@ import { API } from '../../../utils/constants'
 import { ACCENT, ACCENT_LIGHT, ACCENT_MID, NAVY } from '../../../utils/designTokens'
 import { getRoleColor, getRoleLabel } from '../../../utils/permissions'
 import Button from '../../ui/Button'
+import PasswordStrengthMeter from '../../auth/PasswordStrengthMeter'
+import CredentialsRevealModal from '../../auth/CredentialsRevealModal'
+import { validatePassword } from '../../../utils/passwordPolicy'
 
 const ROLE_OPTIONS = [
   { value: 'director', label: 'Director' },
@@ -143,7 +146,7 @@ function PermissionsModal({ agent, onClose, onSave }) {
       method: 'PATCH',
       body: { ...agent, permissions: perms }
     })
-    if (!result.ok) return  // hook already set error state
+    if (!result.ok) return
     onSave()
     onClose()
   }
@@ -212,138 +215,383 @@ function PermissionsModal({ agent, onClose, onSave }) {
 }
 
 // ─── AGENT FORM MODAL ──────────────────────────────────────────────────────────
-function AgentModal({ agent, teams, onClose, onSave }) {
+function AgentModal({ agent, teams, onClose, onSave, onCredentialsRevealed }) {
   const { token } = useAuth()
-  const [form, setForm] = useState({
-    name: agent?.name || '',
-    email: agent?.email || '',
-    role: agent?.role || 'consultant',
-    team_id: agent?.team_id || '',
-    capacity: agent?.capacity || 20,
-    password: 'Welcome@123',
-  })
-  const { save: apiSave, saving, error, setError, clearError } = useApiSave(token)
-  const [showPassword, setShowPassword] = useState(false)
   const isEdit = !!agent
+  const [tab, setTab] = useState('invite')
 
-  async function save() {
-    clearError()
-    // Local validation runs before hitting the network
-    if (!form.name.trim()) { setError('Name is required'); return }
-    if (!form.email.trim() || !/\S+@\S+\.\S+/.test(form.email)) { setError('Valid email is required'); return }
-    if (!isEdit && !form.password.trim()) { setError('Temporary password is required'); return }
+  const [name, setName] = useState(agent?.name || '')
+  const [email, setEmail] = useState(agent?.email || '')
+  const [role, setRole] = useState(agent?.role || 'consultant')
+  const [teamId, setTeamId] = useState(agent?.team_id || '')
+  const [capacity, setCapacity] = useState(agent?.capacity || 20)
 
-    const url = isEdit ? `${API}/agents/${agent.id}` : `${API}/agents`
-    const method = isEdit ? 'PATCH' : 'POST'
-    const result = await apiSave(url, { method, body: form })
-    if (!result.ok) return  // hook already set error state from server response
-    onSave()
-    onClose()
+  const [autoGen, setAutoGen] = useState(true)
+  const [password, setPassword] = useState('')
+  const [forceChange, setForceChange] = useState(false)
+
+  const [saving, setSaving] = useState(false)
+  const [errorMessage, setErrorMessage] = useState('')
+
+  function handleSave() {
+    setErrorMessage('')
+    if (!name.trim()) { setErrorMessage('Name is required.'); return }
+    if (!email.trim() || !/\S+@\S+\.\S+/.test(email)) { setErrorMessage('Valid email is required.'); return }
+
+    if (isEdit) {
+      saveEdit()
+      return
+    }
+
+    if (tab === 'invite') {
+      sendInvitation()
+    } else {
+      createWithCredentials()
+    }
+  }
+
+  function saveEdit() {
+    setSaving(true)
+    fetch(`${API}/agents/${agent.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ name, email, role, team_id: teamId || null, capacity }),
+    })
+      .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+      .then(({ ok, data }) => {
+        setSaving(false)
+        if (!ok) { setErrorMessage(data?.error || 'Could not save changes.'); return }
+        if (onSave) onSave()
+        onClose()
+      })
+      .catch(() => { setSaving(false); setErrorMessage('Network error.') })
+  }
+
+  function sendInvitation() {
+    setSaving(true)
+    fetch(`${API}/invitations`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ email, name, role, team_id: teamId || null, capacity }),
+    })
+      .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+      .then(({ ok, data }) => {
+        setSaving(false)
+        if (!ok) { setErrorMessage(data?.error || 'Could not send invitation.'); return }
+        if (onSave) onSave()
+        onClose()
+      })
+      .catch(() => { setSaving(false); setErrorMessage('Network error.') })
+  }
+
+  function createWithCredentials() {
+    if (!autoGen) {
+      const v = validatePassword(password, email)
+      if (!v.valid) { setErrorMessage(v.errors[0]); return }
+    }
+
+    setSaving(true)
+    fetch(`${API}/agents`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        name, email, role, team_id: teamId || null, capacity,
+        password: autoGen ? null : password,
+        force_password_change: forceChange,
+      }),
+    })
+      .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+      .then(({ ok, data }) => {
+        setSaving(false)
+        if (!ok) { setErrorMessage(data?.error || 'Could not create agent.'); return }
+        if (onSave) onSave()
+        if (onCredentialsRevealed && data.initial_password) {
+          onCredentialsRevealed({
+            email,
+            password: data.initial_password,
+            agentName: name,
+            wasAutoGenerated: autoGen,
+            actionLabel: 'created',
+          })
+        }
+        onClose()
+      })
+      .catch(() => { setSaving(false); setErrorMessage('Network error.') })
   }
 
   return (
-    <Modal title={isEdit ? `Edit Agent — ${agent.name}` : 'Add New Agent'} subtitle={isEdit ? 'Update agent details and role' : 'Agent will receive login credentials'} onClose={onClose}>
+    <Modal title={isEdit ? `Edit Agent — ${agent.name}` : 'Add a teammate'} subtitle={isEdit ? 'Update agent details and role' : null} onClose={onClose} width={500}>
+      {!isEdit && (
+        <div style={{ display: 'flex', gap: 4, marginBottom: 18, borderBottom: '0.5px solid #e8e5dc' }}>
+          <TabButton active={tab === 'invite'} onClick={() => setTab('invite')}>Send invitation</TabButton>
+          <TabButton active={tab === 'manual'} onClick={() => setTab('manual')}>Set credentials directly</TabButton>
+        </div>
+      )}
+
+      {!isEdit && tab === 'invite' && (
+        <div style={{ fontSize: 12, color: '#9a958c', lineHeight: 1.5, marginTop: -8, marginBottom: 16 }}>
+          They'll get an email with a link to set their own password. Link expires in 24 hours.
+        </div>
+      )}
+      {!isEdit && tab === 'manual' && (
+        <div style={{ fontSize: 12, color: '#92400e', background: '#fef9ef', padding: '10px 12px', borderRadius: 8, border: '0.5px solid #f5e6c0', lineHeight: 1.5, marginTop: -8, marginBottom: 16 }}>
+          ⚠ Use this only when email isn't possible. You'll need to share the password with them yourself.
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <Field label="Full Name">
-          <Input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} placeholder="e.g. Sarah Lim" />
+          <Input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Sarah Lim" />
         </Field>
         <Field label="Email Address">
-          <Input type="email" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} placeholder="sarah@company.com" disabled={isEdit} />
+          <Input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="sarah@company.com" disabled={isEdit} />
         </Field>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <Field label="Role">
-          <Select value={form.role} onChange={e => setForm(p => ({ ...p, role: e.target.value }))} options={ROLE_OPTIONS} />
+          <Select value={role} onChange={e => setRole(e.target.value)} options={ROLE_OPTIONS} />
         </Field>
         <Field label="Team">
-          <Select value={form.team_id} onChange={e => setForm(p => ({ ...p, team_id: e.target.value }))} options={[{ value: '', label: 'No team assigned' }, ...teams.map(t => ({ value: t.id, label: t.name }))]} />
+          <Select value={teamId} onChange={e => setTeamId(e.target.value)} options={[{ value: '', label: 'No team assigned' }, ...teams.map(t => ({ value: t.id, label: t.name }))]} />
         </Field>
       </div>
+
       <Field label="Max Conversation Capacity" hint="Maximum open conversations this agent handles at once">
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <input type="range" min={1} max={100} value={form.capacity} onChange={e => setForm(p => ({ ...p, capacity: parseInt(e.target.value) }))}
-            style={{ flex: 1, accentColor: ACCENT }} />
-          <div style={{ fontSize: 15, fontWeight: 700, color: '#14130f', minWidth: 32, textAlign: 'center' }}>{form.capacity}</div>
+          <input type="range" min={1} max={100} value={capacity} onChange={e => setCapacity(parseInt(e.target.value))} style={{ flex: 1, accentColor: ACCENT }} />
+          <div style={{ fontSize: 15, fontWeight: 700, color: '#14130f', minWidth: 32, textAlign: 'center' }}>{capacity}</div>
         </div>
       </Field>
-      {!isEdit && (
-        <Field label="Temporary Password" hint="Agent will be prompted to change this on first login">
-          <div style={{ position: 'relative' }}>
-            <Input type={showPassword ? 'text' : 'password'} value={form.password} onChange={e => setForm(p => ({ ...p, password: e.target.value }))} placeholder="Temporary password" />
-            <button onClick={() => setShowPassword(!showPassword)} type="button"
-              style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', cursor: 'pointer', color: '#9a958c', fontSize: 14 }}>
-              {showPassword ? '🙈' : '👁'}
-            </button>
+
+      {!isEdit && tab === 'manual' && (
+        <>
+          <div style={{ marginTop: 6, marginBottom: 10 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12, color: '#4a4742' }}>
+              <input type="checkbox" checked={autoGen} onChange={e => setAutoGen(e.target.checked)} style={{ accentColor: ACCENT }} />
+              Generate a random password (recommended)
+            </label>
           </div>
-        </Field>
+
+          {!autoGen && (
+            <Field label="Initial password">
+              <Input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Choose a strong password" />
+              <PasswordStrengthMeter password={password} userEmail={email} />
+            </Field>
+          )}
+
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12, color: '#4a4742', marginTop: 10 }}>
+            <input type="checkbox" checked={forceChange} onChange={e => setForceChange(e.target.checked)} style={{ accentColor: ACCENT }} />
+            Require them to change this password on first sign-in
+          </label>
+        </>
       )}
-      {error && (
-        <div style={{ padding: '10px 12px', background: '#fef2f2', border: '0.5px solid #fecaca', borderRadius: 8, fontSize: 12, color: '#dc2626', marginBottom: 12 }}>
-          ⚠ {error}
+
+      {errorMessage && (
+        <div style={{ padding: '10px 12px', background: '#fef2f2', border: '0.5px solid #fecaca', borderRadius: 8, fontSize: 12, color: '#991b1b', marginTop: 14, marginBottom: 12, lineHeight: 1.5 }}>
+          ⚠ {errorMessage}
         </div>
       )}
+
       <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
         <Button variant="secondary" onClick={onClose} style={{ flex: 1 }}>Cancel</Button>
-        <Button onClick={save} loading={saving} style={{ flex: 2 }}>{saving ? 'Saving...' : isEdit ? 'Save Changes' : 'Create Agent'}</Button>
+        <Button onClick={handleSave} loading={saving} style={{ flex: 2 }}>
+          {saving
+            ? 'Working…'
+            : isEdit ? 'Save Changes'
+            : tab === 'invite' ? 'Send invitation'
+            : 'Create Agent'}
+        </Button>
       </div>
     </Modal>
   )
 }
 
+function TabButton({ active, onClick, children }) {
+  return (
+    <button onClick={onClick} style={{
+      padding: '10px 14px', background: 'none', border: 'none',
+      borderBottom: active ? `2px solid ${ACCENT}` : '2px solid transparent',
+      marginBottom: -1,
+      fontSize: 13, fontWeight: active ? 600 : 500,
+      color: active ? '#14130f' : '#6e6a63',
+      cursor: 'pointer',
+    }}>{children}</button>
+  )
+}
+
 // ─── RESET PASSWORD MODAL ──────────────────────────────────────────────────────
-function ResetPasswordModal({ agent, onClose }) {
+function ResetPasswordModal({ agent, onClose, onCredentialsRevealed }) {
   const { token } = useAuth()
-  const [password, setPassword] = useState('Welcome@123')
+  const [autoGen, setAutoGen] = useState(true)
+  const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
-  const [done, setDone] = useState(false)
-  const { save: apiSave, saving, error } = useApiSave(token)
+  const [saving, setSaving] = useState(false)
+  const [errorMessage, setErrorMessage] = useState('')
 
   async function save() {
-    if (!password.trim()) return
-    const result = await apiSave(`${API}/agents/${agent.id}/reset-password`, {
-      method: 'POST',
-      body: { password }
-    })
-    if (!result.ok) return  // hook already set error state
-    setDone(true)
-    setTimeout(() => onClose(), 2000)
+    setErrorMessage('')
+
+    if (!autoGen) {
+      const v = validatePassword(password, agent.email)
+      if (!v.valid) { setErrorMessage(v.errors[0]); return }
+    }
+
+    setSaving(true)
+    try {
+      const r = await fetch(`${API}/agents/${agent.id}/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ password: autoGen ? null : password }),
+      })
+      const data = await r.json()
+      setSaving(false)
+
+      if (!r.ok) { setErrorMessage(data?.error || 'Could not reset password.'); return }
+
+      if (onCredentialsRevealed && data.initial_password) {
+        onCredentialsRevealed({
+          email: agent.email,
+          password: data.initial_password,
+          agentName: agent.name,
+          wasAutoGenerated: autoGen,
+          actionLabel: 'reset',
+        })
+      }
+      onClose()
+    } catch {
+      setSaving(false)
+      setErrorMessage('Network error.')
+    }
   }
 
   return (
-    <Modal title={`Reset Password — ${agent.name}`} subtitle="Agent will be required to change on next login" onClose={onClose} width={420}>
-      {done ? (
-        <div style={{ textAlign: 'center', padding: '20px 0' }}>
-          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: 12 }}><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-          <div style={{ fontSize: 14, fontWeight: 500, color: '#16a34a' }}>Password reset successfully</div>
-          <div style={{ fontSize: 12, color: '#9a958c', marginTop: 6 }}>Agent will be prompted to change on next login</div>
-        </div>
-      ) : (
-        <>
-          <Field label="New Temporary Password">
-            <div style={{ position: 'relative' }}>
-              <Input type={showPassword ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} placeholder="Enter temporary password" />
-              <button onClick={() => setShowPassword(!showPassword)} type="button"
-                style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', cursor: 'pointer', color: '#9a958c', fontSize: 14 }}>
-                {showPassword ? '🙈' : '👁'}
-              </button>
-            </div>
-          </Field>
-          <div style={{ padding: '10px 12px', background: '#fef3c7', border: '0.5px solid #fde68a', borderRadius: 8, fontSize: 11, color: '#92400e', marginBottom: 16, lineHeight: 1.5 }}>
-            ⚠️ Send the temporary password to <strong>{agent.name}</strong> via a secure channel. They must change it on first login.
+    <Modal title={`Reset Password — ${agent.name}`} subtitle={`A new password will be set for ${agent.email}`} onClose={onClose} width={460}>
+      <div style={{ marginBottom: 14 }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12, color: '#4a4742' }}>
+          <input type="checkbox" checked={autoGen} onChange={e => setAutoGen(e.target.checked)} style={{ accentColor: ACCENT }} />
+          Generate a random password (recommended)
+        </label>
+      </div>
+
+      {!autoGen && (
+        <Field label="New password">
+          <div style={{ position: 'relative' }}>
+            <Input type={showPassword ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} placeholder="Choose a strong password" />
+            <button onClick={() => setShowPassword(!showPassword)} type="button"
+              style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', cursor: 'pointer', color: '#9a958c', fontSize: 14 }}>
+              {showPassword ? '🙈' : '👁'}
+            </button>
           </div>
-          {error && (
-            <div style={{ padding: '10px 12px', background: '#fef2f2', border: '0.5px solid #fecaca', borderRadius: 8, fontSize: 12, color: '#dc2626', marginBottom: 12 }}>
-              {error}
-            </div>
-          )}
-          <div style={{ display: 'flex', gap: 10 }}>
-            <Button variant="secondary" onClick={onClose} style={{ flex: 1 }}>Cancel</Button>
-            <Button onClick={save} loading={saving} style={{ flex: 2 }}>{saving ? 'Resetting...' : 'Reset Password'}</Button>
-          </div>
-        </>
+          <PasswordStrengthMeter password={password} userEmail={agent.email} />
+        </Field>
       )}
+
+      <div style={{ padding: '10px 12px', background: '#fef9ef', border: '0.5px solid #f5e6c0', borderRadius: 8, fontSize: 11, color: '#92400e', marginTop: 6, marginBottom: 16, lineHeight: 1.5 }}>
+        ⚠ The new password will be shown to you once after this dialog closes. Send it to <strong>{agent.name}</strong> securely. They'll be required to change it on first sign-in.
+      </div>
+
+      {errorMessage && (
+        <div style={{ padding: '10px 12px', background: '#fef2f2', border: '0.5px solid #fecaca', borderRadius: 8, fontSize: 12, color: '#dc2626', marginBottom: 12 }}>
+          {errorMessage}
+        </div>
+      )}
+
+      <div style={{ display: 'flex', gap: 10 }}>
+        <Button variant="secondary" onClick={onClose} style={{ flex: 1 }}>Cancel</Button>
+        <Button onClick={save} loading={saving} style={{ flex: 2 }}>{saving ? 'Resetting...' : 'Reset Password'}</Button>
+      </div>
     </Modal>
   )
+}
+
+// ─── PENDING INVITATIONS PANEL ─────────────────────────────────────────────────
+function PendingInvitationsPanel({ token, onChanged }) {
+  const [invitations, setInvitations] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => { load() }, [])
+
+  async function load() {
+    try {
+      const r = await fetch(`${API}/invitations`, { headers: { Authorization: `Bearer ${token}` } })
+      const data = await r.json()
+      setInvitations(Array.isArray(data) ? data : [])
+    } catch {} finally { setLoading(false) }
+  }
+
+  async function resend(inv) {
+    if (!confirm(`Resend invitation to ${inv.email}? This generates a new link and invalidates the old one.`)) return
+    try {
+      const r = await fetch(`${API}/invitations/${inv.id}/resend`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (!r.ok) { const d = await r.json().catch(() => ({})); alert(d?.error || 'Could not resend.'); return }
+      load()
+      if (onChanged) onChanged()
+    } catch { alert('Network error.') }
+  }
+
+  async function cancel(inv) {
+    if (!confirm(`Cancel the invitation to ${inv.email}?`)) return
+    try {
+      const r = await fetch(`${API}/invitations/${inv.id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (!r.ok) { const d = await r.json().catch(() => ({})); alert(d?.error || 'Could not cancel.'); return }
+      load()
+      if (onChanged) onChanged()
+    } catch { alert('Network error.') }
+  }
+
+  if (loading) return null
+  if (invitations.length === 0) return null
+
+  return (
+    <div style={{ background: '#fff', borderRadius: 12, border: '0.5px solid #dcd8d0', marginBottom: 16, overflow: 'hidden' }}>
+      <div style={{ padding: '12px 16px', borderBottom: '0.5px solid #f5f3ef', background: '#faf9f7' }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: '#14130f' }}>Pending invitations · {invitations.length}</div>
+        <div style={{ fontSize: 11, color: '#9a958c', marginTop: 2 }}>People who haven't accepted their invitation yet</div>
+      </div>
+      {invitations.map(inv => {
+        const expiringSoon = inv.hours_until_expiry != null && inv.hours_until_expiry < 4
+        return (
+          <div key={inv.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px', borderBottom: '0.5px solid #f5f3ef' }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 500, color: '#14130f', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                {inv.name || inv.email}
+                <RoleBadge role={inv.role} />
+                {expiringSoon && <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 4, background: '#fef3c7', color: '#92400e', fontWeight: 600 }}>Expiring soon</span>}
+              </div>
+              <div style={{ fontSize: 11, color: '#9a958c', marginTop: 2 }}>
+                {inv.email} · sent {formatRelative(inv.created_at)}{inv.hours_until_expiry != null ? ` · expires in ${formatHours(inv.hours_until_expiry)}` : ''}
+              </div>
+            </div>
+            <Button variant="secondary" size="sm" onClick={() => resend(inv)}>Resend</Button>
+            <Button variant="secondary" size="sm" onClick={() => cancel(inv)}>Cancel</Button>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function formatRelative(iso) {
+  if (!iso) return ''
+  const diffMs = Date.now() - new Date(iso).getTime()
+  const hours = Math.floor(diffMs / 3600000)
+  if (hours < 1) return 'just now'
+  if (hours < 24) return `${hours}h ago`
+  const days = Math.floor(hours / 24)
+  return `${days}d ago`
+}
+
+function formatHours(h) {
+  if (h < 1) return '<1h'
+  if (h < 24) return `${Math.floor(h)}h`
+  const days = Math.floor(h / 24)
+  return `${days}d`
 }
 
 // ─── MAIN AGENTS COMPONENT ─────────────────────────────────────────────────────
@@ -359,8 +607,8 @@ export default function Agents() {
   const [showEdit, setShowEdit] = useState(null)
   const [showReset, setShowReset] = useState(null)
   const [showPermissions, setShowPermissions] = useState(null)
-  // Switch to card layout below 768px — table swiping is too painful on phones.
-  // Same breakpoint as Settings.jsx mobile detection for consistency.
+  const [revealedCredentials, setRevealedCredentials] = useState(null)
+  const [invitationsRefreshKey, setInvitationsRefreshKey] = useState(0)
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.innerWidth < 768)
 
   useEffect(() => {
@@ -401,6 +649,11 @@ export default function Agents() {
     }
   }
 
+  function handleAgentSaved() {
+    load()
+    setInvitationsRefreshKey(k => k + 1)
+  }
+
   const filtered = agents.filter(a => {
     const matchSearch = !search || a.name?.toLowerCase().includes(search.toLowerCase()) || a.email?.toLowerCase().includes(search.toLowerCase())
     const matchRole = filterRole === 'all' || a.role === filterRole
@@ -438,6 +691,11 @@ export default function Agents() {
           </div>
         ))}
       </div>
+
+      {/* Pending invitations */}
+      {hasPermission('manage_staff') && (
+        <PendingInvitationsPanel key={invitationsRefreshKey} token={token} onChanged={handleAgentSaved} />
+      )}
 
       {/* Filters */}
       <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
@@ -478,7 +736,6 @@ export default function Agents() {
             const rc = getRoleColor(a.role)
             return (
               <div key={a.id} style={{ background: '#fff', borderRadius: 12, border: '0.5px solid #dcd8d0', padding: 16, opacity: a.active ? 1 : 0.55 }}>
-                {/* Top row: avatar + name + email */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
                   <div style={{ width: 40, height: 40, borderRadius: 10, background: rc.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 700, color: rc.color, flexShrink: 0 }}>
                     {a.name?.[0]?.toUpperCase()}
@@ -493,7 +750,6 @@ export default function Agents() {
                   </div>
                 </div>
 
-                {/* Meta row: role + team + status */}
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', marginBottom: 12, paddingBottom: 12, borderBottom: '0.5px solid #f5f3ef' }}>
                   <RoleBadge role={a.role} />
                   {a.team_name && (
@@ -510,7 +766,6 @@ export default function Agents() {
                   </div>
                 </div>
 
-                {/* Capacity row */}
                 <div style={{ marginBottom: 12 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#9a958c', marginBottom: 4, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.4px' }}>
                     <span>Capacity</span>
@@ -521,7 +776,6 @@ export default function Agents() {
                   </div>
                 </div>
 
-                {/* Actions */}
                 {hasPermission('manage_staff') && (
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                     <Button variant="secondary" size="sm" onClick={() => setShowEdit(a)} style={{ flex: '1 1 auto' }}>Edit</Button>
@@ -618,10 +872,16 @@ export default function Agents() {
       )}
 
       {/* Modals */}
-      {showAdd && <AgentModal teams={teams} onClose={() => setShowAdd(false)} onSave={load} />}
-      {showEdit && <AgentModal agent={showEdit} teams={teams} onClose={() => setShowEdit(null)} onSave={load} />}
-      {showReset && <ResetPasswordModal agent={showReset} onClose={() => setShowReset(null)} />}
+      {showAdd && <AgentModal teams={teams} onClose={() => setShowAdd(false)} onSave={handleAgentSaved} onCredentialsRevealed={setRevealedCredentials} />}
+      {showEdit && <AgentModal agent={showEdit} teams={teams} onClose={() => setShowEdit(null)} onSave={handleAgentSaved} />}
+      {showReset && <ResetPasswordModal agent={showReset} onClose={() => setShowReset(null)} onCredentialsRevealed={setRevealedCredentials} />}
       {showPermissions && <PermissionsModal agent={showPermissions} onClose={() => setShowPermissions(null)} onSave={load} />}
+      {revealedCredentials && (
+        <CredentialsRevealModal
+          {...revealedCredentials}
+          onClose={() => setRevealedCredentials(null)}
+        />
+      )}
     </div>
   )
 }

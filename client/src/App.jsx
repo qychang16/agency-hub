@@ -24,6 +24,9 @@ const Pipeline = lazy(() => import('./components/pipeline/Pipeline'))
 const JobOrders = lazy(() => import('./components/jobs/JobOrders'))
 const Contacts = lazy(() => import('./components/contacts/Contacts'))
 const AdminPanel = lazy(() => import('./components/admin/AdminPanel'))
+const InviteAccept = lazy(() => import('./components/auth/InviteAccept'))
+const VerifyEmail = lazy(() => import('./components/auth/VerifyEmail'))
+const Profile = lazy(() => import('./components/profile/Profile'))
 import ImpersonationBanner from './components/layout/ImpersonationBanner'
 
 // ─── LOGIN SCREEN ──────────────────────────────────────────────────────────────
@@ -533,6 +536,7 @@ function MainApp() {
         case 'pipeline': return <Pipeline />
         case 'jobs': return <JobOrders />
         case 'contacts': return <Contacts onNavigate={setActiveNav} />
+        case 'profile': return <Profile token={token} onClose={() => setActiveNav(localStorage.getItem('activeNavBeforeProfile') || 'inbox')} />
         default: return <ComingSoon name={activeNav} />
       }
     })()
@@ -597,6 +601,30 @@ export default function App() {
 function AppWithAuth() {
   const { user, loading } = useAuth()
 
+  // ─── Public routes (checked BEFORE auth) ────────────────────────────────
+  // These pages must work for users who aren't logged in (or logged in as
+  // someone other than the invitation/verification recipient).
+  const path = typeof window !== 'undefined' ? window.location.pathname : '/'
+
+  if (path.startsWith('/invite/')) {
+    const token = decodeURIComponent(path.slice('/invite/'.length))
+    return (
+      <Suspense fallback={<PageLoader />}>
+        <InviteAccept token={token} onAccepted={() => { window.location.href = '/' }} />
+      </Suspense>
+    )
+  }
+
+  if (path.startsWith('/verify-email/')) {
+    const token = decodeURIComponent(path.slice('/verify-email/'.length))
+    return (
+      <Suspense fallback={<PageLoader />}>
+        <VerifyEmail token={token} />
+      </Suspense>
+    )
+  }
+
+  // ─── Auth-gated routes ──────────────────────────────────────────────────
   if (loading) {
     return (
       <div style={{ minHeight: '100dvh', background: '#faf9f7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>

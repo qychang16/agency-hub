@@ -8,3 +8,9 @@ client/.env.local
 node_modules/
 **/node_modules/
 *.log
+
+# Backup files
+*.bak
+
+# Local log dumps
+railway-logs.txt

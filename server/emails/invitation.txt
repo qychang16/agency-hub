@@ -1,0 +1,37 @@
+You're invited to join {{workspace_name}} on Tel-Cloud
+=========================================================
+
+Hi {{invitee_first_name}},
+
+{{inviter_name}} has invited you to join the {{workspace_name}} team
+on Tel-Cloud — the platform we use to manage day-to-day communications
+with our contacts.
+
+Your role:    {{role_label}}
+Your team:    {{team_name}}
+Invited by:   {{inviter_name}} ({{inviter_role}})
+
+ACCEPT YOUR INVITATION
+----------------------
+
+Click this link to set your password and activate your account:
+
+{{accept_url}}
+
+This invitation expires in 24 hours. After that, ask
+{{inviter_first_name}} to send a new one.
+
+WHAT IS TEL-CLOUD?
+------------------
+
+Tel-Cloud is a communications platform that gives your team a unified
+inbox for WhatsApp, shared message templates, a synced calendar, and
+tools to manage your contacts. Once you accept this invitation, you'll
+have your own login and your activity will be visible to your team.
+
+---
+
+Sent by Y.E.C Consultancy Pte. Ltd. (UEN 202412977K)
+If you weren't expecting this invitation, you can safely ignore this email.
+
+tel-cloud.sg  |  support@tel-cloud.sg

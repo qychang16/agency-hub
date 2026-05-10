@@ -148,7 +148,7 @@ function NewButton({ onClick }) {
   )
 }
 
-function UserMenu() {
+function UserMenu({ setActiveNav }) {
   const { user, logout } = useAuth()
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
@@ -211,7 +211,7 @@ function UserMenu() {
             <div style={{ fontSize: textSize.xs, fontWeight: textWeight.semibold, color: ink[900] }}>{user?.name}</div>
             <div style={{ fontSize: 10, color: ink[600], marginTop: 1 }}>{user?.email}</div>
           </div>
-          <button onClick={() => { setOpen(false); alert('Profile screen coming soon.') }}
+          <button onClick={() => { setOpen(false); setActiveNav && setActiveNav('profile') }}
             style={{
               width: '100%', textAlign: 'left',
               padding: `${space[2]}px ${space[3]}px`,
@@ -258,7 +258,12 @@ function UserMenu() {
 }
 
 function MobileNav({ activeNav, setActiveNav, open, onClose }) {
+  const { user, logout } = useAuth()
   if (!open) return null
+
+  const initials = (user?.name || 'User').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
+  const role = user?.role || 'Member'
+
   return (
     <>
       <div onClick={onClose} style={{
@@ -270,30 +275,110 @@ function MobileNav({ activeNav, setActiveNav, open, onClose }) {
         boxShadow: shadow.overlay,
         zIndex: 41,
         padding: space[4],
-        display: 'flex', flexDirection: 'column', gap: space[1],
+        display: 'flex', flexDirection: 'column',
+        overflowY: 'auto',
       }}>
         <div style={{ marginBottom: space[3], paddingBottom: space[3], borderBottom: border.subtle }}>
           <Logo />
         </div>
-        {NAV_ITEMS.map(item => (
-          <button key={item.key}
-            onClick={() => { setActiveNav(item.key); onClose() }}
+
+        {/* Nav items */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: space[1], flex: 1 }}>
+          {NAV_ITEMS.map(item => (
+            <button key={item.key}
+              onClick={() => { setActiveNav(item.key); onClose() }}
+              style={{
+                padding: `${space[2] + 2}px ${space[3]}px`,
+                background: activeNav === item.key ? ink[100] : 'transparent',
+                border: 'none',
+                borderRadius: radius.md,
+                fontSize: textSize.sm,
+                fontWeight: activeNav === item.key ? textWeight.semibold : textWeight.medium,
+                color: activeNav === item.key ? accent.DEFAULT : ink[700],
+                cursor: 'pointer',
+                textAlign: 'left',
+                fontFamily: fonts.body,
+                borderLeft: activeNav === item.key ? `2px solid ${accent.DEFAULT}` : '2px solid transparent',
+              }}>
+              {item.label}
+            </button>
+          ))}
+        </div>
+
+        {/* User section — bottom of drawer */}
+        <div style={{
+          marginTop: space[4],
+          paddingTop: space[3],
+          borderTop: border.subtle,
+          display: 'flex', flexDirection: 'column', gap: space[1],
+        }}>
+          {/* Identity row */}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: space[2],
+            padding: `${space[2]}px ${space[3]}px`,
+          }}>
+            <div style={{
+              width: 32, height: 32, borderRadius: radius.pill,
+              background: accent.DEFAULT,
+              color: '#fff',
+              fontSize: 11, fontWeight: textWeight.bold,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              flexShrink: 0,
+            }}>{initials}</div>
+            <div style={{ overflow: 'hidden' }}>
+              <div style={{ fontSize: textSize.xs, fontWeight: textWeight.semibold, color: ink[900], lineHeight: 1.2 }}>
+                {user?.name || 'User'}
+              </div>
+              <div style={{ fontSize: 10, color: ink[600], lineHeight: 1.2, textTransform: 'capitalize', marginTop: 1 }}>
+                {role}
+              </div>
+              <div style={{ fontSize: 10, color: ink[600], lineHeight: 1.2, marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {user?.email}
+              </div>
+            </div>
+          </div>
+
+          <button onClick={() => { onClose(); setActiveNav('profile') }}
             style={{
+              width: '100%', textAlign: 'left',
               padding: `${space[2] + 2}px ${space[3]}px`,
-              background: activeNav === item.key ? ink[100] : 'transparent',
-              border: 'none',
+              background: 'transparent', border: 'none',
               borderRadius: radius.md,
-              fontSize: textSize.sm,
-              fontWeight: activeNav === item.key ? textWeight.semibold : textWeight.medium,
-              color: activeNav === item.key ? accent.DEFAULT : ink[700],
+              fontSize: textSize.xs, color: ink[800],
               cursor: 'pointer',
-              textAlign: 'left',
-              fontFamily: fonts.body,
-              borderLeft: activeNav === item.key ? `2px solid ${accent.DEFAULT}` : '2px solid transparent',
+              fontFamily: fonts.body, fontWeight: textWeight.medium,
             }}>
-            {item.label}
+            Profile &amp; preferences
           </button>
-        ))}
+
+          <button onClick={() => { onClose(); alert('Help coming soon.') }}
+            style={{
+              width: '100%', textAlign: 'left',
+              padding: `${space[2] + 2}px ${space[3]}px`,
+              background: 'transparent', border: 'none',
+              borderRadius: radius.md,
+              fontSize: textSize.xs, color: ink[800],
+              cursor: 'pointer',
+              fontFamily: fonts.body, fontWeight: textWeight.medium,
+            }}>
+            Help &amp; shortcuts
+          </button>
+
+          <button onClick={() => {
+              if (window.confirm('Sign out of Tel-Cloud?')) { onClose(); logout() }
+            }}
+            style={{
+              width: '100%', textAlign: 'left',
+              padding: `${space[2] + 2}px ${space[3]}px`,
+              background: 'transparent', border: 'none',
+              borderRadius: radius.md,
+              fontSize: textSize.xs, color: semantic.danger,
+              cursor: 'pointer',
+              fontFamily: fonts.body, fontWeight: textWeight.semibold,
+            }}>
+            Sign out
+          </button>
+        </div>
       </div>
     </>
   )
@@ -377,7 +462,7 @@ export default function Topbar({ activeNav, setActiveNav, onNewContact, isMobile
               onClick={() => setShowMaintenanceEditor(true)} />
           )}
           {!isMobile && hasPermission('manage_contacts') && <NewButton onClick={onNewContact} />}
-          {!isMobile && <UserMenu />}
+          {!isMobile && <UserMenu setActiveNav={setActiveNav} />}
 
           {/* Mobile: hamburger */}
           {isMobile && (

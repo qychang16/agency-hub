@@ -39,6 +39,35 @@ function auth(req, res, next) {
   try {
     const decoded = jwt.verify(header.replace('Bearer ', ''), JWT_SECRET)
     req.user = decoded
+
+    // ─── Sliding refresh ────────────────────────────────────────────────
+    // If the token was issued more than 1 day ago, mint a fresh 7-day
+    // token and send it back in the X-Refresh-Token response header.
+    // The frontend will pick it up and replace its stored token.
+    // Impersonation tokens are excluded — their lifetime is tied to the
+    // impersonation_sessions table, not the JWT clock.
+    if (!decoded.is_impersonating && decoded.iat) {
+      const tokenAgeSeconds = Math.floor(Date.now() / 1000) - decoded.iat
+      const ONE_DAY_SECONDS = 24 * 60 * 60
+      if (tokenAgeSeconds > ONE_DAY_SECONDS) {
+        try {
+          const freshToken = jwt.sign(
+            {
+              id: decoded.id, email: decoded.email, name: decoded.name,
+              role: decoded.role, workspace_id: decoded.workspace_id,
+              is_super_admin: decoded.is_super_admin,
+            },
+            JWT_SECRET,
+            { expiresIn: '7d' }
+          )
+          res.setHeader('X-Refresh-Token', freshToken)
+        } catch (refreshErr) {
+          // If refresh fails, don't block the request — just log and proceed
+          console.error('Token refresh failed:', refreshErr.message)
+        }
+      }
+    }
+
     // Real-time revocation check for impersonation tokens. The 'auth'
     // middleware path needs to stay synchronous-feeling, so we async
     // the session check and only block when it's actually impersonation.
@@ -3251,7 +3280,7 @@ app.post('/auth/google', async (req, res) => {
       { id: user.id, email: user.email, name: user.name, role: user.role,
         workspace_id: user.workspace_id, is_super_admin: user.is_super_admin },
       JWT_SECRET,
-      { expiresIn: '24h' }
+      { expiresIn: '7d' }
     )
 
     await logAudit(user.workspace_id, user.id, 'login_google', 'user', user.id, null, { email: user.email })
@@ -3291,7 +3320,7 @@ app.post('/login', async (req, res) => {
       return res.status(401).json({ error: 'Invalid email or password' })
     }
     await pool.query(`UPDATE users SET last_login_at=NOW(), failed_login_attempts=0, locked_until=NULL WHERE id=$1`, [user.id])
-    const token = jwt.sign({ id: user.id, email: user.email, name: user.name, role: user.role, workspace_id: user.workspace_id, is_super_admin: user.is_super_admin }, JWT_SECRET, { expiresIn: '24h' })
+    const token = jwt.sign({ id: user.id, email: user.email, name: user.name, role: user.role, workspace_id: user.workspace_id, is_super_admin: user.is_super_admin }, JWT_SECRET, { expiresIn: '7d' })
     await logAudit(user.workspace_id, user.id, 'login', 'user', user.id, null, { email })
     // Resolve permissions for this user's role (Chunk 5)
     const permsConfig = await getRolePermissions(user.workspace_id, user.role)
@@ -3607,7 +3636,7 @@ app.get('/admin/workspaces/:id/users', auth, superAdmin, async (req, res) => {
 // - Token lifetime is 30 minutes
 // - Session row is the kill switch — revoking it immediately invalidates
 //   the token regardless of remaining JWT lifetime
-const IMPERSONATION_DURATION_MINUTES = 30
+const IMPERSONATION_DURATION_MINUTES = 60
 
 app.post('/admin/impersonate/start', auth, superAdmin, async (req, res) => {
   try {
@@ -3856,7 +3885,7 @@ app.post('/admin/impersonate/stop', auth, async (req, res) => {
           workspace_id: admin.workspace_id, is_super_admin: true
         },
         JWT_SECRET,
-        { expiresIn: '24h' }
+        { expiresIn: '7d' }
       )
       const permsConfig = await getRolePermissions(admin.workspace_id, admin.role)
       return res.json({

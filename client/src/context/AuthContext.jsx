@@ -8,6 +8,28 @@ export function AuthProvider({ children }) {
   const [token, setToken] = useState(null)
   const [loading, setLoading] = useState(true)
 
+  // ─── Sliding refresh: read X-Refresh-Token from every API response ──────
+  // The server sends this header on any request where the user's token is
+  // more than 1 day old. We swap the stored token transparently so the
+  // user's session stays alive for 7 days from each new request.
+  useEffect(() => {
+    const originalFetch = window.fetch
+    window.fetch = async function patchedFetch(...args) {
+      const response = await originalFetch.apply(this, args)
+      try {
+        const refresh = response.headers && response.headers.get && response.headers.get('X-Refresh-Token')
+        if (refresh) {
+          localStorage.setItem('token', refresh)
+          setToken(refresh)
+        }
+      } catch {
+        // Header read failed — non-fatal, just skip refresh this round
+      }
+      return response
+    }
+    return () => { window.fetch = originalFetch }
+  }, [])
+
   // Hydrate permissions from backend when they're missing from local storage.
   // This handles users who logged in BEFORE Chunk 5 shipped.
   async function hydratePermissions(tok, baseUser) {

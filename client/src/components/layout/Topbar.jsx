@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { useWorkspace } from '../../context/WorkspaceContext'
 import { ink, accent, semantic, fonts, textSize, textWeight, space, radius, border, shadow } from '../../utils/designTokens'
+import { API } from '../../utils/constants'
 
 const NAV_ITEMS = [
   { key: 'inbox',       label: 'Inbox' },
@@ -149,7 +150,7 @@ function NewButton({ onClick }) {
 }
 
 function UserMenu({ setActiveNav }) {
-  const { user, logout } = useAuth()
+  const { user, logout, applyImpersonation } = useAuth()
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
 
@@ -237,6 +238,45 @@ function UserMenu({ setActiveNav }) {
             onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
             Help &amp; shortcuts
           </button>
+          {user?.is_super_admin && user?.direct_entry && (
+            <>
+              <div style={{ borderTop: border.subtle }} />
+              <button onClick={async () => {
+                setOpen(false)
+                try {
+                  const response = await fetch(`${API}/admin/exit-workspace`, {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      Authorization: 'Bearer ' + localStorage.getItem('token')
+                    }
+                  })
+                  if (!response.ok) {
+                    alert('Failed to return to Platform Admin')
+                    return
+                  }
+                  const data = await response.json()
+                  applyImpersonation(data.token, data.user)
+                  window.location.href = '/'
+                } catch (err) {
+                  console.error('exit-workspace error:', err)
+                  alert('Failed to return to Platform Admin')
+                }
+              }}
+                style={{
+                  width: '100%', textAlign: 'left',
+                  padding: `${space[2]}px ${space[3]}px`,
+                  background: 'transparent', border: 'none',
+                  fontSize: textSize.xs, color: accent.DEFAULT,
+                  cursor: 'pointer',
+                  fontFamily: fonts.body, fontWeight: textWeight.semibold,
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = ink[100]}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                ← Back to Platform Admin
+              </button>
+            </>
+          )}
           <div style={{ borderTop: border.subtle }} />
           <button onClick={() => { if (window.confirm('Sign out of Tel-Cloud?')) { setOpen(false); logout() } else { setOpen(false) } }}
             style={{

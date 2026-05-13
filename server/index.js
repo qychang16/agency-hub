@@ -3784,6 +3784,128 @@ app.post('/admin/impersonate/start', auth, superAdmin, async (req, res) => {
   }
 })
 
+// ─── INTERNAL WORKSPACE DIRECT-ENTRY ────────────────────────────────────────
+// Internal Y.E.C workspaces (workspace_type='internal') do not require
+// impersonation. A super admin can enter directly with their own identity
+// scoped to the target workspace. No impersonation session is created.
+// Client workspaces still go through the impersonation flow above.
+//
+// Logs one audit entry per entry (lightweight — not per action within).
+app.post('/admin/workspaces/:id/open', auth, superAdmin, async (req, res) => {
+  try {
+    const workspaceId = parseInt(req.params.id, 10)
+    if (!workspaceId) {
+      return res.status(400).json({ error: 'Invalid workspace id' })
+    }
+
+    // Verify workspace exists and is internal.
+    const wsRes = await pool.query(
+      `SELECT id, name, slug, workspace_type FROM workspaces WHERE id = $1`,
+      [workspaceId]
+    )
+    if (!wsRes.rows.length) {
+      return res.status(404).json({ error: 'Workspace not found' })
+    }
+    const workspace = wsRes.rows[0]
+    if (workspace.workspace_type !== 'internal') {
+      return res.status(403).json({
+        error: 'Direct entry is only allowed for internal workspaces. Use impersonation for client workspaces.'
+      })
+    }
+
+    // Mint a normal super_admin JWT scoped to this workspace.
+    // Identity stays as the calling super admin; workspace_id changes.
+    const token = jwt.sign(
+      {
+        id: req.user.id,
+        email: req.user.email,
+        name: req.user.name,
+        role: 'super_admin',
+        workspace_id: workspaceId,
+        is_super_admin: true,
+        is_impersonating: false,
+        direct_entry: true
+      },
+      JWT_SECRET,
+      { expiresIn: '7d' }
+    )
+
+    // Lightweight audit log entry — one row per entry, not per action.
+    await logAudit(
+      workspaceId,
+      req.user.id,
+      'workspace_direct_open',
+      'workspace',
+      workspaceId,
+      null,
+      {
+        workspace_name: workspace.name,
+        workspace_slug: workspace.slug
+      }
+    )
+
+    res.json({
+      token,
+      user: {
+        id: req.user.id,
+        email: req.user.email,
+        name: req.user.name,
+        role: 'super_admin',
+        workspace_id: workspaceId,
+        is_super_admin: true,
+        is_impersonating: false,
+        direct_entry: true
+      },
+      workspace: {
+        id: workspace.id,
+        name: workspace.name,
+        slug: workspace.slug
+      }
+    })
+  } catch (err) {
+    console.error('POST /admin/workspaces/:id/open error:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// POST /admin/exit-workspace
+// Counterpart to /admin/workspaces/:id/open — mints a fresh super_admin JWT
+// without the direct_entry flag, so the router lands the user back at /admin.
+app.post('/admin/exit-workspace', auth, superAdmin, async (req, res) => {
+  try {
+    const token = jwt.sign(
+      {
+        id: req.user.id,
+        email: req.user.email,
+        name: req.user.name,
+        role: 'super_admin',
+        workspace_id: req.user.workspace_id,
+        is_super_admin: true,
+        is_impersonating: false
+        // direct_entry intentionally omitted — routes to /admin
+      },
+      JWT_SECRET,
+      { expiresIn: '7d' }
+    )
+
+    res.json({
+      token,
+      user: {
+        id: req.user.id,
+        email: req.user.email,
+        name: req.user.name,
+        role: 'super_admin',
+        workspace_id: req.user.workspace_id,
+        is_super_admin: true,
+        is_impersonating: false
+      }
+    })
+  } catch (err) {
+    console.error('POST /admin/exit-workspace error:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
 // POST /admin/impersonate/stop
 // Revokes the current impersonation session and returns a fresh super-admin
 // token. Two paths:

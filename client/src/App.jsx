@@ -637,7 +637,7 @@ function AppWithAuth() {
   }
 
   if (!user) return <LoginScreen />
-  if (user.is_super_admin) {
+  if (user.is_super_admin && !user.direct_entry) {
     return (
       <>
         <ImpersonationBanner />

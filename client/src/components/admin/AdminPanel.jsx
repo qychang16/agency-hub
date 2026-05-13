@@ -39,6 +39,14 @@ function TelCloudLogo({ size = 36 }) {
 // --- MAIN PANEL ---
 export default function AdminPanel() {
   const { user, logout, authHeader, applyImpersonation } = useAuth()
+  // Viewport tracking for responsive layout
+  const [viewportWidth, setViewportWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1024)
+  useEffect(() => {
+    const onResize = () => setViewportWidth(window.innerWidth)
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+  const isMobile = viewportWidth < 768
   const [workspaces, setWorkspaces] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -50,6 +58,29 @@ export default function AdminPanel() {
   const [rolesWs, setRolesWs] = useState(null)
   const [impersonateWs, setImpersonateWs] = useState(null)
 
+  async function openInternalWorkspace(workspace) {
+    try {
+      const response = await fetch(`${API}/admin/workspaces/${workspace.id}/open`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeader
+        }
+      })
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({ error: 'Failed to open workspace' }))
+        alert(err.error || 'Failed to open workspace')
+        return
+      }
+      const data = await response.json()
+      applyImpersonation(data.token, data.user)
+      window.location.href = '/'
+    } catch (err) {
+      console.error('openInternalWorkspace error:', err)
+      alert('Failed to open workspace')
+    }
+  }
+  
   async function fetchWorkspaces() {
     setLoading(true)
     setError('')
@@ -222,68 +253,121 @@ export default function AdminPanel() {
           }}>+ Create workspace</button>
         </div>
       ) : (
-        <div style={{
-          background: '#fff', borderRadius: radius.lg,
-          border: `0.5px solid ${ink[300]}`, overflow: 'hidden',
-          boxShadow: shadow.subtle,
-        }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ background: ink[100], borderBottom: `0.5px solid ${ink[300]}` }}>
-                <th style={thStyle}>Workspace</th>
-                <th style={thStyle}>Slug</th>
-                <th style={thStyle}>Plan</th>
-                <th style={thStyle}>Users</th>
-                <th style={thStyle}>Status</th>
-                <th style={thStyle}>Created</th>
-                <th style={{ ...thStyle, textAlign: 'right' }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map(w => (
-                <tr key={w.id} style={{ borderBottom: `0.5px solid ${ink[200]}` }}>
-                  <td style={tdStyle}>
-                    <div style={{ fontWeight: textWeight.semibold, color: ink[900], fontSize: '13px' }}>{w.name}</div>
-                    {w.registration_number && <div style={{ fontSize: '11px', color: ink[600], marginTop: 2 }}>UEN: {w.registration_number}</div>}
-                  </td>
-                  <td style={{ ...tdStyle, fontFamily: fonts.mono, fontSize: '12px', color: ink[600] }}>{w.slug}</td>
-                  <td style={tdStyle}>
+        isMobile ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: space[3] }}>
+            {filtered.map(w => (
+              <div key={w.id} style={{
+                background: '#fff', borderRadius: radius.lg,
+                border: `0.5px solid ${ink[300]}`, boxShadow: shadow.subtle,
+                padding: space[4], display: 'flex', flexDirection: 'column', gap: space[3],
+              }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: space[2], marginBottom: space[1] }}>
+                    <div style={{ fontWeight: textWeight.semibold, color: ink[900], fontSize: '14px' }}>{w.name}</div>
                     <span style={{
-                      padding: '3px 8px', background: accent.soft, color: accent.DEFAULT,
+                      padding: '2px 7px', background: accent.soft, color: accent.DEFAULT,
                       borderRadius: radius.sm, fontSize: '10px', fontWeight: textWeight.semibold,
                       textTransform: 'uppercase', letterSpacing: '0.4px',
                     }}>{w.plan}</span>
                     {w.billing_exempt && <span style={{
-                      marginLeft: space[1], padding: '3px 8px',
-                      background: semantic.successSoft, color: semantic.success,
+                      padding: '2px 7px', background: semantic.successSoft, color: semantic.success,
                       borderRadius: radius.sm, fontSize: '10px', fontWeight: textWeight.semibold,
                     }}>Free</span>}
-                  </td>
-                  <td style={{ ...tdStyle, color: ink[800] }}>{w.user_count}</td>
-                  <td style={tdStyle}>
                     <span style={{
-                      padding: '3px 10px',
+                      padding: '2px 9px',
                       background: w.status === 'active' ? semantic.successSoft : w.status === 'suspended' ? semantic.dangerSoft : ink[200],
                       color: w.status === 'active' ? semantic.success : w.status === 'suspended' ? semantic.danger : ink[600],
-                      borderRadius: radius.pill, fontSize: '11px',
+                      borderRadius: radius.pill, fontSize: '10px',
                       fontWeight: textWeight.semibold, textTransform: 'capitalize',
                     }}>{w.status}</span>
-                  </td>
-                  <td style={{ ...tdStyle, fontSize: '12px', color: ink[600] }}>
-                    {new Date(w.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
-                  </td>
-                  <td style={{ ...tdStyle, textAlign: 'right' }}>
-                    <div style={{ display: 'inline-flex', gap: space[1] }}>
-                      <button onClick={() => setImpersonateWs(w)} style={btnSmGhost} title="Sign in as a user in this workspace">Sign in as...</button>
-                      <button onClick={() => setRolesWs(w)} style={btnSmGhost}>Roles</button>
-                      <button onClick={() => setEditWs(w)} style={btnSmGhost}>Edit</button>
-                    </div>
-                  </td>
+                  </div>
+                  <div style={{ fontFamily: fonts.mono, fontSize: '12px', color: ink[600] }}>{w.slug}</div>
+                  {w.registration_number && <div style={{ fontSize: '11px', color: ink[600], marginTop: 2 }}>UEN: {w.registration_number}</div>}
+                </div>
+                <div style={{ display: 'flex', gap: space[3], fontSize: '12px', color: ink[600] }}>
+                  <div><strong style={{ color: ink[800] }}>{w.user_count}</strong> {w.user_count === 1 ? 'user' : 'users'}</div>
+                  <div>{new Date(w.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</div>
+                </div>
+                <div style={{ display: 'flex', gap: space[2], flexWrap: 'wrap' }}>
+                  {w.workspace_type === 'internal' ? (
+                    <button onClick={() => openInternalWorkspace(w)} style={{ ...btnSmGhost, flex: 1, minWidth: 80 }} title="Open this internal workspace directly">Open</button>
+                  ) : (
+                    <button onClick={() => setImpersonateWs(w)} style={{ ...btnSmGhost, flex: 1, minWidth: 100 }} title="Sign in as a user in this workspace">Sign in as...</button>
+                  )}
+                  <button onClick={() => setRolesWs(w)} style={{ ...btnSmGhost, flex: 1, minWidth: 60 }}>Roles</button>
+                  <button onClick={() => setEditWs(w)} style={{ ...btnSmGhost, flex: 1, minWidth: 60 }}>Edit</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div style={{
+            background: '#fff', borderRadius: radius.lg,
+            border: `0.5px solid ${ink[300]}`, overflow: 'hidden',
+            boxShadow: shadow.subtle,
+          }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ background: ink[100], borderBottom: `0.5px solid ${ink[300]}` }}>
+                  <th style={thStyle}>Workspace</th>
+                  <th style={thStyle}>Slug</th>
+                  <th style={thStyle}>Plan</th>
+                  <th style={thStyle}>Users</th>
+                  <th style={thStyle}>Status</th>
+                  <th style={thStyle}>Created</th>
+                  <th style={{ ...thStyle, textAlign: 'right' }}>Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {filtered.map(w => (
+                  <tr key={w.id} style={{ borderBottom: `0.5px solid ${ink[200]}` }}>
+                    <td style={tdStyle}>
+                      <div style={{ fontWeight: textWeight.semibold, color: ink[900], fontSize: '13px' }}>{w.name}</div>
+                      {w.registration_number && <div style={{ fontSize: '11px', color: ink[600], marginTop: 2 }}>UEN: {w.registration_number}</div>}
+                    </td>
+                    <td style={{ ...tdStyle, fontFamily: fonts.mono, fontSize: '12px', color: ink[600] }}>{w.slug}</td>
+                    <td style={tdStyle}>
+                      <span style={{
+                        padding: '3px 8px', background: accent.soft, color: accent.DEFAULT,
+                        borderRadius: radius.sm, fontSize: '10px', fontWeight: textWeight.semibold,
+                        textTransform: 'uppercase', letterSpacing: '0.4px',
+                      }}>{w.plan}</span>
+                      {w.billing_exempt && <span style={{
+                        marginLeft: space[1], padding: '3px 8px',
+                        background: semantic.successSoft, color: semantic.success,
+                        borderRadius: radius.sm, fontSize: '10px', fontWeight: textWeight.semibold,
+                      }}>Free</span>}
+                    </td>
+                    <td style={{ ...tdStyle, color: ink[800] }}>{w.user_count}</td>
+                    <td style={tdStyle}>
+                      <span style={{
+                        padding: '3px 10px',
+                        background: w.status === 'active' ? semantic.successSoft : w.status === 'suspended' ? semantic.dangerSoft : ink[200],
+                        color: w.status === 'active' ? semantic.success : w.status === 'suspended' ? semantic.danger : ink[600],
+                        borderRadius: radius.pill, fontSize: '11px',
+                        fontWeight: textWeight.semibold, textTransform: 'capitalize',
+                      }}>{w.status}</span>
+                    </td>
+                    <td style={{ ...tdStyle, fontSize: '12px', color: ink[600] }}>
+                      {new Date(w.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                    </td>
+                    <td style={{ ...tdStyle, textAlign: 'right' }}>
+                      <div style={{ display: 'inline-flex', gap: space[1] }}>
+                        {w.workspace_type === 'internal' ? (
+                          <button onClick={() => openInternalWorkspace(w)} style={btnSmGhost} title="Open this internal workspace directly">Open</button>
+                        ) : (
+                          <button onClick={() => setImpersonateWs(w)} style={btnSmGhost} title="Sign in as a user in this workspace">Sign in as...</button>
+                        )}
+                        <button onClick={() => setRolesWs(w)} style={btnSmGhost}>Roles</button>
+                        <button onClick={() => setEditWs(w)} style={btnSmGhost}>Edit</button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )
       )}
 
       {/* Modals */}
@@ -561,7 +645,14 @@ function PasswordRevealModal({ data, onClose }) {
               fontFamily: fonts.body, cursor: 'pointer', minWidth: 100,
               transition: 'background .15s',
             }}>
-            {copied ? '✓ Copied' : 'Copy'}
+            {copied ? (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="3 8 7 12 13 4"/>
+                </svg>
+                Copied
+              </span>
+            ) : 'Copy'}
           </button>
         </div>
       </div>
@@ -617,7 +708,12 @@ function ModalShell({ title, subtitle, onClose, children, width = 480 }) {
             <button onClick={onClose} style={{
               background: 'transparent', border: 'none', cursor: 'pointer',
               padding: 4, color: ink[500], fontSize: 20, lineHeight: 1,
-            }}>×</button>
+            }}>
+              <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+                <line x1="4" y1="4" x2="12" y2="12"/>
+                <line x1="12" y1="4" x2="4" y2="12"/>
+              </svg>
+            </button>
           )}
         </div>
         <div style={{ padding: '20px 24px' }}>{children}</div>
@@ -1009,7 +1105,7 @@ function RolesModal({ workspace, onClose }) {
           <button onClick={onClose} style={{
             background: 'transparent', border: 'none', fontSize: 20,
             color: ink[500], cursor: 'pointer', padding: 4, lineHeight: 1,
-          }}>×</button>
+          }}>脳</button>
         </div>
         <div style={{ flex: 1, overflowY: 'auto' }}>
           <RolesPermissions workspaceId={workspace.id} workspaceName={workspace.name} />

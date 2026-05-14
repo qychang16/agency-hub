@@ -14,3 +14,7 @@ node_modules/
 
 # Local log dumps
 railway-logs.txt
+
+# Local DB backups and one-off SQL scripts
+backups/
+*.sql

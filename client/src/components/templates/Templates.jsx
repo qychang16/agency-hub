@@ -7,6 +7,7 @@ import MetaLibraryModal from '../MetaLibraryModal'
 import IPhonePreview from '../IPhonePreview'
 import Button from '../ui/Button'
 import Modal from '../ui/Modal'
+import { formatLanguage, STATUS_COLORS } from '../../utils/templateDisplay'
 
 const CATEGORIES = [
   { value: 'utility', label: 'Utility', desc: 'Transactional - confirmations, reminders, updates' },
@@ -14,12 +15,9 @@ const CATEGORIES = [
   { value: 'authentication', label: 'Authentication', desc: 'OTP and verification messages' },
 ]
 
-const STATUS_STYLES = {
-  approved: { bg: '#dcfce7', color: '#16a34a', label: 'Approved' },
-  pending:  { bg: '#fef3c7', color: '#92400e', label: 'Pending' },
-  draft:    { bg: '#f5f3ef', color: '#6e6a63', label: 'Draft' },
-  rejected: { bg: '#fee2e2', color: '#dc2626', label: 'Rejected' },
-}
+// Status badge colors keyed by the 'color' value returned by backend's getTemplateDisplayStatus()
+
+// Meta-style language display: 'en' -> 'English', 'en_US' -> 'English (US)', etc.
 
 // Smart name suggestion for cloning. Detects existing siblings of pattern
 // "{base}_v{n}" and proposes the next available v-number. Falls back to _v2 if
@@ -552,8 +550,9 @@ const FILTER_TABS = [
 ]
 
 // Renders a single template card. Extracted so we can render it inside each section.
-function TemplateCard({ t, canCreate, canApprove, onPreview, onEdit, onDelete, onApprove, onReject, onCopy }) {
-  const ss = STATUS_STYLES[t.status] || STATUS_STYLES.draft
+function TemplateCard({ t, canCreate, canApprove, onPreview, onEdit, onDelete, onApprove, onReject, onCopy, onSubmitToMeta }) {
+  const display = t.display_status || { label: t.status || 'Draft', color: 'gray' }
+  const ss = STATUS_COLORS[display.color] || STATUS_COLORS.gray
   const buttons = Array.isArray(t.buttons) ? t.buttons : []
   const isLocked = t.source === 'meta_library' || (t.status === 'approved' && t.source !== 'tenant')
 
@@ -563,7 +562,8 @@ function TemplateCard({ t, canCreate, canApprove, onPreview, onEdit, onDelete, o
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 13, fontWeight: 600, color: '#14130f', marginBottom: 5, fontFamily: 'monospace' }}>{t.name}</div>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 6, background: ss.bg, color: ss.color, fontWeight: 600 }}>{ss.label}</span>
+            <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 6, background: ss.bg, color: ss.color, fontWeight: 600 }}>{display.label}</span>
+            <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 6, background: '#f5f3ef', color: '#6e6a63' }}>{formatLanguage(t.language)}</span>
             <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 6, background: '#f5f3ef', color: '#6e6a63', textTransform: 'capitalize' }}>{t.category}</span>
             {buttons.length > 0 && (
               <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 6, background: '#ede9fe', color: '#5b21b6' }}>
@@ -610,6 +610,11 @@ function TemplateCard({ t, canCreate, canApprove, onPreview, onEdit, onDelete, o
         {canCreate && isLocked && (
           <Button variant="ghost" size="sm" onClick={() => onCopy(t)}>Copy</Button>
         )}
+        
+        {canCreate && t.status === 'draft' && t.source === 'tenant' && (
+          <Button variant="primary" size="sm" onClick={() => onSubmitToMeta(t)}>Submit to Meta</Button>
+        )}
+        
         {canApprove && t.status === 'pending' && (
           <>
             <Button variant="success" size="sm" onClick={() => onApprove(t.id)}>Approve</Button>
@@ -707,6 +712,26 @@ export default function Templates() {
     load()
   }
 
+  async function submitToMeta(t) {
+    if (!confirm(`Submit "${t.name}" to Meta for approval? This cannot be undone.`)) return
+    try {
+      const r = await fetch(`${API}/templates/${t.id}/submit-to-meta`, {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + token }
+      })
+      const data = await r.json()
+      if (!r.ok) {
+        const errMsg = data.error || 'Submission failed'
+        const metaCode = data.meta_error_code ? ` (Meta code ${data.meta_error_code})` : ''
+        alert(`Failed to submit to Meta:\n\n${errMsg}${metaCode}`)
+        return
+      }
+      load()
+    } catch (err) {
+      alert(`Network error submitting to Meta: ${err.message}`)
+    }
+  }
+
   async function rejectTemplate(id) {
     await fetch(`${API}/templates/${id}`, {
       method: 'PATCH',
@@ -764,6 +789,7 @@ export default function Templates() {
     },
     onDelete: deleteTemplate,
     onApprove: approveTemplate,
+    onSubmitToMeta: submitToMeta,
     onReject: rejectTemplate,
   }
 

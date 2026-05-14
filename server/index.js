@@ -10,6 +10,7 @@ const { Pool } = require('pg')
 const bcrypt = require('bcrypt')
 const jwt = require('jsonwebtoken')
 const metaLibraryMock = require('./metaLibraryMock')
+const crypto = require('crypto')
 const queue = require('./queues')
 const { createInvitationHandlers, runChunk30InvitationsMigration } = require('./routes/invitations')
 const { createProfileHandlers, runChunk31ProfileMigration } = require('./routes/profile')
@@ -20,7 +21,12 @@ const httpServer = createServer(app)
 const io = new Server(httpServer, { cors: { origin: '*', methods: ['GET','POST','PATCH','DELETE'] } })
 
 app.use(cors())
-app.use(express.json())
+app.use(express.json({
+  verify: (req, res, buf) => {
+    // Capture raw body for webhook signature verification (Meta requires HMAC over exact bytes)
+    req.rawBody = buf
+  }
+}))
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL || 'postgresql://postgres:postgres123@localhost:5432/agency_hub',
@@ -165,6 +171,66 @@ async function hasPermission(req, permName) {
   const wsId = await getWorkspaceId(req.user.id)
   const config = await getRolePermissions(wsId, req.user.role)
   return config.permissions[permName] === true
+}
+
+// Map Meta template status + quality to display label
+// Matches Meta's WhatsApp Manager display conventions
+function getTemplateDisplayStatus(metaStatus, qualityScore, localStatus) {
+  // No Meta interaction yet
+  if (!metaStatus) {
+    if (localStatus === 'draft') return { label: 'Draft', color: 'gray' }
+    return { label: localStatus || 'Unknown', color: 'gray' }
+  }
+  
+  const status = String(metaStatus).toUpperCase()
+  const quality = String(qualityScore || '').toUpperCase()
+  
+  if (status === 'PENDING') return { label: 'In review', color: 'blue' }
+  if (status === 'REJECTED') return { label: 'Rejected', color: 'red' }
+  if (status === 'PAUSED') return { label: 'Paused', color: 'orange' }
+  if (status === 'DISABLED') return { label: 'Disabled', color: 'gray' }
+  if (status === 'IN_APPEAL') return { label: 'In appeal', color: 'blue' }
+  if (status === 'FLAGGED') return { label: 'Flagged', color: 'orange' }
+  
+  if (status === 'APPROVED') {
+    if (quality === 'GREEN' || quality === 'HIGH') return { label: 'Active - Quality', color: 'green' }
+    if (quality === 'YELLOW' || quality === 'MEDIUM') return { label: 'Active - Medium quality', color: 'yellow' }
+    if (quality === 'RED' || quality === 'LOW') return { label: 'Active - Low quality', color: 'red' }
+    return { label: 'Active - Pending quality', color: 'green' }
+  }
+  
+  return { label: status, color: 'gray' }
+}
+
+// Verify Meta webhook signature using HMAC-SHA256
+// Returns: { valid: boolean, reason?: string }
+function verifyMetaWebhookSignature(req) {
+  const signature = req.headers['x-hub-signature-256']
+  if (!signature) return { valid: false, reason: 'No x-hub-signature-256 header' }
+
+  const appSecret = process.env.META_APP_SECRET
+  if (!appSecret) return { valid: false, reason: 'META_APP_SECRET not configured' }
+
+  if (!req.rawBody) return { valid: false, reason: 'Raw body not captured' }
+
+  const expectedSig = 'sha256=' + crypto
+    .createHmac('sha256', appSecret)
+    .update(req.rawBody)
+    .digest('hex')
+
+  try {
+    const sigBuf = Buffer.from(signature)
+    const expectedBuf = Buffer.from(expectedSig)
+    if (sigBuf.length !== expectedBuf.length) {
+      return { valid: false, reason: 'Signature length mismatch' }
+    }
+    if (!crypto.timingSafeEqual(sigBuf, expectedBuf)) {
+      return { valid: false, reason: 'Signature mismatch' }
+    }
+    return { valid: true }
+  } catch (err) {
+    return { valid: false, reason: 'Comparison error: ' + err.message }
+  }
 }
 
 // Express middleware. Blocks the request with 403 if the user lacks the permission.
@@ -5506,7 +5572,11 @@ app.get('/templates', auth, async (req, res) => {
   try {
     const wsId = await getWorkspaceId(req.user.id)
     const r = await pool.query('SELECT * FROM templates WHERE workspace_id=$1 ORDER BY created_at DESC', [wsId])
-    res.json(r.rows)
+    const rowsWithStatus = r.rows.map(row => ({
+      ...row,
+      display_status: getTemplateDisplayStatus(row.meta_status, row.quality_score, row.status)
+    }))
+    res.json(rowsWithStatus)
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
@@ -5634,6 +5704,185 @@ app.delete('/templates/:id', auth, requirePermission('manage_templates'), async 
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
+// ─── SUBMIT TEMPLATE TO META ─────────────────────────────────────────
+// POST /templates/:id/submit-to-meta
+// Submits a draft template to Meta's WhatsApp Business API for approval.
+// On success, updates template status to 'pending' and stores Meta's template ID.
+// On failure, returns Meta's error message verbatim.
+app.post('/templates/:id/submit-to-meta', auth, requirePermission('manage_templates'), async (req, res) => {
+  try {
+    const wsId = await getWorkspaceId(req.user.id)
+    const templateId = parseInt(req.params.id, 10)
+    if (!templateId) return res.status(400).json({ error: 'Invalid template id' })
+
+    // Load template and verify workspace scope
+    const tplResult = await pool.query(
+      `SELECT id, name, category, language, status, source, body, header, footer, buttons, variables, meta_template_id
+       FROM templates WHERE id=$1 AND workspace_id=$2`,
+      [templateId, wsId]
+    )
+    if (!tplResult.rows.length) return res.status(404).json({ error: 'Template not found' })
+    const tpl = tplResult.rows[0]
+
+    // Validate state
+    if (tpl.status !== 'draft') {
+      return res.status(400).json({ error: `Cannot submit template in status '${tpl.status}'. Only drafts can be submitted.` })
+    }
+    if (tpl.source !== 'tenant') {
+      return res.status(400).json({ error: `Cannot submit template with source '${tpl.source}'. Only tenant-authored templates can be submitted to Meta.` })
+    }
+    if (!tpl.body || !tpl.body.trim()) {
+      return res.status(400).json({ error: 'Template body is required' })
+    }
+    if (!tpl.name || !tpl.name.trim()) {
+      return res.status(400).json({ error: 'Template name is required' })
+    }
+    if (!tpl.category) {
+      return res.status(400).json({ error: 'Template category is required' })
+    }
+
+    // Read Meta credentials
+    const token = process.env.META_ACCESS_TOKEN
+    const wabaId = process.env.META_WABA_ID
+    const apiVersion = process.env.META_API_VERSION || 'v25.0'
+    if (!token) return res.status(500).json({ error: 'META_ACCESS_TOKEN not configured' })
+    if (!wabaId) return res.status(500).json({ error: 'META_WABA_ID not configured' })
+
+    // Build Meta-format components array
+    const components = []
+
+    if (tpl.header && tpl.header.trim()) {
+      components.push({ type: 'HEADER', format: 'TEXT', text: tpl.header.trim() })
+    }
+
+    // BODY is required. Convert {{name}} style variables to {{1}}, {{2}}, etc.
+    let metaBodyText = tpl.body.trim()
+    const vars = tpl.variables || {}
+    const orderedVars = Array.isArray(vars) ? vars : (vars.ordered || [])
+    if (orderedVars.length > 0) {
+      orderedVars.forEach((v, idx) => {
+        const varName = typeof v === 'string' ? v : (v.name || '')
+        // Replace {{varName}} with {{positionalIndex}}
+        const pattern = new RegExp('\\{\\{\\s*' + varName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*\\}\\}', 'g')
+        metaBodyText = metaBodyText.replace(pattern, '{{' + (idx + 1) + '}}')
+      })
+    }
+    const bodyComponent = { type: 'BODY', text: metaBodyText }
+
+    // If template has variables, include example values for Meta review
+    if (orderedVars.length > 0) {
+        const exampleValues = orderedVars.map(v => {
+        const lowerName = (typeof v === 'string' ? v : (v.name || '')).toLowerCase()
+        if (lowerName.includes('name')) return 'John Tan'
+        if (lowerName.includes('date')) return '15 May 2026'
+        if (lowerName.includes('time')) return '2:30 PM'
+        if (lowerName.includes('location') || lowerName.includes('venue')) return 'Singapore Office'
+        if (lowerName.includes('company')) return 'ACME Corp'
+        return 'sample'
+      })
+      bodyComponent.example = { body_text: [exampleValues] }
+    }
+
+    components.push(bodyComponent)
+
+    if (tpl.footer && tpl.footer.trim()) {
+      components.push({ type: 'FOOTER', text: tpl.footer.trim() })
+    }
+
+    // Buttons: only include if present and well-formed
+    const buttons = Array.isArray(tpl.buttons) ? tpl.buttons : []
+    if (buttons.length > 0) {
+      const metaButtons = buttons.map(btn => {
+        if (btn.type === 'url' || btn.type === 'URL') {
+          return { type: 'URL', text: btn.text || 'Open', url: btn.url || 'https://tel-cloud.sg' }
+        }
+        if (btn.type === 'phone_number' || btn.type === 'PHONE_NUMBER') {
+          return { type: 'PHONE_NUMBER', text: btn.text || 'Call', phone_number: btn.phone_number || '' }
+        }
+        return { type: 'QUICK_REPLY', text: btn.text || 'Reply' }
+      })
+      components.push({ type: 'BUTTONS', buttons: metaButtons })
+    }
+    
+    // Build the request body
+    const requestBody = {
+      name: tpl.name.trim().toLowerCase().replace(/[^a-z0-9_]/g, '_'),
+      category: tpl.category.toUpperCase(),
+      language: tpl.language || 'en',
+      components: components
+    }
+
+    // Call Meta's API
+    const url = `https://graph.facebook.com/${apiVersion}/${wabaId}/message_templates`
+    let metaResponse
+    try {
+      const fetchRes = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + token,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestBody)
+      })
+      metaResponse = await fetchRes.json()
+      
+      if (!fetchRes.ok) {
+        const errMsg = metaResponse?.error?.message || 'Meta API call failed'
+        const errCode = metaResponse?.error?.code || 'unknown'
+        const errType = metaResponse?.error?.type || 'unknown'
+        console.error('Meta template submission error:', { errCode, errType, errMsg, request: requestBody, response: metaResponse })
+        return res.status(400).json({
+          error: errMsg,
+          meta_error_code: errCode,
+          meta_error_type: errType,
+          meta_full_error: metaResponse?.error
+        })
+      }
+    } catch (fetchErr) {
+      console.error('Meta template submission fetch error:', fetchErr)
+      return res.status(502).json({ error: 'Failed to reach Meta API: ' + fetchErr.message })
+    }
+
+    // Success
+    const metaTemplateId = metaResponse.id
+    const metaStatus = metaResponse.status || 'PENDING'
+
+    if (!metaTemplateId) {
+      console.error('Meta returned success but no template id:', metaResponse)
+      return res.status(500).json({ error: 'Meta returned unexpected response shape', response: metaResponse })
+    }
+
+    // Update template row
+    const updateResult = await pool.query(
+      `UPDATE templates
+       SET meta_template_id=$1, status='pending', meta_status=$2, submitted_at=NOW(), updated_at=NOW()
+       WHERE id=$3 AND workspace_id=$4
+       RETURNING id, name, status, meta_status, meta_template_id, submitted_at`,
+      [metaTemplateId, metaStatus, templateId, wsId]
+    )
+
+    // Audit log entry
+    try {
+      await pool.query(
+        `INSERT INTO audit_log (workspace_id, user_id, action, entity_type, entity_id, new_values, created_at)
+         VALUES ($1, $2, 'template_submitted_to_meta', 'template', $3, $4, NOW())`,
+        [wsId, req.user.id, templateId, JSON.stringify({ meta_template_id: metaTemplateId, meta_status: metaStatus, name: requestBody.name })]
+      )
+    } catch (auditErr) {
+      console.error('Audit log write failed for template submission:', auditErr)
+    }
+
+    res.json({
+      success: true,
+      template: updateResult.rows[0],
+      meta_response: { id: metaTemplateId, status: metaStatus }
+    })
+  } catch (err) {
+    console.error('POST /templates/:id/submit-to-meta error:', err)
+    return res.status(500).json({ error: err.message })
+  }
+})
+
 // ─── TEMPLATE LIBRARY (read-only catalog of pre-built starter templates) ──
 app.get('/template-library', auth, async (req, res) => {
   try {
@@ -5708,10 +5957,79 @@ app.get('/api/meta-library', auth, async (req, res) => {
       })
     }
 
-    // Real Meta call (not yet implemented - awaiting credentials)
-    return res.status(501).json({
-      error: 'Real Meta API mode not yet implemented. Set META_MOCK_MODE=true.'
-    })
+    // Real Meta API call
+    const token = process.env.META_ACCESS_TOKEN
+    const wabaId = process.env.META_WABA_ID
+    const apiVersion = process.env.META_API_VERSION || 'v25.0'
+    if (!token || !wabaId) {
+      return res.status(500).json({ error: 'META_ACCESS_TOKEN and META_WABA_ID must be configured' })
+    }
+    // Build query params for Meta's API
+    const params = new URLSearchParams()
+    if (language) params.set('language', language)
+    if (topic) params.set('topic', topic)
+    if (usecase) params.set('use_case', usecase) // Meta uses use_case (snake_case)
+    if (industry) params.set('industry', industry)
+    const metaUrl = `https://graph.facebook.com/${apiVersion}/${wabaId}/message_template_library?${params}`
+    let metaData
+    try {
+      const fetchRes = await fetch(metaUrl, {
+        headers: { 'Authorization': 'Bearer ' + token }
+      })
+      metaData = await fetchRes.json()
+      if (!fetchRes.ok) {
+        const errMsg = metaData?.error?.message || 'Meta library fetch failed'
+        console.error('[meta-library] Meta API error:', metaData?.error || metaData)
+        // Tech Provider not yet approved - Meta blocks this endpoint until approval
+        if (errMsg.includes('nonexisting field') || errMsg.includes('message_template_library')) {
+          return res.json({
+            templates: [],
+            filters: { industries: [], topics: [], usecases: [], languages: [] },
+            mock: false,
+            unavailable_reason: 'Meta Library will be available after Tech Provider approval is complete.'
+          })
+        }
+        return res.status(400).json({ error: errMsg, meta_error: metaData?.error })
+      }
+    } catch (fetchErr) {
+      return res.status(502).json({ error: 'Failed to reach Meta API: ' + fetchErr.message })
+    }
+    // Transform Meta's response to the shape our frontend expects
+    // Meta uses use_case (snake_case); frontend expects usecase (one word)
+    const allTemplates = (metaData.data || []).map(t => ({
+      id: t.id,
+      name: t.name,
+      language: t.language,
+      category: t.category,
+      topic: t.topic,
+      usecase: t.use_case,
+      industry: t.industry || [],
+      header: t.header,
+      body: t.body,
+      body_params: t.body_params || [],
+      param_labels: t.param_labels || [],
+      buttons: t.buttons || []
+    }))
+    // Client-side filter for 'search' and 'name' (Meta API doesn't support these)
+    let filtered = allTemplates
+    if (search) {
+      const q = String(search).toLowerCase().replace(/^"|"$/g, '')
+      filtered = filtered.filter(t => {
+        const haystack = `${t.name} ${t.header || ''} ${t.body} ${t.usecase} ${t.topic}`.toLowerCase()
+        return haystack.includes(q)
+      })
+    }
+    if (name) {
+      filtered = filtered.filter(t => t.name === name)
+    }
+    // Derive available filter values from the returned templates
+    const filters = {
+      industries: [...new Set(allTemplates.flatMap(t => t.industry))].sort(),
+      topics: [...new Set(allTemplates.map(t => t.topic).filter(Boolean))].sort(),
+      usecases: [...new Set(allTemplates.map(t => t.usecase).filter(Boolean))].sort(),
+      languages: [...new Set(allTemplates.map(t => t.language).filter(Boolean))].sort()
+    }
+    return res.json({ templates: filtered, filters, mock: false })
   } catch (err) {
     console.error('GET /api/meta-library error:', err)
     res.status(500).json({ error: err.message })
@@ -8193,11 +8511,81 @@ app.get('/webhook', (req, res) => {
 
 app.post('/webhook', async (req, res) => {
   res.sendStatus(200)
+  // Verify Meta's signature (feature-flagged for safe rollout)
+  const sigResult = verifyMetaWebhookSignature(req)
+  const enforceVerify = process.env.META_WEBHOOK_VERIFY_SIGNATURE === 'true'
+  if (!sigResult.valid) {
+    console.warn(`[webhook] Signature check: ${sigResult.reason}${enforceVerify ? ' (REJECTING)' : ' (logging only, flag off)'}`)
+    if (enforceVerify) return
+  }
   try {       
     const body = req.body
     if (body?.object !== 'whatsapp_business_account') return
     for (const entry of body.entry || []) {
       for (const change of entry.changes || []) {
+        
+  // Handle template status updates (approval/rejection/paused/etc.)
+        if (change.field === 'message_template_status_update') {
+          const v = change.value || {}
+          const metaTemplateId = v.message_template_id
+          const event = v.event  // APPROVED | REJECTED | FLAGGED | PAUSED | etc.
+          const reason = v.reason
+          if (!metaTemplateId || !event) {
+            console.warn('[webhook] template_status_update missing required fields:', v)
+            continue
+          }
+          try {
+            const updateRes = await pool.query(
+              `UPDATE templates
+               SET meta_status = $1,
+                   rejected_reason = CASE WHEN $1 = 'REJECTED' THEN $2 ELSE rejected_reason END,
+                   approved_at = CASE WHEN $1 = 'APPROVED' AND approved_at IS NULL THEN NOW() ELSE approved_at END,
+                   status = CASE WHEN $1 = 'APPROVED' THEN 'approved'
+                                  WHEN $1 = 'REJECTED' THEN 'rejected'
+                                  ELSE status END,
+                   updated_at = NOW()
+               WHERE meta_template_id = $3
+               RETURNING id, name, workspace_id`,
+              [event, reason || null, metaTemplateId]
+            )
+            if (updateRes.rows.length > 0) {
+              const tpl = updateRes.rows[0]
+              console.log(`[webhook] Template ${tpl.id} (${tpl.name}) status updated to ${event}${reason ? ` (reason: ${reason})` : ''}`)
+            } else {
+              console.warn(`[webhook] No template found with meta_template_id=${metaTemplateId}`)
+            }
+          } catch (err) {
+            console.error('[webhook] Failed to update template status:', err)
+          }
+          continue
+        }
+        // Handle template quality updates (Meta scores the template based on user signals)
+        if (change.field === 'message_template_quality_update') {
+          const v = change.value || {}
+          const metaTemplateId = v.message_template_id
+          const newScore = v.new_quality_score  // GREEN | YELLOW | RED | UNKNOWN
+          if (!metaTemplateId || !newScore) {
+            console.warn('[webhook] template_quality_update missing required fields:', v)
+            continue
+          }
+          try {
+            const updateRes = await pool.query(
+              `UPDATE templates SET quality_score = $1, updated_at = NOW()
+               WHERE meta_template_id = $2
+               RETURNING id, name`,
+              [newScore, metaTemplateId]
+            )
+            if (updateRes.rows.length > 0) {
+              const tpl = updateRes.rows[0]
+              console.log(`[webhook] Template ${tpl.id} (${tpl.name}) quality updated to ${newScore}`)
+            } else {
+              console.warn(`[webhook] No template found with meta_template_id=${metaTemplateId}`)
+            }
+          } catch (err) {
+            console.error('[webhook] Failed to update template quality:', err)
+          }
+          continue
+        }
         if (change.field !== 'messages') continue
         const value = change.value || {}
 

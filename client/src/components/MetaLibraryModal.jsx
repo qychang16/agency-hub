@@ -4,6 +4,7 @@ import { API } from '../utils/constants'
 import Modal from './ui/Modal'
 import Button from './ui/Button'
 import IPhonePreview from './IPhonePreview'
+import { formatLanguage } from '../utils/templateDisplay'
 
 function prettify(value) {
   if (!value) return ''
@@ -222,6 +223,12 @@ export default function MetaLibraryModal({ open, onClose, onInstalled }) {
                         <>
                           {' '}<span style={{ color: '#9a958c' }}>{'\u00b7'}</span>{' '}
                           {prettify(t.industry[0])}
+                        </>
+                      )}
+                      {t.language && (
+                        <>
+                          {' '}<span style={{ color: '#9a958c' }}>{'\u00b7'}</span>{' '}
+                          {formatLanguage(t.language)}
                         </>
                       )}
                     </div>

@@ -136,6 +136,7 @@ export default function Button({
   ...rest
 }) {
   const [hover, setHover] = useState(false)
+  const [pressed, setPressed] = useState(false)
   const isInactive = disabled || loading
 
   const sizeS = SIZE_STYLES[size] || SIZE_STYLES.md
@@ -169,9 +170,11 @@ export default function Button({
     borderRadius: radius.md,
     cursor: isInactive ? 'default' : 'pointer',
     opacity: isInactive ? (loading ? 0.85 : 0.55) : 1,
-    transition: 'background 0.12s, color 0.12s, opacity 0.12s, box-shadow 0.12s',
+    transition: 'background 0.08s, color 0.08s, opacity 0.12s, box-shadow 0.12s, transform 0.08s, filter 0.08s',
     whiteSpace: 'nowrap',
     width: fullWidth ? '100%' : undefined,
+    transform: pressed && !isInactive ? 'scale(0.97)' : 'scale(1)',
+    filter: pressed && !isInactive ? 'brightness(0.92)' : 'none',
     ...sizeS,
     ...variantS,
     ...iconOnlyOverrides,
@@ -188,7 +191,11 @@ export default function Button({
         title={title}
         disabled={isInactive}
         onMouseEnter={() => setHover(true)}
-        onMouseLeave={() => setHover(false)}
+        onMouseLeave={() => { setHover(false); setPressed(false) }}
+        onMouseDown={() => !isInactive && setPressed(true)}
+        onMouseUp={() => setPressed(false)}
+        onTouchStart={() => !isInactive && setPressed(true)}
+        onTouchEnd={() => setPressed(false)}
         style={baseStyle}
         {...rest}>
         {loading ? <Spinner size={sizeS.iconSize} /> : icon ? <span style={{ display: 'flex', alignItems: 'center' }}>{icon}</span> : null}

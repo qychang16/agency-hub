@@ -1,29 +1,16 @@
 // Shared template display utilities
-// Format Meta language codes to human-readable display
-// Example: 'en' -> 'English', 'en_US' -> 'English (US)'
+// Format Meta language codes to human-readable display.
+// Single source of truth for the language list lives in templateLanguages.js.
 
-export const LANGUAGE_DISPLAY = {
-  en: 'English',
-  en_US: 'English (US)',
-  en_GB: 'English (UK)',
-  zh_CN: 'Chinese (CN)',
-  zh_TW: 'Chinese (TW)',
-  ms: 'Malay',
-  id: 'Indonesian',
-  th: 'Thai',
-  vi: 'Vietnamese',
-  ja: 'Japanese',
-  ko: 'Korean',
-  es: 'Spanish',
-  pt_BR: 'Portuguese (BR)',
-  fr: 'French',
-  de: 'German',
-}
+import { TEMPLATE_LANGUAGE_LABELS } from './templateLanguages'
 
 export function formatLanguage(lang) {
   if (!lang) return 'English'
-  return LANGUAGE_DISPLAY[lang] || lang
+  return TEMPLATE_LANGUAGE_LABELS[lang] || lang
 }
+
+// Backwards-compat export. Kept in case anything else in the codebase imports it.
+export const LANGUAGE_DISPLAY = TEMPLATE_LANGUAGE_LABELS
 
 // Status color tokens matching the backend's getTemplateDisplayStatus output
 export const STATUS_COLORS = {

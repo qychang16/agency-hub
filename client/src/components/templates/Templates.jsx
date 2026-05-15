@@ -7,6 +7,7 @@ import MetaLibraryModal from '../MetaLibraryModal'
 import IPhonePreview from '../IPhonePreview'
 import Button from '../ui/Button'
 import Modal from '../ui/Modal'
+import LanguageSelect from './LanguageSelect'
 import { formatLanguage, STATUS_COLORS } from '../../utils/templateDisplay'
 
 const CATEGORIES = [
@@ -71,6 +72,7 @@ function TemplateEditor({ template, onClose, onSaved }) {
   const { token, user } = useAuth()
   const [name, setName] = useState(template?.name || '')
   const [category, setCategory] = useState(template?.category || 'utility')
+  const [language, setLanguage] = useState(template?.language || 'en')
   const [body, setBody] = useState(template?.body || '')
   const [buttons, setButtons] = useState(template?.buttons || [])
   const [saving, setSaving] = useState(false)
@@ -220,6 +222,7 @@ function TemplateEditor({ template, onClose, onSaved }) {
     const { closeOnSuccess = true } = options
     setError('')
     if (!name.trim()) { setError('Template name is required'); return null }
+    if (!language) { setError('Language is required'); return null }
     if (!body.trim()) { setError('Message body is required'); return null }
     const errored = Object.entries(varErrors).find(([, v]) => v)
     if (errored) { setError(`Fix variable name issues before saving: ${errored[0]}`); return null }
@@ -238,7 +241,7 @@ function TemplateEditor({ template, onClose, onSaved }) {
         method,
         headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
         body: JSON.stringify({
-          name, category, body, buttons,
+          name, category, language, body, buttons,
           status: status || (isEdit && !isClone ? template.status : 'draft'),
           type: 'whatsapp',
           variables
@@ -376,6 +379,21 @@ function TemplateEditor({ template, onClose, onSaved }) {
                 style={{ width: '100%', padding: '9px 12px', border: '0.5px solid #dcd8d0', borderRadius: 8, fontSize: 13, outline: 'none', background: '#fff', color: '#14130f' }}>
                 {CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label} - {c.desc}</option>)}
               </select>
+            </div>
+          </div>
+
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ fontSize: 11, fontWeight: 600, color: '#4a4742', display: 'block', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+              Language <span style={{ color: '#ef4444' }}>*</span>
+            </label>
+            <LanguageSelect
+              value={language}
+              onChange={setLanguage}
+              disabled={isMetaLibrary} />
+            <div style={{ fontSize: 10, color: '#9a958c', marginTop: 4 }}>
+              {isMetaLibrary
+                ? 'Locked - Meta Library templates have a fixed language.'
+                : 'Type to search. Meta requires the language to match the message text.'}
             </div>
           </div>
 

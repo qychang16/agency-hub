@@ -5603,7 +5603,7 @@ app.get('/templates', auth, async (req, res) => {
 app.post('/templates', auth, requirePermission('manage_templates'), async (req, res) => {
   try {
     const wsId = await getWorkspaceId(req.user.id)
-    const { name, category, body, buttons, subject, type, status, variables, header, footer } = req.body
+    const { name, category, language, body, buttons, subject, type, status, variables, header, footer } = req.body
     if (!name || !name.trim()) return res.status(400).json({ error: 'Template name is required' })
     const cleanName = name.trim()
     // Duplicate name check (Meta WABA enforces uniqueness; fail fast in our DB)
@@ -5617,9 +5617,9 @@ app.post('/templates', auth, requirePermission('manage_templates'), async (req, 
     // Normalise variables and reconcile with body (auto-extract any {{name}} from body that's missing from list)
     const reconciled = reconcileVariablesWithBody(variables, body)
     const r = await pool.query(
-      `INSERT INTO templates (workspace_id, name, category, body, buttons, subject, type, status, created_by, source, variables, header, footer)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'tenant',$10,$11,$12) RETURNING *`,
-      [wsId, cleanName, category, body, JSON.stringify(buttons || []), subject, type || 'whatsapp', status || 'draft', req.user.id, JSON.stringify(reconciled), header || null, footer || null]
+      `INSERT INTO templates (workspace_id, name, category, language, body, buttons, subject, type, status, created_by, source, variables, header, footer)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'tenant',$11,$12,$13) RETURNING *`,
+      [wsId, cleanName, category, language || 'en', body, JSON.stringify(buttons || []), subject, type || 'whatsapp', status || 'draft', req.user.id, JSON.stringify(reconciled), header || null, footer || null]
     )
     res.json(r.rows[0])
   } catch (err) {
@@ -5631,7 +5631,7 @@ app.post('/templates', auth, requirePermission('manage_templates'), async (req, 
 app.patch('/templates/:id', auth, requirePermission('manage_templates'), async (req, res) => {
   try {
     const wsId = await getWorkspaceId(req.user.id)
-    const { name, category, body, buttons, status, subject, variables, header, footer } = req.body
+    const { name, category, language, body, buttons, status, subject, variables, header, footer } = req.body
 
     // Fetch current row to know its source/status before mutating
     const current = await pool.query(`SELECT id, name, source, status, body, variables FROM templates WHERE id=$1 AND workspace_id=$2`, [req.params.id, wsId])
@@ -5686,18 +5686,20 @@ app.patch('/templates/:id', auth, requirePermission('manage_templates'), async (
       `UPDATE templates SET
          name = COALESCE($1, name),
          category = COALESCE($2, category),
-         body = COALESCE($3, body),
-         buttons = COALESCE($4, buttons),
-         status = COALESCE($5, status),
-         subject = COALESCE($6, subject),
-         variables = COALESCE($7, variables),
-         header = COALESCE($8, header),
-         footer = COALESCE($9, footer),
+         language = COALESCE($3, language),
+         body = COALESCE($4, body),
+         buttons = COALESCE($5, buttons),
+         status = COALESCE($6, status),
+         subject = COALESCE($7, subject),
+         variables = COALESCE($8, variables),
+         header = COALESCE($9, header),
+         footer = COALESCE($10, footer),
          updated_at = NOW()
-       WHERE id=$10 AND workspace_id=$11 RETURNING *`,
+       WHERE id=$11 AND workspace_id=$12 RETURNING *`,
       [
         name !== undefined ? name.trim() : null,
         category !== undefined ? category : null,
+        language !== undefined ? language : null,
         body !== undefined ? body : null,
         buttons !== undefined ? JSON.stringify(buttons || []) : null,
         status !== undefined ? status : null,

@@ -213,12 +213,16 @@ function TemplateEditor({ template, onClose, onSaved }) {
     setBody(p => p + `{{${v}}}`)
   }
 
-  async function save(status) {
+  // Saves the template. Returns the saved row's id on success, or null on failure.
+  // If options.closeOnSuccess is false, skips closing the modal and refreshing list
+  // (used when chaining into submitToMeta).
+  async function save(status, options = {}) {
+    const { closeOnSuccess = true } = options
     setError('')
-    if (!name.trim()) { setError('Template name is required'); return }
-    if (!body.trim()) { setError('Message body is required'); return }
+    if (!name.trim()) { setError('Template name is required'); return null }
+    if (!body.trim()) { setError('Message body is required'); return null }
     const errored = Object.entries(varErrors).find(([, v]) => v)
-    if (errored) { setError(`Fix variable name issues before saving: ${errored[0]}`); return }
+    if (errored) { setError(`Fix variable name issues before saving: ${errored[0]}`); return null }
     setSaving(true)
     try {
       // Clones are always POSTs (new template), never PATCHes - even though template object exists.
@@ -240,11 +244,70 @@ function TemplateEditor({ template, onClose, onSaved }) {
           variables
         })
       })
-      if (!r.ok) { const d = await r.json(); setError(d.error || 'Failed to save'); return }
+      if (!r.ok) { const d = await r.json(); setError(d.error || 'Failed to save'); return null }
+      // Defensive: try to parse response for id; fall back to existing template.id if PATCH.
+      let savedId = null
+      try {
+        const saved = await r.json()
+        if (saved && typeof saved.id === 'number') savedId = saved.id
+      } catch { /* response had no JSON body */ }
+      if (!savedId && isEdit && !isClone && template?.id) savedId = template.id
+      if (closeOnSuccess) {
+        onSaved()
+        onClose()
+      }
+      return savedId
+    } catch { setError('Failed to save. Please try again.'); return null }
+    finally { setSaving(false) }
+  }
+
+// Save the template as a draft and then submit it to Meta in one chained action.
+  // Used by the new "Save & Submit to Meta" button for directors/managers.
+  // On Meta API failure, keeps modal open so user can fix and retry.
+  async function saveAndSubmitToMeta() {
+    // Step 1: save as draft (override role-based default) and get the ID.
+    const savedId = await save('draft', { closeOnSuccess: false })
+    if (!savedId) return  // save() already set the error message
+    // Step 2: defensive fallback. If we somehow didn't get an ID from save(),
+    // refetch the list and find by name.
+    let templateId = savedId
+    if (!templateId) {
+      try {
+        const r = await fetch(`${API}/templates`, { headers: { Authorization: 'Bearer ' + token } })
+        const list = await r.json()
+        const match = Array.isArray(list) ? list.find(t => t.name?.toLowerCase() === name.trim().toLowerCase()) : null
+        if (match) templateId = match.id
+      } catch { /* fall through to error below */ }
+    }
+    if (!templateId) {
+      setError('Saved successfully, but could not locate the template to submit. Refresh and click Submit to Meta on the card.')
+      return
+    }
+    // Step 3: call submit-to-meta.
+    setSaving(true)
+    try {
+      const r = await fetch(`${API}/templates/${templateId}/submit-to-meta`, {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + token }
+      })
+      const data = await r.json().catch(() => ({}))
+      if (!r.ok) {
+        const errMsg = data.error || 'Submission to Meta failed'
+        const metaCode = data.meta_error_code ? ` (Meta code ${data.meta_error_code})` : ''
+        setError(`Saved as draft, but Meta rejected the submission: ${errMsg}${metaCode}. Edit and try again, or close to keep as draft.`)
+        // Refresh list so the saved draft appears on the cards page even though Meta failed.
+        onSaved()
+        return
+      }
+      // Success: close modal and refresh list.
       onSaved()
       onClose()
-    } catch { setError('Failed to save. Please try again.') }
-    finally { setSaving(false) }
+    } catch (err) {
+      setError(`Network error submitting to Meta: ${err.message}. The template was saved as draft - you can retry from the card.`)
+      onSaved()
+    } finally {
+      setSaving(false)
+    }
   }
 
   const QUICK_VARS = ['name', 'role', 'company', 'date', 'time', 'venue', 'salary', 'deadline', 'start_date', 'hr_name', 'candidate']
@@ -517,13 +580,14 @@ function TemplateEditor({ template, onClose, onSaved }) {
           <div style={{ display: 'flex', gap: 10, marginTop: 20, paddingTop: 16, borderTop: '0.5px solid #f5f3ef' }}>
             <Button variant="ghost" onClick={onClose} style={{ flex: 1 }}>Cancel</Button>
             <Button variant="ghost" onClick={() => save('draft')} disabled={saving} style={{ flex: 1 }}>Save as Draft</Button>
-            {(user?.role === 'director' || user?.role === 'manager') ? (
+            {isMetaLibrary ? (
+              // Meta Library templates are pre-approved; no submission needed. Just save defaults.
               <Button onClick={() => save('approved')} disabled={saving} style={{ flex: 2 }}>
-                {saving ? 'Saving...' : (isEdit && !isClone) ? 'Save & Approve' : 'Create & Approve'}
+                {saving ? 'Saving...' : 'Save Defaults'}
               </Button>
             ) : (
-              <Button onClick={() => save('pending')} disabled={saving} style={{ flex: 2 }}>
-                {saving ? 'Saving...' : 'Submit for Approval'}
+              <Button onClick={saveAndSubmitToMeta} disabled={saving} style={{ flex: 2 }}>
+                {saving ? 'Submitting to Meta...' : 'Save & Submit to Meta'}
               </Button>
             )}
           </div>

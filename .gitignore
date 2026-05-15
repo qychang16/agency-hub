@@ -18,3 +18,8 @@ railway-logs.txt
 # Local DB backups and one-off SQL scripts
 backups/
 *.sql
+
+seed_from_prod_ws6.sql
+
+dump_for_review.txt
+dump_ws6_from_prod.ps1

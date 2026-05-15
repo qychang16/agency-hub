@@ -74,6 +74,14 @@ export default function ChatWindow({ activeConvoId, active, setActive, projects,
   const isAtBottomRef = useRef(true)
   const messageRefs = useRef(new Map())
 
+  // 24-hour customer service window state
+  // Derived from active.last_inbound_at (from server). Closed by default if no inbound on file.
+  const lastInboundAt = active?.last_inbound_at ? new Date(active.last_inbound_at) : null
+  const msSinceInbound = lastInboundAt ? Date.now() - lastInboundAt.getTime() : Infinity
+  const WINDOW_MS = 24 * 60 * 60 * 1000
+  const isWindowOpen = msSinceInbound < WINDOW_MS
+  const hoursAgo = lastInboundAt ? Math.floor(msSinceInbound / (60 * 60 * 1000)) : null
+
   useEffect(() => {
     if (!token) return
     fetch(`${API}/event-types`, { headers: { Authorization: 'Bearer ' + token } })
@@ -175,11 +183,22 @@ export default function ChatWindow({ activeConvoId, active, setActive, projects,
 
   async function sendMessage() {
     if (!input.trim() || !activeConvoId) return
-    await fetch(`${API}/messages`, {
+    const res = await fetch(`${API}/messages`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
       body: JSON.stringify({ conversation_id: activeConvoId, direction: 'out', text: input })
     })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      if (data.code === 'WINDOW_CLOSED') {
+        // Re-sync conversation state so the banner appears and composer disables
+        setActive(prev => prev ? { ...prev, last_inbound_at: data.last_inbound_at } : prev)
+        alert('The 24-hour customer service window has closed for this conversation. Send an approved template message instead.')
+        return
+      }
+      alert(data.error || 'Failed to send message. Please try again.')
+      return
+    }
     setInput(''); setShowEmoji(false)
     setTimeout(() => scrollToBottom(true), 50)
   }
@@ -819,29 +838,68 @@ export default function ChatWindow({ activeConvoId, active, setActive, projects,
             {EMOJIS.map(e => <span key={e} onClick={() => insertEmoji(e)} style={{ fontSize: 16, cursor: 'pointer', padding: 2, borderRadius: 3, lineHeight: 1.2, userSelect: 'none' }}>{e}</span>)}
           </div>
         )}
+        {!isWindowOpen && active && (
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: space[3],
+            padding: `${space[2]}px ${space[3]}px`,
+            background: semantic.warningSoft,
+            border: `0.5px solid ${semantic.warning}`,
+            borderRadius: radius.md,
+            marginBottom: space[2],
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: space[2], fontSize: textSize.xs, color: ink[800] }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="12" />
+                <line x1="12" y1="16" x2="12.01" y2="16" />
+              </svg>
+              <span>
+                {lastInboundAt
+                  ? `24-hour window closed. Last reply ${hoursAgo}h ago. `
+                  : 'No inbound message on file. '}
+                Send an approved template to re-engage.
+              </span>
+            </div>
+            <button onClick={() => setShowSendTemplate(true)}
+              style={{
+                padding: `${space[1] + 1}px ${space[3]}px`,
+                background: accent.DEFAULT, color: '#fff',
+                border: 'none', borderRadius: radius.md,
+                fontSize: textSize.xs, fontWeight: textWeight.semibold,
+                cursor: 'pointer', flexShrink: 0,
+                fontFamily: fonts.body,
+              }}>Send Template</button>
+          </div>
+        )}
         <div style={{ display: 'flex', gap: space[2], alignItems: 'flex-end' }}>
           <textarea ref={textareaRef} value={input} onChange={e => setInput(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() } }}
-            placeholder={compMode === 'template' ? 'Edit template before sending...' : 'Type a message'}
+            placeholder={!isWindowOpen
+              ? 'Window closed - send a template'
+              : compMode === 'template' ? 'Edit template before sending...' : 'Type a message'}
+            disabled={!isWindowOpen}
             rows={2}
             style={{
               flex: 1, padding: `${space[2]}px ${space[3]}px`,
               border: `0.5px solid ${ink[300]}`,
               borderRadius: radius.md,
               fontSize: textSize.sm,
-              background: ink[100],
-              color: ink[800],
+              background: !isWindowOpen ? ink[200] : ink[100],
+              color: !isWindowOpen ? ink[500] : ink[800],
+              cursor: !isWindowOpen ? 'not-allowed' : 'text',
               resize: 'none', fontFamily: fonts.body,
               lineHeight: 1.5, minHeight: 46, maxHeight: 100,
               overflowY: 'auto', outline: 'none',
             }} />
           <button onClick={sendMessage}
+            disabled={!isWindowOpen}
+            title={!isWindowOpen ? 'Window closed - use Send Template instead' : undefined}
             style={{
               padding: `${space[2] + 1}px ${space[5]}px`,
-              background: accent.DEFAULT, color: '#fff',
+              background: !isWindowOpen ? ink[300] : accent.DEFAULT, color: '#fff',
               border: 'none', borderRadius: radius.md,
               fontSize: textSize.sm, fontWeight: textWeight.semibold,
-              cursor: 'pointer', flexShrink: 0,
+              cursor: !isWindowOpen ? 'not-allowed' : 'pointer', flexShrink: 0,
               fontFamily: fonts.body, letterSpacing: '0.2px',
             }}>Send</button>
         </div>
@@ -855,10 +913,12 @@ export default function ChatWindow({ activeConvoId, active, setActive, projects,
               padding: `2px ${space[2]}px`,
               borderRadius: radius.sm,
               fontWeight: textWeight.medium,
-              background: active.status === 'open' ? semantic.successSoft : semantic.warningSoft,
-              color: active.status === 'open' ? semantic.success : semantic.warning,
+              background: isWindowOpen ? semantic.successSoft : semantic.warningSoft,
+              color: isWindowOpen ? semantic.success : semantic.warning,
             }}>
-              {active.status === 'open' ? '24hr window open' : 'Template required'}
+              {isWindowOpen
+                ? (hoursAgo !== null ? `24hr window open (${24 - hoursAgo}h left)` : '24hr window open')
+                : 'Window closed - template required'}
             </span>
           )}
         </div>

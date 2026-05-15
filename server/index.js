@@ -4891,6 +4891,26 @@ app.post('/messages', auth, requirePermission('send_messages'), async (req, res)
       }
     }
 
+    // 24-hour customer service window check
+    // Outbound free-form messages can only be sent if the contact replied within the last 24h.
+    // Template messages bypass this restriction (Meta's session/template message rule).
+    if (direction === 'out' && !is_note && !template_id) {
+      const winCheck = await pool.query(
+        `SELECT last_inbound_at FROM conversations WHERE id = $1`,
+        [conversation_id]
+      )
+      const lastInbound = winCheck.rows[0]?.last_inbound_at
+      const isWindowOpen = lastInbound &&
+        (Date.now() - new Date(lastInbound).getTime()) < 24 * 60 * 60 * 1000
+      if (!isWindowOpen) {
+        return res.status(400).json({
+          error: 'The 24-hour customer service window is closed for this conversation. Send an approved template message instead.',
+          code: 'WINDOW_CLOSED',
+          last_inbound_at: lastInbound
+        })
+      }
+    }
+
     const r = await pool.query(
       `INSERT INTO messages (conversation_id, workspace_id, user_id, direction, text, type, is_note, template_id, status, sent_at)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'pending',NOW()) RETURNING *`,
@@ -8722,7 +8742,7 @@ app.post('/webhook', async (req, res) => {
             await autoRouteConversation(pool, wsId, convoId, contactId)
           }
           const insertedMsg = await pool.query(`INSERT INTO messages (conversation_id, workspace_id, direction, text, type, status, whatsapp_message_id, sent_at) VALUES ($1, $2, 'in', $3, 'text', 'received', $4, NOW()) RETURNING *`, [convoId, wsId, text, waMessageId])
-          await pool.query(`UPDATE conversations SET last_message_at=NOW(), last_message_preview=$1, unread_count=COALESCE(unread_count,0)+1, updated_at=NOW() WHERE id=$2`, [text.slice(0, 100), convoId])
+          await pool.query(`UPDATE conversations SET last_message_at=NOW(), last_inbound_at=NOW(), last_message_preview=$1, unread_count=COALESCE(unread_count,0)+1, updated_at=NOW() WHERE id=$2`, [text.slice(0, 100), convoId])
           io.emit('new_message', { ...insertedMsg.rows[0], conversation_id: convoId })
           console.log(`📥 Inbound message from ${fromPhone} saved to convo ${convoId}`)
         }

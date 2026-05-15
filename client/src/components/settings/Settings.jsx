@@ -91,6 +91,8 @@ const SECTIONS = [
 const ALL_TABS = SECTIONS.flatMap(s => s.tabs)
 
 function isTabVisible(tab, user, hasPermission) {
+  // Super_admin sees everything (platform-level role)
+  if (user?.is_super_admin) return true
   // Roles & Permissions tab — gated by explicit permission (Chunk 5)
   if (tab.key === 'roles') return hasPermission('manage_role_permissions')
   // Billing tab — gated by manage_billing permission (Chunk 26, director-only by default)

@@ -85,7 +85,12 @@ function ConsentModal({ contact, history, onClose, onSaved, token }) {
             <div style={{ fontSize: 14, fontWeight: 600, color: '#14130f' }}>{contact.name || '(no name)'}</div>
             <div style={{ fontSize: 11, color: '#9a958c', marginTop: 2, fontFamily: 'monospace' }}>{contact.phone}</div>
           </div>
-          <button onClick={onClose} style={{ width: 28, height: 28, borderRadius: 7, border: '0.5px solid #dcd8d0', background: '#faf9f7', cursor: 'pointer', fontSize: 14, color: '#6e6a63' }}>✕</button>
+          <button onClick={onClose} style={{ width: 28, height: 28, borderRadius: 7, border: '0.5px solid #dcd8d0', background: '#faf9f7', cursor: 'pointer', color: '#6e6a63', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+              <line x1="4" y1="4" x2="12" y2="12" />
+              <line x1="12" y1="4" x2="4" y2="12" />
+            </svg>
+          </button>
         </div>
 
         {/* History */}

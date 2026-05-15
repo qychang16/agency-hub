@@ -1103,9 +1103,16 @@ function RolesModal({ workspace, onClose }) {
             </div>
           </div>
           <button onClick={onClose} style={{
-            background: 'transparent', border: 'none', fontSize: 20,
-            color: ink[500], cursor: 'pointer', padding: 4, lineHeight: 1,
-          }}>脳</button>
+            width: 28, height: 28, borderRadius: 7,
+            border: `0.5px solid ${ink[300]}`, background: ink[100],
+            color: ink[600], cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+              <line x1="4" y1="4" x2="12" y2="12" />
+              <line x1="12" y1="4" x2="4" y2="12" />
+            </svg>
+          </button>
         </div>
         <div style={{ flex: 1, overflowY: 'auto' }}>
           <RolesPermissions workspaceId={workspace.id} workspaceName={workspace.name} />

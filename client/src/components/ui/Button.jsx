@@ -44,44 +44,44 @@ const SIZE_STYLES = {
   },
 }
 
-function getVariantStyles({ variant, hover, selected, disabled }) {
+function getVariantStyles({ variant, hover, pressed, selected, disabled }) {
   switch (variant) {
     case 'primary':
       return {
-        background: disabled ? ink[400] : hover ? accent.hover : accent.DEFAULT,
+        background: disabled ? ink[400] : pressed ? '#1e1b4b' : hover ? accent.hover : accent.DEFAULT,
         color: '#fff',
         border: 'none',
       }
     case 'secondary':
       return {
-        background: selected ? ink[100] : hover ? ink[100] : 'transparent',
+        background: pressed ? ink[200] : selected ? ink[100] : hover ? ink[100] : 'transparent',
         color: ink[800],
         border: `0.5px solid ${ink[300]}`,
       }
     case 'danger':
       return {
-        background: disabled ? ink[400] : hover ? '#7a2424' : semantic.danger,
+        background: disabled ? ink[400] : pressed ? '#5a1818' : hover ? '#7a2424' : semantic.danger,
         color: '#fff',
         border: 'none',
       }
     case 'ghost':
       return {
-        background: selected ? ink[100] : hover ? ink[100] : 'transparent',
+        background: pressed ? ink[200] : selected ? ink[100] : hover ? ink[100] : 'transparent',
         color: ink[700],
         border: 'none',
       }
     case 'link':
       return {
         background: 'transparent',
-        color: hover ? accent.hover : accent.DEFAULT,
+        color: pressed ? '#3730a3' : hover ? accent.hover : accent.DEFAULT,
         border: 'none',
         padding: 0,
         minHeight: 'auto',
-        textDecoration: hover ? 'underline' : 'none',
+        textDecoration: hover || pressed ? 'underline' : 'none',
       }
     case 'success':
       return {
-        background: disabled ? ink[400] : hover ? '#245c43' : semantic.success,
+        background: disabled ? ink[400] : pressed ? '#15402e' : hover ? '#245c43' : semantic.success,
         color: '#fff',
         border: 'none',
       }
@@ -89,7 +89,7 @@ function getVariantStyles({ variant, hover, selected, disabled }) {
       // Meta brand blue. Kept as raw hex because it's a third-party brand color,
       // not part of the Tel-Cloud design system.
       return {
-        background: disabled ? ink[400] : hover ? '#166fe5' : '#1877f2',
+        background: disabled ? ink[400] : pressed ? '#0d52b3' : hover ? '#166fe5' : '#1877f2',
         color: '#fff',
         border: 'none',
       }
@@ -97,7 +97,7 @@ function getVariantStyles({ variant, hover, selected, disabled }) {
       // Recruitment-vertical purple to match the tel_cloud_library section accent
       // on the Templates page.
       return {
-        background: disabled ? ink[400] : hover ? '#4c1d96' : '#5b21b6',
+        background: disabled ? ink[400] : pressed ? '#2e1065' : hover ? '#4c1d96' : '#5b21b6',
         color: '#fff',
         border: 'none',
       }
@@ -140,7 +140,7 @@ export default function Button({
   const isInactive = disabled || loading
 
   const sizeS = SIZE_STYLES[size] || SIZE_STYLES.md
-  const variantS = getVariantStyles({ variant, hover: hover && !isInactive, selected, disabled: isInactive })
+  const variantS = getVariantStyles({ variant, hover: hover && !isInactive, pressed: pressed && !isInactive, selected, disabled: isInactive })
 
   // For icon-only buttons, force square shape
   const iconOnlyOverrides = iconOnly ? {
@@ -173,8 +173,6 @@ export default function Button({
     transition: 'background 0.08s, color 0.08s, opacity 0.12s, box-shadow 0.12s, transform 0.08s, filter 0.08s',
     whiteSpace: 'nowrap',
     width: fullWidth ? '100%' : undefined,
-    transform: pressed && !isInactive ? 'scale(0.97)' : 'scale(1)',
-    filter: pressed && !isInactive ? 'brightness(0.92)' : 'none',
     ...sizeS,
     ...variantS,
     ...iconOnlyOverrides,

@@ -15,6 +15,7 @@ const queue = require('./queues')
 const { createInvitationHandlers, runChunk30InvitationsMigration } = require('./routes/invitations')
 const { createProfileHandlers, runChunk31ProfileMigration } = require('./routes/profile')
 const { validatePassword, generateRandomPassword } = require('./utils/passwordPolicy')
+const { sendMail } = require('./utils/emailSender')
 
 const app = express()
 const httpServer = createServer(app)
@@ -4890,7 +4891,29 @@ app.post('/messages', auth, requirePermission('send_messages'), async (req, res)
         return res.status(404).json({ error: 'Conversation not found' })
       }
     }
-
+    // Phone-number connection check
+    // If the phone_number tied to this conversation is disconnected by Meta
+    // (PRIMARY_INACTIVITY, COMPANION_INACTIVITY, etc.), block all outbound
+    // sends. Internal notes (is_note) bypass since they don't hit Meta.
+    if (direction === 'out' && !is_note) {
+      const phoneCheck = await pool.query(
+        `SELECT pn.connection_status, pn.number, pn.disconnect_reason, pn.disconnected_at
+         FROM conversations c
+         JOIN phone_numbers pn ON pn.id = c.phone_number_id
+         WHERE c.id = $1`,
+        [conversation_id]
+      )
+      const phoneStatus = phoneCheck.rows[0]
+      if (phoneStatus && phoneStatus.connection_status === 'DISCONNECTED') {
+        return res.status(400).json({
+          error: `WhatsApp number ${phoneStatus.number} is disconnected (reason: ${phoneStatus.disconnect_reason || 'unknown'}). Reconnect via WhatsApp Business app before sending.`,
+          code: 'PHONE_DISCONNECTED',
+          phone_number: phoneStatus.number,
+          disconnect_reason: phoneStatus.disconnect_reason,
+          disconnected_at: phoneStatus.disconnected_at
+        })
+      }
+    }
     // 24-hour customer service window check
     // Outbound free-form messages can only be sent if the contact replied within the last 24h.
     // Template messages bypass this restriction (Meta's session/template message rule).
@@ -8605,6 +8628,93 @@ app.post('/webhook', async (req, res) => {
             }
           } catch (err) {
             console.error('[webhook] Failed to update template quality:', err)
+          }
+          continue
+        }
+        // Handle WhatsApp account disconnection (PRIMARY_INACTIVITY at ~14 days,
+        // COMPANION_INACTIVITY at ~30 days, user-initiated disconnect, etc.)
+        // Meta fires this when the WABA is severed from Tel-Cloud. Templates
+        // and conversations in our DB are NOT deleted - they just become
+        // unusable until reconnect. We mark the phone_number as DISCONNECTED,
+        // persist the reason, and email workspace directors.
+        if (change.field === 'account_update') {
+          const v = change.value || {}
+          const event = v.event  // e.g. PARTNER_REMOVED
+          const disconnectionInfo = v.disconnection_info || null
+          const reason = disconnectionInfo?.reason || null  // PRIMARY_INACTIVITY, COMPANION_INACTIVITY, etc.
+          const initiatedBy = disconnectionInfo?.initiated_by || null  // USER or SYSTEM
+          const displayPhone = v.phone_number  // E.164 without +
+          if (event !== 'PARTNER_REMOVED') {
+            // Other account_update events exist (BUSINESS_DOWNGRADE, CHANGE_NUMBER, etc.).
+            // We only act on PARTNER_REMOVED for now. Log others for future handling.
+            console.log(`[webhook] account_update event=${event} (not PARTNER_REMOVED, ignoring)`, v)
+            continue
+          }
+          if (!displayPhone) {
+            console.warn('[webhook] account_update PARTNER_REMOVED missing phone_number:', v)
+            continue
+          }
+          try {
+            const phoneE164 = displayPhone.startsWith('+') ? displayPhone : '+' + displayPhone
+            const updateRes = await pool.query(
+              `UPDATE phone_numbers
+               SET connection_status = 'DISCONNECTED',
+                   connection_error = $1,
+                   disconnected_at = NOW(),
+                   disconnect_reason = $2,
+                   last_connection_check_at = NOW()
+               WHERE number = $3 OR display_name = $3
+               RETURNING id, workspace_id, number, display_name`,
+              [
+                `Meta disconnect: ${reason || 'unknown'} (initiated by ${initiatedBy || 'unknown'})`,
+                reason || 'UNKNOWN',
+                phoneE164,
+              ]
+            )
+            if (updateRes.rows.length === 0) {
+              console.warn(`[webhook] account_update PARTNER_REMOVED: no phone_numbers row matches "${phoneE164}". Disconnect ignored.`)
+              continue
+            }
+            const phone = updateRes.rows[0]
+            console.warn(`[webhook] Phone ${phone.id} (${phone.number}) DISCONNECTED. Reason: ${reason}, by: ${initiatedBy}, workspace: ${phone.workspace_id}`)
+            // Email all directors of the affected workspace so they react fast.
+            try {
+              const directors = await pool.query(
+                `SELECT id, email, name FROM users
+                 WHERE workspace_id = $1 AND role = 'director' AND email IS NOT NULL`,
+                [phone.workspace_id]
+              )
+              const reasonHuman = {
+                PRIMARY_INACTIVITY: 'the WhatsApp account was inactive for too long (~14 days)',
+                COMPANION_INACTIVITY: 'the companion device was inactive for too long (~30 days)',
+                ACCOUNT_DISCONNECTED: 'the account was disconnected by Meta enforcement or explicit deletion',
+                BUSINESS_DOWNGRADE: 'the number was registered with the consumer WhatsApp app',
+                CHANGE_NUMBER: 'the WhatsApp number was changed',
+                USER_RE_REGISTERED: 'the number was re-registered on a new device',
+              }[reason] || `the reason given by Meta was "${reason || 'unknown'}"`
+              for (const dir of directors.rows) {
+                await sendMail({
+                  to: dir.email,
+                  subject: `Action required: WhatsApp disconnected (${phone.number})`,
+                  html: `
+                    <p>Hi ${dir.name || 'Director'},</p>
+                    <p>Your Tel-Cloud WhatsApp number <strong>${phone.number}</strong> (${phone.display_name || 'unnamed'}) has been disconnected by Meta.</p>
+                    <p><strong>Reason:</strong> ${reasonHuman}.</p>
+                    <p>While disconnected, Tel-Cloud cannot send or receive WhatsApp messages on this number. Your templates and conversation history remain safe in Tel-Cloud and will be usable again once you reconnect.</p>
+                    <p><strong>To reconnect:</strong> Open WhatsApp Business app on the registered device and complete any verification prompt, or contact your Tel-Cloud administrator to re-onboard the number.</p>
+                    <p>If you have questions, reply to this email or contact support@tel-cloud.sg.</p>
+                    <p>- Tel-Cloud</p>
+                  `,
+                  text: `Hi ${dir.name || 'Director'},\n\nYour Tel-Cloud WhatsApp number ${phone.number} has been disconnected by Meta.\n\nReason: ${reasonHuman}.\n\nWhile disconnected, Tel-Cloud cannot send or receive WhatsApp messages. Your templates and conversation history are safe and will be usable again once you reconnect.\n\nTo reconnect: open WhatsApp Business app on the registered device, or contact your Tel-Cloud administrator.\n\n- Tel-Cloud`,
+                })
+                console.log(`[webhook] Disconnect alert emailed to director ${dir.email} for phone ${phone.id}`)
+              }
+            } catch (mailErr) {
+              console.error('[webhook] Failed to email disconnect alert:', mailErr)
+              // Don't fail the webhook - email errors shouldn't block status update
+            }
+          } catch (err) {
+            console.error('[webhook] Failed to process account_update PARTNER_REMOVED:', err)
           }
           continue
         }

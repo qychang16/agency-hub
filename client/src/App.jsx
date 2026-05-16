@@ -28,6 +28,7 @@ const InviteAccept = lazy(() => import('./components/auth/InviteAccept'))
 const VerifyEmail = lazy(() => import('./components/auth/VerifyEmail'))
 const Profile = lazy(() => import('./components/profile/Profile'))
 import ImpersonationBanner from './components/layout/ImpersonationBanner'
+import DisconnectBanner from './components/layout/DisconnectBanner'
 
 // ─── LOGIN SCREEN ──────────────────────────────────────────────────────────────
 function LoginScreen() {
@@ -650,6 +651,7 @@ function AppWithAuth() {
   return (
     <>
       <ImpersonationBanner />
+      <DisconnectBanner />
       <WorkspaceProvider>
         <MainApp />
       </WorkspaceProvider>

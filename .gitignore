@@ -1,25 +1,18 @@
-
 eque-initial-passwords.txt
-
 client/.env.local
-
 .env
 .env.production
 node_modules/
 **/node_modules/
 *.log
-
 # Backup files
 *.bak
-
 # Local log dumps
 railway-logs.txt
-
-# Local DB backups and one-off SQL scripts
+# Local DB backups and one-off SQL scripts (migration_*.sql whitelisted below)
 backups/
 *.sql
-
+!migration_*.sql
 seed_from_prod_ws6.sql
-
 dump_for_review.txt
 dump_ws6_from_prod.ps1

@@ -16,6 +16,7 @@ const { createInvitationHandlers, runChunk30InvitationsMigration } = require('./
 const { createProfileHandlers, runChunk31ProfileMigration } = require('./routes/profile')
 const { validatePassword, generateRandomPassword } = require('./utils/passwordPolicy')
 const { sendMail } = require('./utils/emailSender')
+const stripeClient = require('./utils/stripeClient')
 
 const app = express()
 const httpServer = createServer(app)
@@ -7329,16 +7330,51 @@ app.get('/billing/wallet/transactions', auth, requirePermission('manage_billing'
 //   4. Webhook handler /billing/webhook/stripe is built (separate ticket)
 // The frontend will display "Connect payment method to enable" until this
 // endpoint moves from 501 to real Stripe integration.
+// POST /billing/wallet/topup
+// Creates a Stripe Checkout Session for a one-off wallet top-up.
+// Body: { amount_cents } - integer between 1000 (S$10) and 1000000 (S$10,000)
+// Returns: { checkout_url } - URL to redirect the user to
+// The actual wallet credit happens later via the checkout.session.completed webhook,
+// not here. This endpoint only creates the payment intent.
 app.post('/billing/wallet/topup', auth, requirePermission('manage_billing'), async (req, res) => {
-  return res.status(501).json({
-    error: 'Wallet top-up is not yet available. Stripe integration pending.',
-    pending_steps: [
-      'Create Tel-Cloud product in Stripe',
-      'Add stripe-node to package.json',
-      'Configure STRIPE_SECRET_KEY environment variable',
-      'Build /billing/webhook/stripe handler'
-    ]
-  })
+  try {
+    const wsId = await getWorkspaceId(req.user.id)
+    const { amount_cents } = req.body
+    if (!Number.isInteger(amount_cents)) {
+      return res.status(400).json({
+        error: 'amount_cents must be an integer (cents)',
+        code: 'INVALID_AMOUNT'
+      })
+    }
+    if (amount_cents < 1000 || amount_cents > 1000000) {
+      return res.status(400).json({
+        error: 'Top-up amount must be between S$10 and S$10,000',
+        code: 'AMOUNT_OUT_OF_RANGE',
+        min_cents: 1000,
+        max_cents: 1000000
+      })
+    }
+    // Build success/cancel URLs from request origin (works for both local dev and prod)
+    const origin = req.headers.origin || req.headers.referer?.replace(/\/$/, '') || 'https://app.tel-cloud.sg'
+    const successUrl = `${origin}/settings?tab=billing&topup=success&session_id={CHECKOUT_SESSION_ID}`
+    const cancelUrl = `${origin}/settings?tab=billing&topup=cancelled`
+    const session = await stripeClient.createTopupCheckoutSession({
+      pool,
+      workspaceId: wsId,
+      amountCents: amount_cents,
+      successUrl,
+      cancelUrl,
+    })
+    res.json({
+      checkout_url: session.url,
+      session_id: session.id,
+      amount_cents,
+      expires_at: session.expires_at,
+    })
+  } catch (err) {
+    console.error('[/billing/wallet/topup] error:', err)
+    res.status(500).json({ error: err.message || 'Failed to create top-up session' })
+  }
 })
 
 // GET /billing/invoices
@@ -9080,6 +9116,174 @@ async function applyRouting(client, convoId, decision) {
   })
 
   return decision
+}
+
+// ─── STRIPE WEBHOOK ─────────────────────────────────────────────────────────────────
+// Receives events from Stripe (checkout completed, subscription changes,
+// refunds, etc.) and updates Tel-Cloud's billing state accordingly.
+//
+// Security: Stripe signs every event with the webhook signing secret. We
+// verify the signature on the raw request body. Without verification an
+// attacker could POST fake events and inflate wallet balances. The raw
+// body is captured at line ~36 via express.json's verify callback into
+// req.rawBody.
+//
+// Idempotency: Stripe may deliver the same event multiple times. We
+// dedupe by stripe_event_id (unique partial index on wallet_transactions).
+//
+// Path X scope: handles checkout.session.completed for top-ups. Other
+// event types are logged for now and handled in a later session.
+app.post('/billing/webhook/stripe', async (req, res) => {
+  const signature = req.headers['stripe-signature']
+  if (!signature) {
+    console.warn('[stripe-webhook] Missing stripe-signature header, rejecting')
+    return res.status(400).json({ error: 'Missing signature' })
+  }
+  if (!req.rawBody) {
+    console.error('[stripe-webhook] req.rawBody is empty - express.json verify callback may be misconfigured')
+    return res.status(500).json({ error: 'Server cannot read raw body' })
+  }
+  let event
+  try {
+    event = stripeClient.verifyWebhookEvent(req.rawBody, signature)
+  } catch (err) {
+    console.warn(`[stripe-webhook] Signature verification failed: ${err.message}`)
+    return res.status(400).json({ error: 'Invalid signature' })
+  }
+  // Acknowledge receipt FAST. Stripe expects 2xx within seconds or it retries.
+  // We'll do heavy lifting below; even if processing fails, Stripe already got
+  // the 200 and won't retry. Use the event_id idempotency check to recover
+  // from any silent failures in a manual replay later.
+  res.status(200).json({ received: true, event_id: event.id, event_type: event.type })
+  // Idempotency: skip if we've already processed this event
+  try {
+    const dupCheck = await pool.query(
+      `SELECT id FROM wallet_transactions WHERE stripe_event_id = $1 LIMIT 1`,
+      [event.id]
+    )
+    if (dupCheck.rows.length > 0) {
+      console.log(`[stripe-webhook] Skipping duplicate event ${event.id} (${event.type}) - already processed as tx ${dupCheck.rows[0].id}`)
+      return
+    }
+  } catch (err) {
+    console.error(`[stripe-webhook] Idempotency check failed for event ${event.id}:`, err)
+    // Fall through and attempt processing anyway. The UNIQUE constraint
+    // on stripe_event_id will catch true duplicates at INSERT time.
+  }
+  try {
+    switch (event.type) {
+      case 'checkout.session.completed':
+        await handleCheckoutCompleted(event)
+        break
+      case 'invoice.paid':
+      case 'invoice.payment_failed':
+      case 'invoice.finalized':
+        console.log(`[stripe-webhook] Received ${event.type} for invoice ${event.data.object.id} - subscription billing not yet wired, logging only`)
+        break
+      case 'customer.subscription.created':
+      case 'customer.subscription.updated':
+      case 'customer.subscription.deleted':
+      case 'customer.subscription.trial_will_end':
+        console.log(`[stripe-webhook] Received ${event.type} for subscription ${event.data.object.id} - subscription wiring not yet built, logging only`)
+        break
+      case 'payment_intent.succeeded':
+      case 'payment_intent.payment_failed':
+        console.log(`[stripe-webhook] Received ${event.type} for payment_intent ${event.data.object.id} - usually handled via checkout.session events`)
+        break
+      case 'charge.refunded':
+        console.log(`[stripe-webhook] Received charge.refunded for charge ${event.data.object.id} - refund handling not yet built, logging only`)
+        break
+      case 'setup_intent.succeeded':
+      case 'checkout.session.expired':
+        console.log(`[stripe-webhook] Received ${event.type} - logging only`)
+        break
+      default:
+        console.log(`[stripe-webhook] Unhandled event type: ${event.type}`)
+    }
+  } catch (err) {
+    console.error(`[stripe-webhook] Error handling ${event.type} (event ${event.id}):`, err)
+    // Don't re-throw - we already 200'd Stripe. Errors are logged for manual investigation.
+  }
+})
+// Handle checkout.session.completed - credits wallet for one-off top-ups.
+// Reads workspace_id from session.metadata (set when we created the session
+// in POST /billing/wallet/topup). Wraps everything in a transaction so the
+// wallet update and ledger insert are atomic.
+async function handleCheckoutCompleted(event) {
+  const session = event.data.object
+  // We only credit on actual payment success - skip if checkout completed but payment didn't (rare)
+  if (session.payment_status !== 'paid') {
+    console.log(`[stripe-webhook] checkout.session.completed but payment_status=${session.payment_status}, skipping credit`)
+    return
+  }
+  const workspaceId = parseInt(session.metadata?.workspace_id)
+  const amountCents = parseInt(session.metadata?.topup_amount_cents)
+  const purpose = session.metadata?.purpose
+  if (purpose !== 'wallet_topup') {
+    console.log(`[stripe-webhook] checkout.session.completed for purpose=${purpose}, not a wallet top-up, skipping`)
+    return
+  }
+  if (!workspaceId || !amountCents || amountCents <= 0) {
+    console.error(`[stripe-webhook] checkout.session.completed missing or invalid metadata: workspace_id=${workspaceId}, topup_amount_cents=${amountCents}, session=${session.id}`)
+    return
+  }
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+    // Lock the wallet row to prevent concurrent balance updates
+    const walletRes = await client.query(
+      `SELECT id, balance_cents FROM wallets WHERE workspace_id = $1 FOR UPDATE`,
+      [workspaceId]
+    )
+    if (walletRes.rows.length === 0) {
+      // Wallet doesn't exist - create it
+      console.log(`[stripe-webhook] No wallet for workspace ${workspaceId}, creating one`)
+      const newWallet = await client.query(
+        `INSERT INTO wallets (workspace_id, balance_cents, currency) VALUES ($1, 0, 'SGD') RETURNING id, balance_cents`,
+        [workspaceId]
+      )
+      walletRes.rows.push(newWallet.rows[0])
+    }
+    const wallet = walletRes.rows[0]
+    const newBalance = parseInt(wallet.balance_cents) + amountCents
+    // Credit the wallet
+    await client.query(
+      `UPDATE wallets SET balance_cents = $1, updated_at = NOW() WHERE id = $2`,
+      [newBalance, wallet.id]
+    )
+    // Insert ledger row with stripe_event_id for idempotency
+    await client.query(
+      `INSERT INTO wallet_transactions
+         (wallet_id, workspace_id, type, direction, amount_cents, balance_after_cents,
+          currency, description, stripe_payment_intent_id, stripe_event_id, metadata)
+       VALUES ($1, $2, 'topup', 'credit', $3, $4, 'SGD', $5, $6, $7, $8)`,
+      [
+        wallet.id,
+        workspaceId,
+        amountCents,
+        newBalance,
+        `Wallet top-up via Stripe Checkout (session ${session.id})`,
+        session.payment_intent || null,
+        event.id,
+        JSON.stringify({
+          stripe_session_id: session.id,
+          stripe_customer_id: session.customer,
+          stripe_payment_intent: session.payment_intent,
+          amount_subtotal: session.amount_subtotal,
+          amount_total: session.amount_total,
+          customer_email: session.customer_details?.email,
+        }),
+      ]
+    )
+    await client.query('COMMIT')
+    console.log(`[stripe-webhook] Credited workspace ${workspaceId} wallet with ${amountCents} cents (new balance: ${newBalance})`)
+  } catch (err) {
+    await client.query('ROLLBACK')
+    console.error(`[stripe-webhook] Failed to credit wallet for session ${session.id}:`, err)
+    throw err
+  } finally {
+    client.release()
+  }
 }
 
 // ─── SOCKET.IO ─────────────────────────────────────────────────────────────────

@@ -16,6 +16,3 @@ backups/
 seed_from_prod_ws6.sql
 dump_for_review.txt
 dump_ws6_from_prod.ps1
-# Stripe CLI binary (downloaded for local webhook testing, not for committing)
-stripe.exe
-stripe_*.zip

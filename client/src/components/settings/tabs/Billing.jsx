@@ -342,64 +342,8 @@ export default function Billing() {
     alert(`Plan changes will be available once Stripe is connected.\n\nSelected: ${plan.display_name} (${billingCycle})`)
   }
 
-  // State for the top-up modal (amount picker)
-  // Defined at top-level state would be cleaner but adding inline here to
-  // minimize patch scope; refactor to dedicated component later.
-  const [topupOpen, setTopupOpen] = useState(false)
-  const [topupAmount, setTopupAmount] = useState(5000)  // S$50 default, in cents
-  const [topupLoading, setTopupLoading] = useState(false)
-  const [topupError, setTopupError] = useState('')
-
-  // Detect ?topup=success or ?topup=cancelled in URL (set by Stripe redirect)
-  // and show a banner. Banner auto-dismisses after 5 seconds; URL query
-  // params are cleaned up so refresh doesn't re-trigger.
-  const [topupStatus, setTopupStatus] = useState('')
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search)
-    const status = params.get('topup')
-    if (status === 'success' || status === 'cancelled') {
-      setTopupStatus(status)
-      // Clean up URL so refresh doesn't re-show the banner
-      params.delete('topup')
-      params.delete('session_id')
-      const newUrl = window.location.pathname + (params.toString() ? '?' + params.toString() : '')
-      window.history.replaceState({}, '', newUrl)
-      // Auto-dismiss after 5s
-      const timeout = setTimeout(() => setTopupStatus(''), 5000)
-      return () => clearTimeout(timeout)
-    }
-  }, [])
-
   function handleTopup() {
-    setTopupError('')
-    setTopupOpen(true)
-  }
-
-  async function startTopupCheckout() {
-    setTopupError('')
-    if (!Number.isInteger(topupAmount) || topupAmount < 1000 || topupAmount > 1000000) {
-      setTopupError('Amount must be between S$10 and S$10,000')
-      return
-    }
-    setTopupLoading(true)
-    try {
-      const r = await fetch(`${API}/billing/wallet/topup`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-        body: JSON.stringify({ amount_cents: topupAmount }),
-      })
-      const data = await r.json()
-      if (!r.ok) {
-        setTopupError(data.error || 'Failed to create top-up session')
-        setTopupLoading(false)
-        return
-      }
-      // Redirect to Stripe Checkout (full page navigation)
-      window.location.href = data.checkout_url
-    } catch (err) {
-      setTopupError('Network error: ' + err.message)
-      setTopupLoading(false)
-    }
+    alert('Wallet top-up will be available once Stripe is connected.')
   }
 
   if (loading) return (
@@ -438,44 +382,6 @@ export default function Billing() {
         <StatusBadge status={subscription.status} billing_exempt={isExempt} />
       </div>
 
-      {/* Top-up status banner (success or cancelled, set by Stripe redirect, auto-dismisses in 5s) */}
-      {topupStatus === 'success' && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', background: '#f0fdf4', border: '0.5px solid #bbf7d0', borderRadius: 8, marginBottom: 14 }}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M22 11.08V12a10 10 0 11-5.93-9.14"/>
-            <polyline points="22 4 12 14.01 9 11.01"/>
-          </svg>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#15803d' }}>Top-up successful</div>
-            <div style={{ fontSize: 12, color: '#166534', marginTop: 2 }}>Your wallet has been credited. Updated balance shown below.</div>
-          </div>
-          <button onClick={() => setTopupStatus('')} style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: 4, color: '#15803d' }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="18" y1="6" x2="6" y2="18"/>
-              <line x1="6" y1="6" x2="18" y2="18"/>
-            </svg>
-          </button>
-        </div>
-      )}
-      {topupStatus === 'cancelled' && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', background: '#fef3c7', border: '0.5px solid #fde68a', borderRadius: 8, marginBottom: 14 }}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="10"/>
-            <line x1="12" y1="8" x2="12" y2="12"/>
-            <line x1="12" y1="16" x2="12.01" y2="16"/>
-          </svg>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#92400e' }}>Top-up cancelled</div>
-            <div style={{ fontSize: 12, color: '#78350f', marginTop: 2 }}>No charges were applied. You can try again anytime.</div>
-          </div>
-          <button onClick={() => setTopupStatus('')} style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: 4, color: '#92400e' }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="18" y1="6" x2="6" y2="18"/>
-              <line x1="6" y1="6" x2="18" y2="18"/>
-            </svg>
-          </button>
-        </div>
-      )}
       {/* Conditional banners */}
       {isExempt && (
         <div style={{ padding: '12px 16px', background: '#fef3c7', border: '0.5px solid #fde68a', borderRadius: 10, fontSize: 12, color: '#92400e', lineHeight: 1.6, marginBottom: 16, display: 'flex', gap: 10, alignItems: 'flex-start' }}>
@@ -591,8 +497,8 @@ export default function Billing() {
             </div>
 
             {canManageBilling && (
-              <Button onClick={handleTopup} style={{ width: '100%', marginBottom: 14 }}>
-                Top up wallet
+              <Button onClick={handleTopup} disabled style={{ width: '100%', marginBottom: 14, opacity: 0.6, cursor: 'not-allowed' }}>
+                Top up wallet — Stripe pending
               </Button>
             )}
 
@@ -782,67 +688,10 @@ export default function Billing() {
             </div>
           )}
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 4 }}>
-            {saved && <div style={{ fontSize: 12, color: '#16a34a', display: 'flex', alignItems: 'center', gap: 5 }}>鉁?Wallet settings saved</div>}
+            {saved && <div style={{ fontSize: 12, color: '#16a34a', display: 'flex', alignItems: 'center', gap: 5 }}>✓ Wallet settings saved</div>}
             <Button onClick={saveWalletSettings} loading={saving}>{saving ? 'Saving...' : 'Save Wallet Settings'}</Button>
           </div>
         </>
-      )}
-      {/* Top-up modal — opens when Top up wallet button is clicked */}
-      {topupOpen && (
-        <div onClick={() => !topupLoading && setTopupOpen(false)}
-          style={{ position: 'fixed', inset: 0, background: 'rgba(10, 9, 7, 0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}>
-          <div onClick={e => e.stopPropagation()}
-            style={{ background: '#fff', borderRadius: 12, padding: 24, width: '100%', maxWidth: 420, boxShadow: '0 10px 40px rgba(0,0,0,0.15)' }}>
-            <div style={{ fontSize: 16, fontWeight: 600, color: '#14130f', marginBottom: 4 }}>Top up wallet</div>
-            <div style={{ fontSize: 12, color: '#9a958c', marginBottom: 18 }}>Choose an amount. You'll be redirected to Stripe to complete payment.</div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 12 }}>
-              {[5000, 10000, 25000, 50000].map(cents => (
-                <button key={cents}
-                  onClick={() => setTopupAmount(cents)}
-                  disabled={topupLoading}
-                  style={{
-                    padding: '10px 6px', borderRadius: 8,
-                    border: topupAmount === cents ? '1px solid #14130f' : '0.5px solid #dcd8d0',
-                    background: topupAmount === cents ? '#14130f' : '#fff',
-                    color: topupAmount === cents ? '#fff' : '#4a4742',
-                    fontSize: 13, fontWeight: 600, cursor: topupLoading ? 'not-allowed' : 'pointer',
-                  }}>
-                  S${cents / 100}
-                </button>
-              ))}
-            </div>
-            <div style={{ marginBottom: 14 }}>
-              <div style={{ fontSize: 10, color: '#9a958c', marginBottom: 4, fontWeight: 600, textTransform: 'uppercase' }}>Custom amount (S$)</div>
-              <input type="number" min="10" max="10000" step="1"
-                value={(topupAmount / 100).toFixed(2)}
-                onChange={e => {
-                  const sgd = parseFloat(e.target.value)
-                  if (!isNaN(sgd) && sgd >= 0) setTopupAmount(Math.round(sgd * 100))
-                }}
-                disabled={topupLoading}
-                style={{
-                  width: '100%', padding: '10px 12px', borderRadius: 8,
-                  border: '0.5px solid #dcd8d0', fontSize: 14, color: '#14130f',
-                  outline: 'none', boxSizing: 'border-box',
-                }} />
-              <div style={{ fontSize: 11, color: '#9a958c', marginTop: 4 }}>Min S$10, max S$10,000</div>
-            </div>
-            {topupError && (
-              <div style={{ padding: '10px 12px', background: '#fef2f2', border: '0.5px solid #fecaca', borderRadius: 8, fontSize: 12, color: '#dc2626', marginBottom: 12 }}>
-                {topupError}
-              </div>
-            )}
-            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-              <Button onClick={() => setTopupOpen(false)} disabled={topupLoading}
-                style={{ background: 'transparent', color: '#6e6a63', border: '0.5px solid #dcd8d0' }}>
-                Cancel
-              </Button>
-              <Button onClick={startTopupCheckout} loading={topupLoading} disabled={topupLoading}>
-                {topupLoading ? 'Redirecting...' : `Pay S$${(topupAmount / 100).toFixed(2)}`}
-              </Button>
-            </div>
-          </div>
-        </div>
       )}
     </div>
   )

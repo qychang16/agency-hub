@@ -17,6 +17,7 @@ const { createProfileHandlers, runChunk31ProfileMigration } = require('./routes/
 const { validatePassword, generateRandomPassword } = require('./utils/passwordPolicy')
 const { sendMail } = require('./utils/emailSender')
 const stripeClient = require('./utils/stripeClient')
+const { calculateMessageCost, debitWalletForMessage } = require('./utils/walletBilling')
 
 const app = express()
 const httpServer = createServer(app)
@@ -4953,10 +4954,78 @@ app.post('/messages', auth, requirePermission('send_messages'), async (req, res)
         )
         const toPhone = phoneRow.rows[0]?.phone
         if (!toPhone) throw new Error('No recipient phone number on contact')
+
+        // ─── BILLING: pre-send cost calc + balance gate ──────────────────────────
+        // Per-message billing (Path X step 5, A1 scope). Treats every outbound as
+        // its own billable unit. Per-conversation billing (A2) is a follow-up:
+        // Meta actually charges per 24h conversation window, not per message.
+        //
+        // Category defaults to 'service' for in-window replies (this code path
+        // already enforces the 24h window above for non-template sends).
+        // Template messages would be 'marketing' or 'authentication' but Meta's
+        // exact category lookup needs per-template metadata — defer to A2.
+        //
+        // Country defaults to 'SG' if contact.country_code is null.
+        // TODO: contacts table has no country_code column yet — default all to SG.
+        // When we add per-contact country detection (phone prefix analysis or
+        // explicit field), use that instead. Doesn't matter much right now since
+        // meta_pricing only has SG rows seeded.
+        const country = 'SG'
+        const category = template_id ? 'marketing' : 'service'
+        const costData = await calculateMessageCost(pool, access.workspaceId, country, category)
+
+        // Pre-flight balance check: block before hitting Meta if non-exempt
+        // workspace can't afford this message. Avoids the bad UX of "we sent it
+        // but couldn't bill you" — Meta would have charged us either way.
+        if (!costData.billingExempt && costData.totalCents > 0) {
+          const balCheck = await pool.query(
+            `SELECT COALESCE(balance_cents, 0) AS balance_cents FROM wallets WHERE workspace_id = $1`,
+            [access.workspaceId]
+          )
+          const balance = parseInt(balCheck.rows[0]?.balance_cents || 0)
+          if (balance < costData.totalCents) {
+            await pool.query(`UPDATE messages SET status='failed' WHERE id=$1`, [msg.id])
+            return res.status(402).json({
+              error: 'Insufficient wallet balance to send this message.',
+              code: 'INSUFFICIENT_BALANCE',
+              balance_cents: balance,
+              required_cents: costData.totalCents,
+              shortfall_cents: costData.totalCents - balance,
+              suggestion: 'Top up your wallet from Settings → Billing.',
+            })
+          }
+        }
+
+        // ─── SEND to Meta ────────────────────────────────────────────────────────
         const waMessageId = await sendWhatsAppMessage(toPhone, text)
-        await pool.query(`UPDATE messages SET status='sent', whatsapp_message_id=$1 WHERE id=$2`, [waMessageId, msg.id])
-        msg.status = 'sent'
-        msg.whatsapp_message_id = waMessageId
+
+        // ─── DEBIT wallet atomically (transaction so partial failure rolls back) ─
+        const billingClient = await pool.connect()
+        try {
+          await billingClient.query('BEGIN')
+          await billingClient.query(
+            `UPDATE messages SET status='sent', whatsapp_message_id=$1 WHERE id=$2`,
+            [waMessageId, msg.id]
+          )
+          const debitResult = await debitWalletForMessage(billingClient, access.workspaceId, msg.id, costData)
+          await billingClient.query('COMMIT')
+          msg.status = 'sent'
+          msg.whatsapp_message_id = waMessageId
+          msg.cost_cents = debitResult.skipped ? 0 : debitResult.totalCents
+          console.log(`[billing] Message ${msg.id} sent + debited ${debitResult.totalCents || 0} cents (workspace ${access.workspaceId}, ${category}/${country})`)
+        } catch (billingErr) {
+          await billingClient.query('ROLLBACK')
+          // Send succeeded but billing failed — message stays in 'pending' status,
+          // not 'sent'. Surface for manual reconciliation. The Meta send already
+          // happened so we don't refund — operator must investigate.
+          console.error(`[billing] CRITICAL: Meta send succeeded but billing failed for msg ${msg.id} (workspace ${access.workspaceId}):`, billingErr)
+          await pool.query(`UPDATE messages SET status='sent', whatsapp_message_id=$1 WHERE id=$2`, [waMessageId, msg.id])
+          msg.status = 'sent'
+          msg.whatsapp_message_id = waMessageId
+          msg.billing_error = billingErr.message
+        } finally {
+          billingClient.release()
+        }
       } catch (sendErr) {
         console.error('WhatsApp send failed for message', msg.id, ':', sendErr.message)
         await pool.query(`UPDATE messages SET status='failed' WHERE id=$1`, [msg.id])

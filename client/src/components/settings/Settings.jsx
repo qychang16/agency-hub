@@ -141,7 +141,16 @@ function MobileTabMenu({ tabs, activeTab, icons, onSelect }) {
 
 export default function Settings() {
   const { user, isDirector, hasPermission } = useAuth()
-  const [activeTab, setActiveTab] = useState('profile')
+  // Read initial tab from URL query string (?tab=billing) so post-Stripe-checkout
+  // redirects land back on the same settings tab they left from.
+  const initialTab = (() => {
+    if (typeof window === 'undefined') return 'profile'
+    const params = new URLSearchParams(window.location.search)
+    const t = params.get('tab')
+    const validTabs = ['profile', 'business_hours', 'billing', 'industry', 'agents', 'teams', 'roles', 'routing', 'phone_numbers', 'whatsapp', 'email', 'notifications', 'security', 'audit', 'pdpa']
+    return validTabs.includes(t) ? t : 'profile'
+  })()
+  const [activeTab, setActiveTab] = useState(initialTab)
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768)
 
   useEffect(() => {

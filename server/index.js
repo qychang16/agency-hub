@@ -49,11 +49,11 @@ function auth(req, res, next) {
     const decoded = jwt.verify(header.replace('Bearer ', ''), JWT_SECRET)
     req.user = decoded
 
-    // ─── Sliding refresh ────────────────────────────────────────────────
+    // 鈹€鈹€鈹€ Sliding refresh 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
     // If the token was issued more than 1 day ago, mint a fresh 7-day
     // token and send it back in the X-Refresh-Token response header.
     // The frontend will pick it up and replace its stored token.
-    // Impersonation tokens are excluded — their lifetime is tied to the
+    // Impersonation tokens are excluded 鈥?their lifetime is tied to the
     // impersonation_sessions table, not the JWT clock.
     if (!decoded.is_impersonating && decoded.iat) {
       const tokenAgeSeconds = Math.floor(Date.now() / 1000) - decoded.iat
@@ -71,7 +71,7 @@ function auth(req, res, next) {
           )
           res.setHeader('X-Refresh-Token', freshToken)
         } catch (refreshErr) {
-          // If refresh fails, don't block the request — just log and proceed
+          // If refresh fails, don't block the request 鈥?just log and proceed
           console.error('Token refresh failed:', refreshErr.message)
         }
       }
@@ -115,19 +115,31 @@ async function logAudit(wsId, userId, action, entityType, entityId, oldVals, new
   } catch {}
 }
 
-async function getWorkspaceId(userId) {
+// Resolves the workspace_id for the current request.
+// Accepts either:
+//   - A user object (req.user) 鈥?prefers JWT workspace_id claim so that
+//     "Open" direct-entry and impersonation tokens scope correctly.
+//   - A userId integer (legacy) 鈥?looks up the user's home workspace.
+//     Used by background workers, webhooks, and pre-auth contexts.
+async function getWorkspaceId(userOrId) {
+  // Object path: trust the JWT-decoded workspace_id when present
+  if (userOrId && typeof userOrId === 'object' && userOrId.workspace_id) {
+    return userOrId.workspace_id
+  }
+  // Legacy path: integer userId, fall back to user's home workspace
+  const userId = (userOrId && typeof userOrId === 'object') ? userOrId.id : userOrId
   const r = await pool.query('SELECT workspace_id FROM users WHERE id=$1', [userId])
   return r.rows[0]?.workspace_id
 }
 
-// ─── CHUNK 4B: Access control helpers ──────────────────────────────────────────
+// 鈹€鈹€鈹€ CHUNK 4B: Access control helpers 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 // Role semantics:
 //   - director, manager: workspace-wide access
 //   - supervisor, senior_consultant, consultant: scoped to project memberships
 //   - admin: scoped to project memberships AND read-only
 //   - super_admin: platform layer, doesn't touch these helpers
 
-// ─── CHUNK 5: Permission helpers (DB-driven) ────────────────────────────────
+// 鈹€鈹€鈹€ CHUNK 5: Permission helpers (DB-driven) 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 // Replaces Chunk 4B's hardcoded WORKSPACE_WIDE_ROLES / READ_ONLY_ROLES.
 // Permissions live in role_permissions table, editable per workspace.
 
@@ -171,7 +183,7 @@ async function getRolePermissions(workspaceId, role) {
 
 // Returns true if the user has the named permission.
 async function hasPermission(req, permName) {
-  const wsId = await getWorkspaceId(req.user.id)
+  const wsId = await getWorkspaceId(req.user)
   const config = await getRolePermissions(wsId, req.user.role)
   return config.permissions[permName] === true
 }
@@ -254,7 +266,7 @@ function requirePermission(permName) {
 // For project-only scope: { workspaceWide: false, workspaceId, projectIds: [array] }
 async function getAccessibleProjects(req) {
   const role = req.user.role
-  const wsId = await getWorkspaceId(req.user.id)
+  const wsId = await getWorkspaceId(req.user)
 
   // Director and super_admin always see everything
   if (role === 'director' || role === 'super_admin') {
@@ -289,7 +301,7 @@ function requireWrite(req, res, next) {
   next()
 }
 
-// ─── CHUNK 5: Shared role-permissions logic (used by both director and super admin endpoints) ───
+// 鈹€鈹€鈹€ CHUNK 5: Shared role-permissions logic (used by both director and super admin endpoints) 鈹€鈹€鈹€
 async function listRolePermissions(workspaceId) {
   const r = await pool.query(
     `SELECT role, scope, permissions FROM role_permissions WHERE workspace_id=$1
@@ -357,9 +369,9 @@ async function resetRolePermissionsToDefaults(workspaceId) {
   }
 }
 
-// ─── CHUNK 5: Default permission matrix ─────────────────────────────────────
+// 鈹€鈹€鈹€ CHUNK 5: Default permission matrix 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 // Seeded into role_permissions table when a workspace is created.
-// Director role is NOT in this matrix �?directors always have everything.
+// Director role is NOT in this matrix 锟?directors always have everything.
 const ALL_PERMISSIONS_TRUE = {
   send_messages: true, write_notes: true, manage_conversations: true,
   manage_contacts: true, manage_projects: true, manage_project_members: true,
@@ -437,7 +449,7 @@ async function setupDatabase() {
     await client.query(`CREATE TABLE IF NOT EXISTS teams (id SERIAL PRIMARY KEY, workspace_id INTEGER REFERENCES workspaces(id) ON DELETE CASCADE, name VARCHAR(255), key VARCHAR(100), type VARCHAR(50) DEFAULT 'recruitment', lead_user_id INTEGER, color VARCHAR(20) DEFAULT '#2563eb', description TEXT, created_at TIMESTAMP DEFAULT NOW())`)
     await client.query(`CREATE TABLE IF NOT EXISTS users (id SERIAL PRIMARY KEY, workspace_id INTEGER REFERENCES workspaces(id) ON DELETE CASCADE, name VARCHAR(255), email VARCHAR(255) UNIQUE, password_hash VARCHAR(255), role VARCHAR(50) DEFAULT 'consultant', team_id INTEGER, status VARCHAR(20) DEFAULT 'offline', capacity INTEGER DEFAULT 20, active BOOLEAN DEFAULT true, is_super_admin BOOLEAN DEFAULT false, email_signature TEXT, send_behaviour VARCHAR(20) DEFAULT 'enter', force_password_change BOOLEAN DEFAULT false, last_login_at TIMESTAMP, failed_login_attempts INTEGER DEFAULT 0, locked_until TIMESTAMP, permissions JSONB, created_at TIMESTAMP DEFAULT NOW(), updated_at TIMESTAMP DEFAULT NOW())`)
 
-    // ─── Legacy users table repair (backfills old agency-hub DB) ──────────────
+    // 鈹€鈹€鈹€ Legacy users table repair (backfills old agency-hub DB) 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS workspace_id INTEGER REFERENCES workspaces(id) ON DELETE CASCADE`)
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash VARCHAR(255)`)
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS team_id INTEGER`)
@@ -502,7 +514,7 @@ async function setupDatabase() {
     await client.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS sent_at TIMESTAMP`)
     await client.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS template_id INTEGER`)
 
-    // ─── Multi-tenant access control migrations (Session D1) ─────────────────
+    // 鈹€鈹€鈹€ Multi-tenant access control migrations (Session D1) 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
     await client.query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS team_id INTEGER REFERENCES teams(id) ON DELETE SET NULL`)
     await client.query(`ALTER TABLE phone_numbers ADD COLUMN IF NOT EXISTS project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL`)
     await client.query(`ALTER TABLE phone_numbers ADD COLUMN IF NOT EXISTS owner_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL`)
@@ -515,7 +527,7 @@ async function setupDatabase() {
     await client.query(`CREATE TABLE IF NOT EXISTS security_settings (id SERIAL PRIMARY KEY, workspace_id INTEGER REFERENCES workspaces(id) ON DELETE CASCADE UNIQUE, session_timeout_minutes INTEGER DEFAULT 480, max_failed_logins INTEGER DEFAULT 5, force_password_change BOOLEAN DEFAULT false, two_factor_required BOOLEAN DEFAULT false, password_min_length INTEGER DEFAULT 8, password_require_special BOOLEAN DEFAULT false, created_at TIMESTAMP DEFAULT NOW(), updated_at TIMESTAMP DEFAULT NOW())`)
     await client.query(`CREATE TABLE IF NOT EXISTS calendar_events (id SERIAL PRIMARY KEY, workspace_id INTEGER REFERENCES workspaces(id) ON DELETE CASCADE, conversation_id INTEGER, contact_id INTEGER, job_order_id INTEGER, created_by INTEGER, title VARCHAR(255), event_date DATE, event_time TIME, location TEXT, notes TEXT, type VARCHAR(50) DEFAULT 'interview', status VARCHAR(20) DEFAULT 'scheduled', created_at TIMESTAMP DEFAULT NOW())`)
     await client.query('COMMIT')
-    console.log('�?Database schema ready')
+    console.log('锟?Database schema ready')
     await seedDatabase()
     await runPlatformCleanupMigration()
     await runChunk5Migration()
@@ -548,14 +560,14 @@ async function setupDatabase() {
     await runChunk31ProfileMigration(pool)
   } catch (err) {
     await client.query('ROLLBACK')
-    console.error('�?DB setup error:', err.message)
+    console.error('锟?DB setup error:', err.message)
   } finally { client.release() }
 }
 
 async function seedDatabase() {
   try {
     const existing = await pool.query('SELECT id FROM workspaces WHERE slug=$1', ['telcloud-main'])
-    if (existing.rows.length > 0) { console.log('�?Seed data exists'); return }
+    if (existing.rows.length > 0) { console.log('锟?Seed data exists'); return }
     const ws = await pool.query(`INSERT INTO workspaces (name, slug, workspace_type, billing_exempt, plan, email, timezone) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`, ['Tel-Cloud Sandbox', 'telcloud-main', 'internal', true, 'enterprise', 'admin@tel-cloud.com', 'Asia/Singapore'])
     const wsId = ws.rows[0].id
     const rt = await pool.query(`INSERT INTO teams (workspace_id, name, key, type, color) VALUES ($1,$2,$3,$4,$5) RETURNING id`, [wsId, 'Recruitment Team', 'recruitment', 'recruitment', '#2563eb'])
@@ -577,11 +589,11 @@ async function seedDatabase() {
     for (const t of defaultTemplates) {
       await pool.query(`INSERT INTO templates (workspace_id, name, category, status, body, buttons) VALUES ($1,$2,$3,$4,$5,$6)`, [wsId, t.name, t.category, 'approved', t.body, JSON.stringify(t.buttons)])
     }
-    console.log('�?Seed data created (Tel-Cloud Sandbox, no users)')
-  } catch (err) { console.error('�?Seed error:', err.message) }
+    console.log('锟?Seed data created (Tel-Cloud Sandbox, no users)')
+  } catch (err) { console.error('锟?Seed error:', err.message) }
 }
 
-// ─── PLATFORM CLEANUP MIGRATION (one-time) ──────────────────────────────────────
+// 鈹€鈹€鈹€ PLATFORM CLEANUP MIGRATION (one-time) 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 // Deletes legacy agency-hub users and any demo tenant data, then creates the
 // super admin account. Runs once via _migrations lock.
 async function runPlatformCleanupMigration() {
@@ -589,17 +601,17 @@ async function runPlatformCleanupMigration() {
   try {
     const applied = await pool.query('SELECT id FROM _migrations WHERE id=$1', [MIGRATION_ID])
     if (applied.rows.length > 0) {
-      console.log(`�?Migration ${MIGRATION_ID} already applied, skipping`)
+      console.log(`锟?Migration ${MIGRATION_ID} already applied, skipping`)
       return
     }
-    console.log(`🔧 Running migration ${MIGRATION_ID}...`)
+    console.log(`馃敡 Running migration ${MIGRATION_ID}...`)
 
     const client = await pool.connect()
     try {
       await client.query('BEGIN')
 
       const ws = await client.query(`SELECT id FROM workspaces WHERE slug='telcloud-main' LIMIT 1`)
-      if (!ws.rows.length) throw new Error('telcloud-main workspace missing �?seedDatabase must run first')
+      if (!ws.rows.length) throw new Error('telcloud-main workspace missing 锟?seedDatabase must run first')
       const wsId = ws.rows[0].id
 
       // Rename workspace to "Tel-Cloud Sandbox" if it was the old "Tel-Cloud Demo" name
@@ -678,7 +690,7 @@ async function runPlatformCleanupMigration() {
 
       await client.query(`INSERT INTO _migrations (id) VALUES ($1)`, [MIGRATION_ID])
       await client.query('COMMIT')
-      console.log(`�?Migration ${MIGRATION_ID} complete`)
+      console.log(`锟?Migration ${MIGRATION_ID} complete`)
     } catch (err) {
       await client.query('ROLLBACK')
       throw err
@@ -686,21 +698,21 @@ async function runPlatformCleanupMigration() {
       client.release()
     }
   } catch (err) {
-    console.error(`�?Migration ${MIGRATION_ID} FAILED:`, err.message)
+    console.error(`锟?Migration ${MIGRATION_ID} FAILED:`, err.message)
     throw err
   }
 }
 
-// ─── CHUNK 5: Role Permissions Migration ────────────────────────────────────
+// 鈹€鈹€鈹€ CHUNK 5: Role Permissions Migration 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 async function runChunk5Migration() {
   const MIGRATION_ID = 'chunk_5_role_permissions_v1'
   try {
     const applied = await pool.query('SELECT id FROM _migrations WHERE id=$1', [MIGRATION_ID])
     if (applied.rows.length > 0) {
-      console.log(`�?Migration ${MIGRATION_ID} already applied, skipping`)
+      console.log(`锟?Migration ${MIGRATION_ID} already applied, skipping`)
       return
     }
-    console.log(`🔧 Running migration ${MIGRATION_ID}...`)
+    console.log(`馃敡 Running migration ${MIGRATION_ID}...`)
 
     const client = await pool.connect()
     try {
@@ -742,7 +754,7 @@ async function runChunk5Migration() {
 
       await client.query(`INSERT INTO _migrations (id) VALUES ($1)`, [MIGRATION_ID])
       await client.query('COMMIT')
-      console.log(`�?Migration ${MIGRATION_ID} complete`)
+      console.log(`锟?Migration ${MIGRATION_ID} complete`)
     } catch (err) {
       await client.query('ROLLBACK')
       throw err
@@ -750,21 +762,21 @@ async function runChunk5Migration() {
       client.release()
     }
   } catch (err) {
-    console.error(`�?Migration ${MIGRATION_ID} FAILED:`, err.message)
+    console.error(`锟?Migration ${MIGRATION_ID} FAILED:`, err.message)
     throw err
   }
 }
 
-// ─── CHUNK 5B: Backfill manage_quick_replies on existing role_permissions ─────
+// 鈹€鈹€鈹€ CHUNK 5B: Backfill manage_quick_replies on existing role_permissions 鈹€鈹€鈹€鈹€鈹€
 async function runChunk5bMigration() {
   const MIGRATION_ID = 'chunk_5b_quick_replies_v1'
   try {
     const applied = await pool.query('SELECT id FROM _migrations WHERE id=$1', [MIGRATION_ID])
     if (applied.rows.length > 0) {
-      console.log(`�?Migration ${MIGRATION_ID} already applied, skipping`)
+      console.log(`锟?Migration ${MIGRATION_ID} already applied, skipping`)
       return
     }
-    console.log(`🔧 Running migration ${MIGRATION_ID}...`)
+    console.log(`馃敡 Running migration ${MIGRATION_ID}...`)
 
     const client = await pool.connect()
     try {
@@ -791,7 +803,7 @@ async function runChunk5bMigration() {
 
       await client.query(`INSERT INTO _migrations (id) VALUES ($1)`, [MIGRATION_ID])
       await client.query('COMMIT')
-      console.log(`�?Migration ${MIGRATION_ID} complete`)
+      console.log(`锟?Migration ${MIGRATION_ID} complete`)
     } catch (err) {
       await client.query('ROLLBACK')
       throw err
@@ -799,12 +811,12 @@ async function runChunk5bMigration() {
       client.release()
     }
   } catch (err) {
-    console.error(`�?Migration ${MIGRATION_ID} FAILED:`, err.message)
+    console.error(`锟?Migration ${MIGRATION_ID} FAILED:`, err.message)
     throw err
   }
 }
 
-// ─── CHUNK 6: Template Library Seeds ────────────────────────────────────────
+// 鈹€鈹€鈹€ CHUNK 6: Template Library Seeds 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 async function runTemplateLibrarySeedsMigration() {
   const MIGRATION_ID = 'template_library_seeds_v1'
   try {
@@ -1044,7 +1056,7 @@ async function runChunk18ContactViewsMigration() {
 // Each user has a map of { event_key: { in_app: bool, email: bool } }.
 // JSONB chosen over a separate prefs table because reads are always
 // "give me my preferences" (one row by user_id) and the data is bounded
-// (~15 events × 2 channels = 30 booleans). Defaults are applied at the
+// (~15 events 脳 2 channels = 30 booleans). Defaults are applied at the
 // API layer, not in the DB, so we can change defaults without re-running
 // migrations.
 async function runChunk19NotificationPreferencesMigration() {
@@ -1085,7 +1097,7 @@ async function runChunk19NotificationPreferencesMigration() {
 // domain verification, and tracking preferences. Mirrors the pattern used
 // for security_settings, business_hours, routing_rules.
 //
-// Outlook OAuth fields (whatsapp_token-style) intentionally NOT added here —
+// Outlook OAuth fields (whatsapp_token-style) intentionally NOT added here 鈥?
 // connection state stays on workspaces table to keep auth state co-located
 // with the workspace identity. This table is for behavioural settings only:
 // what name to send as, what time to suppress sends, what signature to use.
@@ -1120,7 +1132,7 @@ async function runChunk20EmailSettingsMigration() {
       console.log(`   created email_settings table`)
       // Backfill: ensure every existing workspace has a row so GET always
       // returns something (even if all defaults). Avoids the NotificationSettings
-      // pattern of "merge defaults at API layer" — here we just have a single
+      // pattern of "merge defaults at API layer" 鈥?here we just have a single
       // row per workspace and let the column DEFAULTs do the work.
       await client.query(`
         INSERT INTO email_settings (workspace_id)
@@ -1146,7 +1158,7 @@ async function runChunk20EmailSettingsMigration() {
 // Chunk 21 PDPA Constraints v1
 // Adds missing foreign-key constraints and a query index on the existing
 // pdpa_records table. The table was created in an earlier session with
-// only workspace_id constrained — contact_id and collected_by were left
+// only workspace_id constrained 鈥?contact_id and collected_by were left
 // as raw integers, allowing orphan records.
 //
 // Also adds an index on contact_id since the most common query pattern
@@ -1166,7 +1178,7 @@ async function runChunk21PdpaConstraintsMigration() {
 
       // contact_id FK: orphan records become meaningless when the contact
       // is deleted. CASCADE delete removes consent history along with the
-      // contact — this is intentional, no separate audit trail expected
+      // contact 鈥?this is intentional, no separate audit trail expected
       // beyond the contact-level events.
       // Wrapped in SAVEPOINT because Postgres aborts the entire outer
       // transaction on any error, even one we catch in JS. SAVEPOINT lets
@@ -1191,7 +1203,7 @@ async function runChunk21PdpaConstraintsMigration() {
       }
 
       // collected_by FK: SET NULL on user delete because losing the agent
-      // who recorded consent should not destroy the record itself — the
+      // who recorded consent should not destroy the record itself 鈥?the
       // consent is still valid, just unattributed.
       await client.query('SAVEPOINT add_collected_by_fk')
       try {
@@ -1351,7 +1363,7 @@ async function runChunk16BroadcastsPermissionMigration() {
   }
 }
 
-// ─── CHUNK 7: Template Library v2 Overhaul ──────────────────────────────────
+// 鈹€鈹€鈹€ CHUNK 7: Template Library v2 Overhaul 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 // Replaces the v1 12 placeholder templates with 34 finalised templates
 // (18 candidate-side + 16 client-side). Adds 'audience' column, drops 'industry'.
 // Also reseeds Eque (workspace_id=2) since Eque currently has 0 templates.
@@ -1805,7 +1817,7 @@ async function runTemplateLibraryV2Migration() {
   }
 }
 
-// ─── CHUNK 8: Phase II1 - Reset Eque, add source/library/meta columns ───────
+// 鈹€鈹€鈹€ CHUNK 8: Phase II1 - Reset Eque, add source/library/meta columns 鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 // Phase II1 from TECH_PROVIDER_ROADMAP.md v2 addendum.
 // 1. Wipe Eque's premature auto-seeded templates (the 34 from v2 migration).
 // 2. Add new columns to templates table for the three-surfaces model.
@@ -1855,7 +1867,7 @@ async function runPhaseII1Migration() {
   }
 }
 
-// ─── CHUNK 9: Add header/footer columns to templates ───────────────────────
+// 鈹€鈹€鈹€ CHUNK 9: Add header/footer columns to templates 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 // Phase II2 prep. Aligns templates table with template_library and Meta's
 // actual template structure (which has separate header, body, footer).
 async function runChunk9HeaderFooterMigration() {
@@ -1891,7 +1903,7 @@ async function runChunk9HeaderFooterMigration() {
   }
 }
 
-// ─── CHUNK 10: Backfill audience column on template_library ────────────────
+// 鈹€鈹€鈹€ CHUNK 10: Backfill audience column on template_library 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 // The v2 overhaul migration was supposed to set audience for all 34 rows but
 // ran against an earlier version of the seed data missing audience values.
 // This migration backfills audience based on template_key.
@@ -1969,7 +1981,7 @@ async function runChunk10BackfillAudienceMigration() {
   }
 }
 
-// ─── CHUNK 11: Variables shape migration ─────────────────────────────────
+// 鈹€鈹€鈹€ CHUNK 11: Variables shape migration 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 // Old shape (positional, used by Meta Library install and old Suggested seeds):
 //   { "1": "candidate_name", "2": "job_title" }   (key = position, value = name)
 //   OR
@@ -2071,7 +2083,7 @@ async function runChunk11VariablesShapeMigration() {
   }
 }
 
-// ─── CHUNK 12: Backfill labels on existing Meta Library template installs ───
+// 鈹€鈹€鈹€ CHUNK 12: Backfill labels on existing Meta Library template installs 鈹€鈹€鈹€
 // Templates installed via Meta Library before chunk 12 don't have variables.labels.
 // This migration looks up the original library template's param_labels in the mock
 // and merges them into the stored variables JSONB.
@@ -2303,7 +2315,7 @@ async function runChunk13bCalendarPermissionJsonbMigration() {
   }
 }
 
-// ─── CHUNK 14: Event Reminders ──────────────────────────────────────────────
+// 鈹€鈹€鈹€ CHUNK 14: Event Reminders 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 // Adds event_reminders table linking calendar_events to scheduled_messages.
 // Each event can have at most one active reminder. The reminder is a child of
 // the event: when the event date/time changes, the reminder's send time is
@@ -3098,7 +3110,7 @@ async function runChunk28aIndustryCaptureMigration() {
 // our original column width allowed (e.g. "UNKNOWN_LIMITED_TIER" for tier,
 // or composite name_status strings on numbers in unusual states).
 // ALTER COLUMN TYPE on a VARCHAR widening is fast and non-blocking on
-// Postgres — no row rewrite needed since both old and new use varlena.
+// Postgres 鈥?no row rewrite needed since both old and new use varlena.
 async function runChunk24PhoneConnectionWidenMigration() {
   const MIGRATION_ID = 'chunk_24_phone_connection_widen_v1'
   try {
@@ -3200,7 +3212,7 @@ async function runChunk23PhoneConnectionDetectionMigration() {
   }
 }
 
-// ─── Variables helpers
+// 鈹€鈹€鈹€ Variables helpers
 // Validates a variable name. Returns true if valid.
 // Rules: starts with letter, contains only lowercase letters/digits/underscores, max 30 chars.
 function isValidVariableName(name) {
@@ -3280,8 +3292,8 @@ function reconcileVariablesWithBody(variables, body) {
   return norm
 }
 
-// ─── AUTH ──────────────────────────────────────────────────────────────────────
-// ─── CHUNK 22: Google Sign-In ──────────────────────────────────────────────
+// 鈹€鈹€鈹€ AUTH 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+// 鈹€鈹€鈹€ CHUNK 22: Google Sign-In 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 // Invite-driven: only signs in users whose email already exists in our DB.
 // Verifies Google ID token server-side, links google_id to user on first use.
 // Domain allowlist enforced in code.
@@ -3374,7 +3386,7 @@ app.post('/auth/google', async (req, res) => {
     res.status(401).json({ error: 'Google sign-in failed' })
   }
 })
-// ─── End Google Sign-In ────────────────────────────────────────────────────
+// 鈹€鈹€鈹€ End Google Sign-In 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 
 app.post('/login', async (req, res) => {
   try {
@@ -3397,11 +3409,11 @@ app.post('/login', async (req, res) => {
   } catch (err) { console.error('Login error:', err); res.status(500).json({ error: 'Server error' }) }
 })
 
-// ─── CHUNK 5: Current user's resolved permissions ──────────────────────────
+// 鈹€鈹€鈹€ CHUNK 5: Current user's resolved permissions 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 // Used by the frontend to hydrate permission state on app mount / login.
 app.get('/me/permissions', auth, async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const config = await getRolePermissions(wsId, req.user.role)
     res.json({
       role: req.user.role,
@@ -3414,7 +3426,7 @@ app.get('/me/permissions', auth, async (req, res) => {
   }
 })
 
-// ─── SUPER ADMIN MIDDLEWARE ────────────────────────────────────────────────────
+// 鈹€鈹€鈹€ SUPER ADMIN MIDDLEWARE 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 // Gates all /admin/* routes to users with is_super_admin=true
 async function superAdmin(req, res, next) {
   try {
@@ -3439,9 +3451,9 @@ function generateSlug(name) {
     .slice(0, 100) || 'workspace'
 }
 
-// ─── ADMIN: WORKSPACES ─────────────────────────────────────────────────────────
+// 鈹€鈹€鈹€ ADMIN: WORKSPACES 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 
-// GET /admin/workspaces �?list all workspaces with summary counts
+// GET /admin/workspaces 锟?list all workspaces with summary counts
 app.get('/admin/workspaces', auth, superAdmin, async (req, res) => {
   try {
     const r = await pool.query(`
@@ -3461,7 +3473,7 @@ app.get('/admin/workspaces', auth, superAdmin, async (req, res) => {
   }
 })
 
-// GET /admin/workspaces/:id �?single workspace detail
+// GET /admin/workspaces/:id 锟?single workspace detail
 app.get('/admin/workspaces/:id', auth, superAdmin, async (req, res) => {
   try {
     const r = await pool.query(`
@@ -3479,7 +3491,7 @@ app.get('/admin/workspaces/:id', auth, superAdmin, async (req, res) => {
   }
 })
 
-// ─── CHUNK 5: Role Permissions (Super admin-facing) ──────────────────────────
+// 鈹€鈹€鈹€ CHUNK 5: Role Permissions (Super admin-facing) 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 // Super admin can view/edit any workspace's role permissions.
 app.get('/admin/workspaces/:id/role-permissions', auth, superAdmin, async (req, res) => {
   try {
@@ -3523,7 +3535,7 @@ app.post('/admin/workspaces/:id/role-permissions/reset', auth, superAdmin, async
   }
 })
 
-// POST /admin/workspaces �?create workspace + first director atomically
+// POST /admin/workspaces 锟?create workspace + first director atomically
 // Body: { name, slug, registration_number, email, phone, address, plan, billing_exempt,
 //         director_name, director_email }
 app.post('/admin/workspaces', auth, superAdmin, async (req, res) => {
@@ -3649,7 +3661,7 @@ app.post('/admin/workspaces', auth, superAdmin, async (req, res) => {
   }
 })
 
-// ─── IMPERSONATION (Chunk 25, Unit 1A) ──────────────────────────────────────
+// 鈹€鈹€鈹€ IMPERSONATION (Chunk 25, Unit 1A) 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 // GET /admin/workspaces/:id/users
 // Returns the target workspace's users sorted for the impersonation picker:
 // director first, then by role hierarchy, then alphabetical. Excludes
@@ -3703,7 +3715,7 @@ app.get('/admin/workspaces/:id/users', auth, superAdmin, async (req, res) => {
 // - Cannot impersonate self (no-op, creates confusing audit entries)
 // - Cannot nest impersonation (if already impersonating, must Stop first)
 // - Token lifetime is 30 minutes
-// - Session row is the kill switch — revoking it immediately invalidates
+// - Session row is the kill switch 鈥?revoking it immediately invalidates
 //   the token regardless of remaining JWT lifetime
 const IMPERSONATION_DURATION_MINUTES = 60
 
@@ -3853,13 +3865,13 @@ app.post('/admin/impersonate/start', auth, superAdmin, async (req, res) => {
   }
 })
 
-// ─── INTERNAL WORKSPACE DIRECT-ENTRY ────────────────────────────────────────
+// 鈹€鈹€鈹€ INTERNAL WORKSPACE DIRECT-ENTRY 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 // Internal Y.E.C workspaces (workspace_type='internal') do not require
 // impersonation. A super admin can enter directly with their own identity
 // scoped to the target workspace. No impersonation session is created.
 // Client workspaces still go through the impersonation flow above.
 //
-// Logs one audit entry per entry (lightweight — not per action within).
+// Logs one audit entry per entry (lightweight 鈥?not per action within).
 app.post('/admin/workspaces/:id/open', auth, superAdmin, async (req, res) => {
   try {
     const workspaceId = parseInt(req.params.id, 10)
@@ -3899,7 +3911,7 @@ app.post('/admin/workspaces/:id/open', auth, superAdmin, async (req, res) => {
       { expiresIn: '7d' }
     )
 
-    // Lightweight audit log entry — one row per entry, not per action.
+    // Lightweight audit log entry 鈥?one row per entry, not per action.
     await logAudit(
       workspaceId,
       req.user.id,
@@ -3938,7 +3950,7 @@ app.post('/admin/workspaces/:id/open', auth, superAdmin, async (req, res) => {
 })
 
 // POST /admin/exit-workspace
-// Counterpart to /admin/workspaces/:id/open — mints a fresh super_admin JWT
+// Counterpart to /admin/workspaces/:id/open 鈥?mints a fresh super_admin JWT
 // without the direct_entry flag, so the router lands the user back at /admin.
 app.post('/admin/exit-workspace', auth, superAdmin, async (req, res) => {
   try {
@@ -3951,7 +3963,7 @@ app.post('/admin/exit-workspace', auth, superAdmin, async (req, res) => {
         workspace_id: req.user.workspace_id,
         is_super_admin: true,
         is_impersonating: false
-        // direct_entry intentionally omitted — routes to /admin
+        // direct_entry intentionally omitted 鈥?routes to /admin
       },
       JWT_SECRET,
       { expiresIn: '7d' }
@@ -4133,7 +4145,7 @@ app.get('/admin/impersonate/sessions', auth, superAdmin, async (req, res) => {
   }
 })
 
-// PATCH /admin/workspaces/:id �?update workspace metadata
+// PATCH /admin/workspaces/:id 锟?update workspace metadata
 // Body: any of { name, registration_number, email, phone, address, plan, billing_exempt, status, workspace_type }
 app.patch('/admin/workspaces/:id', auth, superAdmin, async (req, res) => {
   try {
@@ -4164,10 +4176,10 @@ app.patch('/admin/workspaces/:id', auth, superAdmin, async (req, res) => {
   }
 })
 
-// ─── WORKSPACE ─────────────────────────────────────────────────────────────────
+// 鈹€鈹€鈹€ WORKSPACE 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 app.get('/workspace', auth, async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const r = await pool.query('SELECT * FROM workspaces WHERE id=$1', [wsId])
     res.json(r.rows[0])
   } catch (err) { res.status(500).json({ error: err.message }) }
@@ -4175,10 +4187,10 @@ app.get('/workspace', auth, async (req, res) => {
 
 app.patch('/workspace', auth, requirePermission('manage_workspace_settings'), async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
 
     // Whitelist of fields that can be updated. Anything else in req.body is
-    // silently ignored — protects against accidental column overwrites and
+    // silently ignored 鈥?protects against accidental column overwrites and
     // basic injection. Add new updateable workspace columns here.
     const ALLOWED = [
       'name', 'email', 'phone', 'address', 'registration_number', 'timezone',
@@ -4202,7 +4214,7 @@ app.patch('/workspace', auth, requirePermission('manage_workspace_settings'), as
       return res.status(400).json({ error: 'No valid fields provided to update' })
     }
 
-    // Validate name when present — it's NOT NULL in the schema
+    // Validate name when present 鈥?it's NOT NULL in the schema
     if (Object.prototype.hasOwnProperty.call(req.body, 'name')) {
       const trimmed = (req.body.name || '').trim()
       if (!trimmed) {
@@ -4221,10 +4233,10 @@ app.patch('/workspace', auth, requirePermission('manage_workspace_settings'), as
   }
 })
 
-// ─── PHONE NUMBERS ─────────────────────────────────────────────────────────────
+// 鈹€鈹€鈹€ PHONE NUMBERS 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 app.get('/phone-numbers', auth, async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const r = await pool.query(`
       SELECT pn.*,
              u.name  AS owner_name,
@@ -4243,7 +4255,7 @@ app.get('/phone-numbers', auth, async (req, res) => {
 
 app.post('/phone-numbers', auth, requirePermission('manage_phone_numbers'), async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const { number, display_name, whatsapp_phone_id, is_primary, owner_user_id, project_id } = req.body
 
     // Required field check
@@ -4292,7 +4304,7 @@ app.post('/phone-numbers', auth, requirePermission('manage_phone_numbers'), asyn
 
 app.patch('/phone-numbers/:id', auth, requirePermission('manage_phone_numbers'), async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const { display_name, is_primary, status, team_id, owner_user_id, project_id, whatsapp_phone_id } = req.body
     if (is_primary) await pool.query('UPDATE phone_numbers SET is_primary=false WHERE workspace_id=$1', [wsId])
     // whatsapp_phone_id is updated via COALESCE pattern but with one
@@ -4326,13 +4338,13 @@ app.patch('/phone-numbers/:id', auth, requirePermission('manage_phone_numbers'),
 
 app.delete('/phone-numbers/:id', auth, requirePermission('manage_phone_numbers'), async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     await pool.query('DELETE FROM phone_numbers WHERE id=$1 AND workspace_id=$2', [req.params.id, wsId])
     res.json({ success: true })
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-// ─── PHONE CONNECTION CHECK (Chunk 23, Unit 2B) ────────────────────────────
+// 鈹€鈹€鈹€ PHONE CONNECTION CHECK (Chunk 23, Unit 2B) 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 // Verifies a phone number against Meta's Graph API and writes structured
 // connection state to the new chunk 23 columns. Used by all three layers:
 //   1. Manual "Test Connection" button in Settings > Phone Numbers
@@ -4454,7 +4466,7 @@ async function checkPhoneConnection(workspaceId, phoneNumberId) {
 
 app.post('/phone-numbers/:id/check-connection', auth, requirePermission('manage_phone_numbers'), async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const result = await checkPhoneConnection(wsId, req.params.id)
     res.json(result)
   } catch (err) {
@@ -4463,12 +4475,12 @@ app.post('/phone-numbers/:id/check-connection', auth, requirePermission('manage_
   }
 })
 
-// ─── CHUNK 5: Role Permissions (Director-facing) ─────────────────────────────
+// 鈹€鈹€鈹€ CHUNK 5: Role Permissions (Director-facing) 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 // Director manages role permissions for their own workspace.
 // Requires the 'manage_role_permissions' permission.
 app.get('/role-permissions', auth, requirePermission('manage_role_permissions'), async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const roles = await listRolePermissions(wsId)
     res.json({ workspace_id: wsId, roles })
   } catch (err) {
@@ -4479,7 +4491,7 @@ app.get('/role-permissions', auth, requirePermission('manage_role_permissions'),
 
 app.patch('/role-permissions/:role', auth, requirePermission('manage_role_permissions'), async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const { scope, permissions } = req.body
     const updated = await updateRolePermissions(wsId, req.params.role, scope, permissions)
     await logAudit(wsId, req.user.id, 'role_permissions.update', 'role', req.params.role, null, { scope, permissions })
@@ -4492,7 +4504,7 @@ app.patch('/role-permissions/:role', auth, requirePermission('manage_role_permis
 
 app.post('/role-permissions/reset', auth, requirePermission('manage_role_permissions'), async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     await resetRolePermissionsToDefaults(wsId)
     await logAudit(wsId, req.user.id, 'role_permissions.reset', 'workspace', wsId, null, {})
     const roles = await listRolePermissions(wsId)
@@ -4503,10 +4515,10 @@ app.post('/role-permissions/reset', auth, requirePermission('manage_role_permiss
   }
 })
 
-// ─── AGENTS ────────────────────────────────────────────────────────────────────
+// 鈹€鈹€鈹€ AGENTS 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 app.get('/agents', auth, async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const r = await pool.query(`SELECT u.*, t.name as team_name, t.color as team_color FROM users u LEFT JOIN teams t ON t.id=u.team_id WHERE u.workspace_id=$1 ORDER BY u.created_at ASC`, [wsId])
     res.json(r.rows.map(u => ({ ...u, password_hash: undefined })))
   } catch (err) { res.status(500).json({ error: err.message }) }
@@ -4514,7 +4526,7 @@ app.get('/agents', auth, async (req, res) => {
 
 app.post('/agents', auth, requirePermission('manage_staff'), async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const { name, email, role, team_id, capacity, password, require_password_change } = req.body
 
     if (!name || !name.trim()) return res.status(400).json({ error: 'Name is required' })
@@ -4585,7 +4597,7 @@ app.post('/agents', auth, requirePermission('manage_staff'), async (req, res) =>
 
 app.patch('/agents/:id', auth, requirePermission('manage_staff'), async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
 
     // Whitelist of updateable user fields. Frontend may send a partial body
     // (e.g. AgentModal sends 5 fields, PermissionsModal sends 1, toggleActive
@@ -4640,7 +4652,7 @@ app.patch('/agents/:id', auth, requirePermission('manage_staff'), async (req, re
 
 app.post('/agents/:id/reset-password', auth, requirePermission('manage_staff'), async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const { password, require_change } = req.body
 
     const targetRes = await pool.query(
@@ -4694,10 +4706,10 @@ app.post('/agents/:id/reset-password', auth, requirePermission('manage_staff'), 
   }
 })
 
-// ─── TEAMS ─────────────────────────────────────────────────────────────────────
+// 鈹€鈹€鈹€ TEAMS 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 app.get('/teams', auth, async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const r = await pool.query(`SELECT t.*, u.name as lead_name, COALESCE(json_agg(json_build_object('id',tm_u.id,'name',tm_u.name,'role',tm_u.role,'status',tm_u.status)) FILTER (WHERE tm_u.id IS NOT NULL),'[]') as members FROM teams t LEFT JOIN users u ON u.id=t.lead_user_id LEFT JOIN team_members tm ON tm.team_id=t.id LEFT JOIN users tm_u ON tm_u.id=tm.user_id WHERE t.workspace_id=$1 GROUP BY t.id,u.name ORDER BY t.created_at ASC`, [wsId])
     res.json(r.rows)
   } catch (err) { res.status(500).json({ error: err.message }) }
@@ -4705,7 +4717,7 @@ app.get('/teams', auth, async (req, res) => {
 
 app.post('/teams', auth, requirePermission('manage_teams'), async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const { name, key, type, lead_user_id, color, description } = req.body
     const r = await pool.query(`INSERT INTO teams (workspace_id, name, key, type, lead_user_id, color, description) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`, [wsId, name, key, type, lead_user_id, color, description])
     res.json(r.rows[0])
@@ -4714,7 +4726,7 @@ app.post('/teams', auth, requirePermission('manage_teams'), async (req, res) => 
 
 app.patch('/teams/:id', auth, requirePermission('manage_teams'), async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const { name, type, lead_user_id, color, description, members } = req.body
     const r = await pool.query(`UPDATE teams SET name=$1, type=$2, lead_user_id=$3, color=$4, description=$5 WHERE id=$6 AND workspace_id=$7 RETURNING *`, [name, type, lead_user_id, color, description, req.params.id, wsId])
     if (members) {
@@ -4727,13 +4739,13 @@ app.patch('/teams/:id', auth, requirePermission('manage_teams'), async (req, res
 
 app.delete('/teams/:id', auth, requirePermission('manage_teams'), async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     await pool.query('DELETE FROM teams WHERE id=$1 AND workspace_id=$2', [req.params.id, wsId])
     res.json({ success: true })
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-// ─── CONVERSATIONS ─────────────────────────────────────────────────────────────
+// 鈹€鈹€鈹€ CONVERSATIONS 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 app.get('/conversations', auth, async (req, res) => {
   try {
     const access = await getAccessibleProjects(req)
@@ -4823,7 +4835,7 @@ app.patch('/conversations/:id/assign', auth, requirePermission('manage_conversat
 
 app.post('/conversations', auth, requirePermission('manage_conversations'), async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const { contact_id, phone_number_id } = req.body
     if (!contact_id) return res.status(400).json({ error: 'contact_id is required' })
     const existing = await pool.query(
@@ -4854,7 +4866,7 @@ app.post('/conversations', auth, requirePermission('manage_conversations'), asyn
   }
 })
 
-// ─── WHATSAPP SEND HELPER ──────────────────────────────────────────────────────
+// 鈹€鈹€鈹€ WHATSAPP SEND HELPER 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 async function sendWhatsAppMessage(toPhone, text) {
   const token = process.env.META_ACCESS_TOKEN
   const phoneNumberId = process.env.META_PHONE_NUMBER_ID
@@ -4875,7 +4887,7 @@ async function sendWhatsAppMessage(toPhone, text) {
   return data.messages?.[0]?.id || null
 }
 
-// ─── MESSAGES ──────────────────────────────────────────────────────────────────
+// 鈹€鈹€鈹€ MESSAGES 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 app.post('/messages', auth, requirePermission('send_messages'), async (req, res) => {
   try {
     const access = await getAccessibleProjects(req)
@@ -4955,7 +4967,7 @@ app.post('/messages', auth, requirePermission('send_messages'), async (req, res)
         const toPhone = phoneRow.rows[0]?.phone
         if (!toPhone) throw new Error('No recipient phone number on contact')
 
-        // ─── BILLING: pre-send cost calc + balance gate ──────────────────────────
+        // 鈹€鈹€鈹€ BILLING: pre-send cost calc + balance gate 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
         // Per-message billing (Path X step 5, A1 scope). Treats every outbound as
         // its own billable unit. Per-conversation billing (A2) is a follow-up:
         // Meta actually charges per 24h conversation window, not per message.
@@ -4963,10 +4975,10 @@ app.post('/messages', auth, requirePermission('send_messages'), async (req, res)
         // Category defaults to 'service' for in-window replies (this code path
         // already enforces the 24h window above for non-template sends).
         // Template messages would be 'marketing' or 'authentication' but Meta's
-        // exact category lookup needs per-template metadata — defer to A2.
+        // exact category lookup needs per-template metadata 鈥?defer to A2.
         //
         // Country defaults to 'SG' if contact.country_code is null.
-        // TODO: contacts table has no country_code column yet — default all to SG.
+        // TODO: contacts table has no country_code column yet 鈥?default all to SG.
         // When we add per-contact country detection (phone prefix analysis or
         // explicit field), use that instead. Doesn't matter much right now since
         // meta_pricing only has SG rows seeded.
@@ -4976,7 +4988,7 @@ app.post('/messages', auth, requirePermission('send_messages'), async (req, res)
 
         // Pre-flight balance check: block before hitting Meta if non-exempt
         // workspace can't afford this message. Avoids the bad UX of "we sent it
-        // but couldn't bill you" — Meta would have charged us either way.
+        // but couldn't bill you" 鈥?Meta would have charged us either way.
         if (!costData.billingExempt && costData.totalCents > 0) {
           const balCheck = await pool.query(
             `SELECT COALESCE(balance_cents, 0) AS balance_cents FROM wallets WHERE workspace_id = $1`,
@@ -4991,15 +5003,15 @@ app.post('/messages', auth, requirePermission('send_messages'), async (req, res)
               balance_cents: balance,
               required_cents: costData.totalCents,
               shortfall_cents: costData.totalCents - balance,
-              suggestion: 'Top up your wallet from Settings → Billing.',
+              suggestion: 'Top up your wallet from Settings 鈫?Billing.',
             })
           }
         }
 
-        // ─── SEND to Meta ────────────────────────────────────────────────────────
+        // 鈹€鈹€鈹€ SEND to Meta 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
         const waMessageId = await sendWhatsAppMessage(toPhone, text)
 
-        // ─── DEBIT wallet atomically (transaction so partial failure rolls back) ─
+        // 鈹€鈹€鈹€ DEBIT wallet atomically (transaction so partial failure rolls back) 鈹€
         const billingClient = await pool.connect()
         try {
           await billingClient.query('BEGIN')
@@ -5015,9 +5027,9 @@ app.post('/messages', auth, requirePermission('send_messages'), async (req, res)
           console.log(`[billing] Message ${msg.id} sent + debited ${debitResult.totalCents || 0} cents (workspace ${access.workspaceId}, ${category}/${country})`)
         } catch (billingErr) {
           await billingClient.query('ROLLBACK')
-          // Send succeeded but billing failed — message stays in 'pending' status,
+          // Send succeeded but billing failed 鈥?message stays in 'pending' status,
           // not 'sent'. Surface for manual reconciliation. The Meta send already
-          // happened so we don't refund — operator must investigate.
+          // happened so we don't refund 鈥?operator must investigate.
           console.error(`[billing] CRITICAL: Meta send succeeded but billing failed for msg ${msg.id} (workspace ${access.workspaceId}):`, billingErr)
           await pool.query(`UPDATE messages SET status='sent', whatsapp_message_id=$1 WHERE id=$2`, [waMessageId, msg.id])
           msg.status = 'sent'
@@ -5060,7 +5072,7 @@ app.post('/messages', auth, requirePermission('send_messages'), async (req, res)
 app.post('/conversations/quick-start', auth, requirePermission('send_messages'), async (req, res) => {
   const { phone, name, sender_phone_number_id, message_type, text, template_id, template_variables } = req.body
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     // 1. Validate inputs
     if (!phone || typeof phone !== 'string') {
       return res.status(400).json({ error: 'phone is required', code: 'PHONE_REQUIRED' })
@@ -5116,7 +5128,7 @@ app.post('/conversations/quick-start', auth, requirePermission('send_messages'),
         return match
       })
     }
-    // 5. Resolve contact — find by normalized phone or create
+    // 5. Resolve contact 鈥?find by normalized phone or create
     const phoneDigitsOnly = cleanPhone
     const contactRes = await pool.query(
       `SELECT id, name, phone, pdpa_consented, opted_out, dnc FROM contacts
@@ -5142,7 +5154,7 @@ app.post('/conversations/quick-start', auth, requirePermission('send_messages'),
       contactId = newContactRes.rows[0].id
       createdContact = true
     }
-    // 6. Resolve conversation — open one with this sender, or create new
+    // 6. Resolve conversation 鈥?open one with this sender, or create new
     let convoRes = await pool.query(
       `SELECT id, last_inbound_at FROM conversations
        WHERE workspace_id = $1 AND contact_id = $2 AND phone_number_id = $3 AND status = 'open'
@@ -5201,7 +5213,7 @@ app.post('/conversations/quick-start', auth, requirePermission('send_messages'),
           balance_cents: balance,
           required_cents: costData.totalCents,
           shortfall_cents: costData.totalCents - balance,
-          suggestion: 'Top up your wallet from Settings → Billing.',
+          suggestion: 'Top up your wallet from Settings 鈫?Billing.',
         })
       }
     }
@@ -5254,7 +5266,7 @@ app.post('/conversations/quick-start', auth, requirePermission('send_messages'),
   }
 })
 
-// ─── CONTACTS ──────────────────────────────────────────────────────────────────
+// 鈹€鈹€鈹€ CONTACTS 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 app.get('/contacts', auth, async (req, res) => {
   try {
     const access = await getAccessibleProjects(req)
@@ -5262,7 +5274,7 @@ app.get('/contacts', auth, async (req, res) => {
     let query = 'SELECT * FROM contacts WHERE workspace_id=$1'
     const params = [access.workspaceId]; let idx = 2
 
-    // Scope to accessible projects �?strict: contact must have a conversation in user's project
+    // Scope to accessible projects 锟?strict: contact must have a conversation in user's project
     if (!access.workspaceWide) {
       query += ` AND EXISTS (SELECT 1 FROM conversations conv WHERE conv.contact_id = contacts.id AND conv.project_id = ANY($${idx}::int[]))`
       params.push(access.projectIds)
@@ -5280,13 +5292,13 @@ app.get('/contacts', auth, async (req, res) => {
 
 app.post('/contacts', auth, requirePermission('manage_contacts'), async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const {
       name, phone, email, type, pipeline_stage,
       tags, notes, source, candidate_role, current_company,
       expected_salary, notice_period, linkedin_url,
       pdpa_consented, dnc, dnc_reason, opted_out,
-      // PDPA auto-log fields — optional, only used if pdpa_consented is true
+      // PDPA auto-log fields 鈥?optional, only used if pdpa_consented is true
       pdpa_method, pdpa_notes, pdpa_expires_in_months,
     } = req.body
     if (!name || !name.trim()) return res.status(400).json({ error: 'Contact name is required' })
@@ -5320,7 +5332,7 @@ app.post('/contacts', auth, requirePermission('manage_contacts'), async (req, re
     )
 
     // Auto-log a PDPA record if consent was captured during contact creation.
-    // The PDPA tab's "manual entry" workflow goes through here too — anywhere
+    // The PDPA tab's "manual entry" workflow goes through here too 鈥?anywhere
     // the consent flag flips on, we want an audit-trail row in pdpa_records.
     if (pdpa_consented) {
       const months = parseInt(pdpa_expires_in_months) || 24
@@ -5346,13 +5358,13 @@ app.post('/contacts', auth, requirePermission('manage_contacts'), async (req, re
 app.post('/contacts/bulk', auth, requirePermission('manage_contacts'), async (req, res) => {
   const client = await pool.connect()
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const {
       rows,
       // Optional: PDPA consent applied to all imported rows. The frontend
       // collects this once, applies it to the whole batch (e.g. "all of
       // these candidates filled out the consent form on the same date").
-      // Per-row variation is not supported — simpler model, fewer mistakes.
+      // Per-row variation is not supported 鈥?simpler model, fewer mistakes.
       import_consent_collected,
       import_consent_method,
       import_consent_notes,
@@ -5476,18 +5488,18 @@ app.post('/contacts/bulk', auth, requirePermission('manage_contacts'), async (re
 
 app.patch('/contacts/:id', auth, requirePermission('manage_contacts'), async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const {
       name, phone, email, type, pipeline_stage,
       pdpa_consented, dnc, dnc_reason, opted_out,
       tags, notes, expected_salary, notice_period, linkedin_url,
       current_role, current_company,
-      // PDPA auto-log fields — only used if pdpa_consented transitions on/off
+      // PDPA auto-log fields 鈥?only used if pdpa_consented transitions on/off
       pdpa_method, pdpa_notes, pdpa_expires_in_months,
     } = req.body
 
     // Read current consent state to detect transitions. We auto-log a record
-    // when consent flips: false→true (consented) or true→false (withdrawn).
+    // when consent flips: false鈫抰rue (consented) or true鈫抐alse (withdrawn).
     // Edits that don't touch the flag don't generate spurious records.
     const before = await pool.query(
       'SELECT pdpa_consented FROM contacts WHERE id=$1 AND workspace_id=$2',
@@ -5537,21 +5549,21 @@ app.patch('/contacts/:id', auth, requirePermission('manage_contacts'), async (re
 
 app.delete('/contacts/:id', auth, requirePermission('manage_contacts'), async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     await pool.query('DELETE FROM contacts WHERE id=$1 AND workspace_id=$2', [req.params.id, wsId])
     res.json({ success: true })
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
 // Bulk operations on contacts. Single endpoint with action discriminator
-// instead of N separate endpoints — keeps the API surface small as we add
+// instead of N separate endpoints 鈥?keeps the API surface small as we add
 // more actions over time. Action types so far: delete, change_stage,
 // mark_opted_out, unmark_opted_out, mark_dnc, unmark_dnc, set_assigned_to.
 // Returns affected row count and per-id errors for transparency.
 app.post('/contacts/bulk-action', auth, requirePermission('manage_contacts'), async (req, res) => {
   const client = await pool.connect()
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const { ids, action, payload } = req.body
 
     if (!Array.isArray(ids) || ids.length === 0) {
@@ -5673,7 +5685,7 @@ app.post('/contacts/bulk-action', auth, requirePermission('manage_contacts'), as
 // everyone in the same workspace but only the creator can edit/delete.
 app.get('/contact-views', auth, async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const r = await pool.query(`
       SELECT cv.*, u.name AS creator_name
       FROM contact_views cv
@@ -5690,7 +5702,7 @@ app.get('/contact-views', auth, async (req, res) => {
 })
 app.post('/contact-views', auth, requirePermission('manage_contacts'), async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const { name, filters, sort, columns, is_shared } = req.body
     if (!name || !name.trim()) return res.status(400).json({ error: 'View name is required' })
     const r = await pool.query(`
@@ -5712,7 +5724,7 @@ app.post('/contact-views', auth, requirePermission('manage_contacts'), async (re
 })
 app.patch('/contact-views/:id', auth, requirePermission('manage_contacts'), async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     // Only creator can edit
     const current = await pool.query(
       `SELECT id, user_id FROM contact_views WHERE id=$1 AND workspace_id=$2`,
@@ -5746,7 +5758,7 @@ app.patch('/contact-views/:id', auth, requirePermission('manage_contacts'), asyn
 })
 app.delete('/contact-views/:id', auth, requirePermission('manage_contacts'), async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const current = await pool.query(
       `SELECT id, user_id FROM contact_views WHERE id=$1 AND workspace_id=$2`,
       [req.params.id, wsId]
@@ -5768,7 +5780,7 @@ app.delete('/contact-views/:id', auth, requirePermission('manage_contacts'), asy
 // server's clock (UTC); frontend formats for display.
 app.get('/analytics/dashboard', auth, async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const now = new Date()
     const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
@@ -5817,7 +5829,7 @@ app.get('/analytics/dashboard', auth, async (req, res) => {
       FROM templates WHERE workspace_id = $1
     `, [wsId])
 
-    // 30-day message volume — daily counts of sent and received messages.
+    // 30-day message volume 鈥?daily counts of sent and received messages.
     // We pull from the messages table if it exists. If conversations table
     // is the source instead, this query may need adjustment.
     let messagesPerDay = []
@@ -5838,7 +5850,7 @@ app.get('/analytics/dashboard', auth, async (req, res) => {
       console.warn('messages query failed, returning empty array:', err.message)
     }
 
-    // Active conversations — distinct conversations with messages in last 7 days
+    // Active conversations 鈥?distinct conversations with messages in last 7 days
     let activeConversations = 0
     try {
       const r = await pool.query(`
@@ -5890,10 +5902,10 @@ app.get('/analytics/dashboard', auth, async (req, res) => {
   }
 })
 
-// ─── TEMPLATES ─────────────────────────────────────────────────────────────────
+// 鈹€鈹€鈹€ TEMPLATES 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 app.get('/templates', auth, async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const r = await pool.query('SELECT * FROM templates WHERE workspace_id=$1 ORDER BY created_at DESC', [wsId])
     const rowsWithStatus = r.rows.map(row => ({
       ...row,
@@ -5905,7 +5917,7 @@ app.get('/templates', auth, async (req, res) => {
 
 app.post('/templates', auth, requirePermission('manage_templates'), async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const { name, category, language, body, buttons, subject, type, status, variables, header, footer } = req.body
     if (!name || !name.trim()) return res.status(400).json({ error: 'Template name is required' })
     const cleanName = name.trim()
@@ -5933,7 +5945,7 @@ app.post('/templates', auth, requirePermission('manage_templates'), async (req, 
 
 app.patch('/templates/:id', auth, requirePermission('manage_templates'), async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const { name, category, language, body, buttons, status, subject, variables, header, footer } = req.body
 
     // Fetch current row to know its source/status before mutating
@@ -6023,20 +6035,20 @@ app.patch('/templates/:id', auth, requirePermission('manage_templates'), async (
 
 app.delete('/templates/:id', auth, requirePermission('manage_templates'), async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     await pool.query('DELETE FROM templates WHERE id=$1 AND workspace_id=$2', [req.params.id, wsId])
     res.json({ success: true })
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-// ─── SUBMIT TEMPLATE TO META ─────────────────────────────────────────
+// 鈹€鈹€鈹€ SUBMIT TEMPLATE TO META 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 // POST /templates/:id/submit-to-meta
 // Submits a draft template to Meta's WhatsApp Business API for approval.
 // On success, updates template status to 'pending' and stores Meta's template ID.
 // On failure, returns Meta's error message verbatim.
 app.post('/templates/:id/submit-to-meta', auth, requirePermission('manage_templates'), async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const templateId = parseInt(req.params.id, 10)
     if (!templateId) return res.status(400).json({ error: 'Invalid template id' })
 
@@ -6208,7 +6220,7 @@ app.post('/templates/:id/submit-to-meta', auth, requirePermission('manage_templa
   }
 })
 
-// ─── TEMPLATE LIBRARY (read-only catalog of pre-built starter templates) ──
+// 鈹€鈹€鈹€ TEMPLATE LIBRARY (read-only catalog of pre-built starter templates) 鈹€鈹€
 app.get('/template-library', auth, async (req, res) => {
   try {
     const { category, audience, featured } = req.query
@@ -6261,7 +6273,7 @@ app.get('/template-library/:template_key', auth, async (req, res) => {
   }
 })
 
-// ─── Meta Library endpoints (Phase II2) ────────────────────────────────────
+// 鈹€鈹€鈹€ Meta Library endpoints (Phase II2) 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 // In mock mode (default), returns hardcoded sample data matching Meta's API
 // shape. When credentials are sorted, set META_MOCK_MODE=false and these
 // endpoints will proxy to Meta's real /message_template_library endpoint.
@@ -6457,7 +6469,7 @@ app.post('/api/meta-library/install', auth, async (req, res) => {
   }
 })
 
-// ─── BROADCASTS ───────────────────────────────────────────────────────────────
+// 鈹€鈹€鈹€ BROADCASTS 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 // List broadcasts in workspace with aggregated recipient stats. Stats are
 // computed via LEFT JOIN + GROUP BY so a list of 100 broadcasts costs one query
 // instead of 101. Recipient counts come from broadcast_recipients (source of
@@ -6465,7 +6477,7 @@ app.post('/api/meta-library/install', auth, async (req, res) => {
 // broadcasts table are kept for backwards compatibility but not authoritative.
 app.get('/broadcasts', auth, async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const r = await pool.query(`
       SELECT
         b.*,
@@ -6496,7 +6508,7 @@ app.get('/broadcasts', auth, async (req, res) => {
 // here yet (paginated endpoint comes in v3); this is the detail-page header.
 app.get('/broadcasts/:id', auth, async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const r = await pool.query(`
       SELECT
         b.*,
@@ -6532,7 +6544,7 @@ app.get('/broadcasts/:id', auth, async (req, res) => {
 // approved (you cannot broadcast a draft or rejected template).
 app.post('/broadcasts', auth, requirePermission('manage_broadcasts'), async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const {
       name, template_id, phone_number_id, variables, target_filters, scheduled_at,
       quiet_hours_enabled, quiet_hours_start_hour, quiet_hours_end_hour,
@@ -6605,7 +6617,7 @@ app.post('/broadcasts', auth, requirePermission('manage_broadcasts'), async (req
 // Use PATCH /broadcasts/:id/cancel (v3) to stop a broadcast in flight.
 app.patch('/broadcasts/:id', auth, requirePermission('manage_broadcasts'), async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const current = await pool.query(
       `SELECT id, status FROM broadcasts WHERE id=$1 AND workspace_id=$2`,
       [req.params.id, wsId]
@@ -6686,7 +6698,7 @@ app.delete('/broadcasts/:id', auth, requirePermission('manage_broadcasts'), asyn
     if (req.user.role !== 'director') {
       return res.status(403).json({ error: 'Only directors can delete broadcasts. Use cancel to stop a broadcast in flight.' })
     }
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const current = await pool.query(
       `SELECT id, status FROM broadcasts WHERE id=$1 AND workspace_id=$2`,
       [req.params.id, wsId]
@@ -6711,7 +6723,7 @@ app.delete('/broadcasts/:id', auth, requirePermission('manage_broadcasts'), asyn
 app.post('/broadcasts/:id/recipients', auth, requirePermission('manage_broadcasts'), async (req, res) => {
   const client = await pool.connect()
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const { contact_ids, per_recipient_variables } = req.body
     if (!Array.isArray(contact_ids)) {
       return res.status(400).json({ error: 'contact_ids must be an array' })
@@ -6792,7 +6804,7 @@ app.post('/broadcasts/:id/recipients', auth, requirePermission('manage_broadcast
 // "Review" step (Chunk A).
 app.get('/broadcasts/:id/recipients', auth, async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const limit = Math.min(parseInt(req.query.limit) || 100, 500)
     const offset = parseInt(req.query.offset) || 0
     // Verify broadcast belongs to workspace
@@ -6833,7 +6845,7 @@ app.get('/broadcasts/:id/recipients', auth, async (req, res) => {
 // (Chunk C) will pick it up when scheduled_at <= NOW().
 app.patch('/broadcasts/:id/schedule', auth, requirePermission('manage_broadcasts'), async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const current = await pool.query(`
       SELECT b.*, COALESCE(r.sendable, 0) AS sendable_count
       FROM broadcasts b
@@ -6879,7 +6891,7 @@ app.patch('/broadcasts/:id/schedule', auth, requirePermission('manage_broadcasts
 app.patch('/broadcasts/:id/cancel', auth, requirePermission('manage_broadcasts'), async (req, res) => {
   const client = await pool.connect()
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     await client.query('BEGIN')
 
     const current = await client.query(
@@ -6932,7 +6944,7 @@ app.patch('/broadcasts/:id/cancel', auth, requirePermission('manage_broadcasts')
 app.post('/broadcasts/:id/retry-failed', auth, requirePermission('manage_broadcasts'), async (req, res) => {
   const client = await pool.connect()
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     await client.query('BEGIN')
 
     const current = await client.query(
@@ -6986,10 +6998,10 @@ app.post('/broadcasts/:id/retry-failed', auth, requirePermission('manage_broadca
   }
 })
 
-// ─── SCHEDULED MESSAGES ────────────────────────────────────────────────────────
+// 鈹€鈹€鈹€ SCHEDULED MESSAGES 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 app.get('/scheduled', auth, async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const r = await pool.query(`SELECT s.*, c.name as contact_name, c.phone as contact_phone, u.name as created_by_name, pn.display_name as phone_line FROM scheduled_messages s LEFT JOIN contacts c ON c.id=s.contact_id LEFT JOIN users u ON u.id=s.created_by LEFT JOIN phone_numbers pn ON pn.id=s.phone_number_id WHERE s.workspace_id=$1 ORDER BY s.scheduled_at ASC`, [wsId])
     res.json(r.rows)
   } catch (err) { res.status(500).json({ error: err.message }) }
@@ -6997,7 +7009,7 @@ app.get('/scheduled', auth, async (req, res) => {
 
 app.post('/scheduled', auth, requirePermission('manage_scheduled_messages'), async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const { conversation_id, contact_id, phone_number_id, channel, template_id, subject, body, variables, buttons, scheduled_at, send_mode, email_to, email_cc, bulk_batch_id } = req.body
     const r = await pool.query(`INSERT INTO scheduled_messages (workspace_id, conversation_id, contact_id, phone_number_id, created_by, channel, template_id, subject, body, variables, buttons, scheduled_at, send_mode, email_to, email_cc, bulk_batch_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING *`, [wsId, conversation_id, contact_id, phone_number_id, req.user.id, channel || 'whatsapp', template_id, subject, body, JSON.stringify(variables || {}), JSON.stringify(buttons || []), scheduled_at, send_mode || 'scheduled', email_to, email_cc, bulk_batch_id])
     res.json(r.rows[0])
@@ -7006,16 +7018,16 @@ app.post('/scheduled', auth, requirePermission('manage_scheduled_messages'), asy
 
 app.patch('/scheduled/:id/cancel', auth, requirePermission('manage_scheduled_messages'), async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const r = await pool.query(`UPDATE scheduled_messages SET status='cancelled' WHERE id=$1 AND workspace_id=$2 AND status='pending' RETURNING *`, [req.params.id, wsId])
     res.json(r.rows[0])
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-// ─── QUICK REPLIES ─────────────────────────────────────────────────────────────
+// 鈹€鈹€鈹€ QUICK REPLIES 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 app.get('/quick-replies', auth, async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const r = await pool.query(`SELECT * FROM quick_replies WHERE workspace_id=$1 AND (shared=true OR created_by=$2) ORDER BY title ASC`, [wsId, req.user.id])
     res.json(r.rows)
   } catch (err) { res.status(500).json({ error: err.message }) }
@@ -7023,26 +7035,26 @@ app.get('/quick-replies', auth, async (req, res) => {
 
 app.post('/quick-replies', auth, requirePermission('manage_quick_replies'), async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const { title, body, shortcut, shared } = req.body
     const r = await pool.query(`INSERT INTO quick_replies (workspace_id, created_by, title, body, shortcut, shared) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`, [wsId, req.user.id, title, body, shortcut, shared !== false])
     res.json(r.rows[0])
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-// ─── LABELS ────────────────────────────────────────────────────────────────────
+// 鈹€鈹€鈹€ LABELS 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 app.get('/labels', auth, async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const r = await pool.query('SELECT * FROM labels WHERE workspace_id=$1 ORDER BY name ASC', [wsId])
     res.json(r.rows)
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-// ─── JOBS ──────────────────────────────────────────────────────────────────────
+// 鈹€鈹€鈹€ JOBS 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 app.get('/jobs', auth, async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const r = await pool.query(`SELECT j.*, u.name as assigned_name, c.name as client_name FROM job_orders j LEFT JOIN users u ON u.id=j.assigned_to LEFT JOIN contacts c ON c.id=j.client_contact_id WHERE j.workspace_id=$1 ORDER BY j.created_at DESC`, [wsId])
     res.json(r.rows)
   } catch (err) { res.status(500).json({ error: err.message }) }
@@ -7050,17 +7062,17 @@ app.get('/jobs', auth, async (req, res) => {
 
 app.post('/jobs', auth, async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const { title, client_contact_id, company, description, requirements, salary_min, salary_max, currency, headcount, location, employment_type, status, priority, deadline, assigned_to, team_id, placement_fee, fee_type } = req.body
     const r = await pool.query(`INSERT INTO job_orders (workspace_id, title, client_contact_id, company, description, requirements, salary_min, salary_max, currency, headcount, location, employment_type, status, priority, deadline, assigned_to, team_id, placement_fee, fee_type, created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20) RETURNING *`, [wsId, title, client_contact_id, company, description, requirements, salary_min, salary_max, currency || 'SGD', headcount || 1, location, employment_type, status || 'open', priority || 'normal', deadline, assigned_to, team_id, placement_fee, fee_type || 'percentage', req.user.id])
     res.json(r.rows[0])
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-// ─── PDPA ──────────────────────────────────────────────────────────────────────
+// 鈹€鈹€鈹€ PDPA 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 app.get('/pdpa', auth, async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const r = await pool.query(`SELECT p.*, c.name as contact_name, c.phone, c.email, c.type as contact_type, u.name as collected_by_name FROM pdpa_records p JOIN contacts c ON c.id=p.contact_id LEFT JOIN users u ON u.id=p.collected_by WHERE p.workspace_id=$1 ORDER BY p.created_at DESC`, [wsId])
     res.json(r.rows)
   } catch (err) { res.status(500).json({ error: err.message }) }
@@ -7068,7 +7080,7 @@ app.get('/pdpa', auth, async (req, res) => {
 
 app.post('/pdpa', auth, async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const { contact_id, status, method, notes } = req.body
     const r = await pool.query(`INSERT INTO pdpa_records (workspace_id, contact_id, status, method, consented_at, collected_by, notes) VALUES ($1,$2,$3,$4,NOW(),$5,$6) RETURNING *`, [wsId, contact_id, status, method, req.user.id, notes])
     if (status === 'consented') await pool.query('UPDATE contacts SET pdpa_consented=true, pdpa_consented_at=NOW() WHERE id=$1', [contact_id])
@@ -7076,19 +7088,19 @@ app.post('/pdpa', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-// ─── AUDIT LOG ─────────────────────────────────────────────────────────────────
+// 鈹€鈹€鈹€ AUDIT LOG 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 app.get('/audit-log', auth, async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const r = await pool.query(`SELECT a.*, u.name as user_name FROM audit_log a LEFT JOIN users u ON u.id=a.user_id WHERE a.workspace_id=$1 ORDER BY a.created_at DESC LIMIT 500`, [wsId])
     res.json(r.rows)
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-// ─── ANALYTICS ─────────────────────────────────────────────────────────────────
+// 鈹€鈹€鈹€ ANALYTICS 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 app.get('/analytics', auth, async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const { from, to } = req.query
     const fromDate = from || new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0]
     const toDate = to || new Date().toISOString().split('T')[0]
@@ -7099,10 +7111,10 @@ app.get('/analytics', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-// ─── BUSINESS HOURS ────────────────────────────────────────────────────────────
+// 鈹€鈹€鈹€ BUSINESS HOURS 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 app.get('/business-hours', auth, async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const r = await pool.query('SELECT * FROM business_hours WHERE workspace_id=$1 ORDER BY id ASC', [wsId])
     res.json(r.rows)
   } catch (err) { res.status(500).json({ error: err.message }) }
@@ -7110,17 +7122,17 @@ app.get('/business-hours', auth, async (req, res) => {
 
 app.patch('/business-hours', auth, requirePermission('manage_workspace_settings'), async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const { hours } = req.body
     for (const h of hours) await pool.query(`UPDATE business_hours SET is_open=$1, open_time=$2, close_time=$3 WHERE workspace_id=$4 AND day_of_week=$5`, [h.is_open, h.open_time, h.close_time, wsId, h.day_of_week])
     res.json({ success: true })
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-// ─── ROUTING ───────────────────────────────────────────────────────────────────
+// 鈹€鈹€鈹€ ROUTING 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 app.get('/routing', auth, async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const r = await pool.query('SELECT * FROM routing_rules WHERE workspace_id=$1', [wsId])
     res.json(r.rows[0] || {})
   } catch (err) { res.status(500).json({ error: err.message }) }
@@ -7128,7 +7140,7 @@ app.get('/routing', auth, async (req, res) => {
 
 app.patch('/routing', auth, requirePermission('manage_workspace_settings'), async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const { mode, sticky_assignment, round_robin, candidate_team_id, client_team_id, max_capacity, escalation_enabled, escalation_steps, after_hours_action, unassigned_queue, blackout_start, blackout_end } = req.body
     const existing = await pool.query('SELECT id FROM routing_rules WHERE workspace_id=$1', [wsId])
     if (existing.rows.length > 0) {
@@ -7141,7 +7153,7 @@ app.patch('/routing', auth, requirePermission('manage_workspace_settings'), asyn
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-// ─── NOTIFICATIONS ─────────────────────────────────────────────────────────────
+// 鈹€鈹€鈹€ NOTIFICATIONS 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 app.get('/notifications', auth, async (req, res) => {
   try {
     const r = await pool.query(`SELECT * FROM notifications WHERE user_id=$1 ORDER BY created_at DESC LIMIT 50`, [req.user.id])
@@ -7149,10 +7161,10 @@ app.get('/notifications', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-// ─── SECURITY ──────────────────────────────────────────────────────────────────
+// 鈹€鈹€鈹€ SECURITY 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 app.get('/security', auth, async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const r = await pool.query('SELECT * FROM security_settings WHERE workspace_id=$1', [wsId])
     res.json(r.rows[0] || {})
   } catch (err) { res.status(500).json({ error: err.message }) }
@@ -7160,15 +7172,15 @@ app.get('/security', auth, async (req, res) => {
 
 app.patch('/security', auth, requirePermission('manage_workspace_settings'), async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const { session_timeout_minutes, max_failed_logins, force_password_change, two_factor_required, password_min_length, password_require_special } = req.body
     const r = await pool.query(`UPDATE security_settings SET session_timeout_minutes=$1, max_failed_logins=$2, force_password_change=$3, two_factor_required=$4, password_min_length=$5, password_require_special=$6, updated_at=NOW() WHERE workspace_id=$7 RETURNING *`, [session_timeout_minutes, max_failed_logins, force_password_change, two_factor_required, password_min_length, password_require_special, wsId])
     res.json(r.rows[0])
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
-// ─── NOTIFICATIONS ─────────────────────────────────────────────────────────
+// 鈹€鈹€鈹€ NOTIFICATIONS 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 // Per-user notification preferences. Each user has their own toggles
-// (workspace setting wouldn't make sense — different agents care about
+// (workspace setting wouldn't make sense 鈥?different agents care about
 // different events). Stored as JSONB on users.notification_preferences.
 //
 // Data shape: { event_key: { in_app: bool, email: bool } }
@@ -7176,20 +7188,20 @@ app.patch('/security', auth, requirePermission('manage_workspace_settings'), asy
 //               "new_conversation": { in_app: true, email: false } }
 //
 // Defaults are applied at the API layer (DEFAULT_PREFS below) so the source
-// of truth lives in code, not data — we can change defaults without a
+// of truth lives in code, not data 鈥?we can change defaults without a
 // migration. Frontend merges user prefs over defaults to compute display.
 
 const DEFAULT_NOTIFICATION_PREFS = {
-  // Conversations — in-app on, email off (most agents don't want email spam)
+  // Conversations 鈥?in-app on, email off (most agents don't want email spam)
   new_conversation:        { in_app: true,  email: false },
   conversation_reassigned: { in_app: true,  email: false },
   message_received:        { in_app: true,  email: false },
   watching_message:        { in_app: true,  email: false },
-  // SLA — breaches get email by default because they're urgent
+  // SLA 鈥?breaches get email by default because they're urgent
   sla_warning:             { in_app: true,  email: false },
   sla_breach:              { in_app: true,  email: true  },
   escalation:              { in_app: true,  email: false },
-  // Broadcasts — failures get email, success in-app only
+  // Broadcasts 鈥?failures get email, success in-app only
   broadcast_sent:          { in_app: true,  email: false },
   broadcast_failed:        { in_app: true,  email: true  },
   // Scheduled
@@ -7232,7 +7244,7 @@ app.patch('/notification-preferences', auth, async (req, res) => {
     if (!prefs || typeof prefs !== 'object' || Array.isArray(prefs)) {
       return res.status(400).json({ error: 'Request body must be a preferences object' })
     }
-    // Sanitize — only accept known event keys, only accept boolean values for
+    // Sanitize 鈥?only accept known event keys, only accept boolean values for
     // in_app/email channels. Anything else is silently dropped to prevent
     // arbitrary data from being written into the JSONB column.
     const sanitized = {}
@@ -7254,9 +7266,9 @@ app.patch('/notification-preferences', auth, async (req, res) => {
     res.status(500).json({ error: err.message })
   }
 })
-// ─── EMAIL SETTINGS ────────────────────────────────────────────────────────
+// 鈹€鈹€鈹€ EMAIL SETTINGS 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 // Workspace-level email integration settings. The Outlook OAuth connection
-// state lives on the workspaces table (alongside whatsapp_token etc.) — this
+// state lives on the workspaces table (alongside whatsapp_token etc.) 鈥?this
 // table is for behavioural settings: sender name, reply-to, send mode,
 // blackout window, default signature.
 //
@@ -7266,7 +7278,7 @@ app.patch('/notification-preferences', auth, async (req, res) => {
 
 app.get('/email-settings', auth, async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const r = await pool.query('SELECT * FROM email_settings WHERE workspace_id=$1', [wsId])
     if (r.rows.length === 0) {
       // Defensive: should never happen due to migration backfill, but if a
@@ -7284,10 +7296,10 @@ app.get('/email-settings', auth, async (req, res) => {
 
 app.patch('/email-settings', auth, requirePermission('manage_workspace_settings'), async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
 
     // Whitelist updateable fields. Same partial-update pattern as
-    // PATCH /workspace and PATCH /agents/:id — partial body must work
+    // PATCH /workspace and PATCH /agents/:id 鈥?partial body must work
     // without nulling unspecified fields.
     const ALLOWED = [
       'sender_name', 'reply_to', 'send_mode',
@@ -7302,7 +7314,7 @@ app.patch('/email-settings', auth, requirePermission('manage_workspace_settings'
       if (!Object.prototype.hasOwnProperty.call(req.body, field)) continue
 
       let val = req.body[field]
-      // send_mode validation — only accept known values
+      // send_mode validation 鈥?only accept known values
       if (field === 'send_mode' && val !== 'manual' && val !== 'immediate') {
         return res.status(400).json({ error: `Invalid send_mode: must be "manual" or "immediate"` })
       }
@@ -7336,7 +7348,7 @@ app.patch('/email-settings', auth, requirePermission('manage_workspace_settings'
   }
 })
 
-// ─── BILLING ───────────────────────────────────────────────────────────────
+// 鈹€鈹€鈹€ BILLING 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 // Tel-Cloud's billing surface. Eight endpoints covering the four panels in
 // the Settings > Billing tab: plan summary, wallet, invoices, payment method.
 //
@@ -7361,7 +7373,7 @@ app.patch('/email-settings', auth, requirePermission('manage_workspace_settings'
 // Billing tab's main panel.
 app.get('/billing/summary', auth, async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
 
     // Workspace-level state (subscription + pilot + industry + exempt flag)
     const wsRes = await pool.query(`
@@ -7476,7 +7488,7 @@ app.get('/billing/plans', auth, async (req, res) => {
 // settings. The transactions list is paginated separately (next endpoint).
 app.get('/billing/wallet', auth, requirePermission('manage_billing'), async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const r = await pool.query(
       `SELECT * FROM wallets WHERE workspace_id = $1 LIMIT 1`,
       [wsId]
@@ -7509,7 +7521,7 @@ app.get('/billing/wallet', auth, requirePermission('manage_billing'), async (req
 // Cannot change markup_percent - that's tier-driven (tied to plan).
 app.patch('/billing/wallet', auth, requirePermission('manage_billing'), async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const ALLOWED = [
       'low_balance_threshold_cents',
       'auto_topup_enabled',
@@ -7555,7 +7567,7 @@ app.patch('/billing/wallet', auth, requirePermission('manage_billing'), async (r
 // Default page size 50, max 200 to keep response sizes reasonable.
 app.get('/billing/wallet/transactions', auth, requirePermission('manage_billing'), async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const limit = Math.min(parseInt(req.query.limit) || 50, 200)
     const offset = parseInt(req.query.offset) || 0
     const type = req.query.type  // optional filter: 'topup' | 'message_charge' | 'refund' | etc.
@@ -7617,7 +7629,7 @@ app.get('/billing/wallet/transactions', auth, requirePermission('manage_billing'
 // not here. This endpoint only creates the payment intent.
 app.post('/billing/wallet/topup', auth, requirePermission('manage_billing'), async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const { amount_cents } = req.body
     if (!Number.isInteger(amount_cents)) {
       return res.status(400).json({
@@ -7661,7 +7673,7 @@ app.post('/billing/wallet/topup', auth, requirePermission('manage_billing'), asy
 // by status (paid, open, draft, void, uncollectible).
 app.get('/billing/invoices', auth, requirePermission('manage_billing'), async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const limit = Math.min(parseInt(req.query.limit) || 50, 200)
     const offset = parseInt(req.query.offset) || 0
     const status = req.query.status
@@ -7709,7 +7721,7 @@ app.get('/billing/invoices', auth, requirePermission('manage_billing'), async (r
 // another workspace's invoice even with the id).
 app.get('/billing/invoices/:id', auth, requirePermission('manage_billing'), async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const r = await pool.query(`
       SELECT * FROM invoices WHERE id = $1 AND workspace_id = $2 LIMIT 1
     `, [req.params.id, wsId])
@@ -7728,7 +7740,7 @@ app.get('/billing/invoices/:id', auth, requirePermission('manage_billing'), asyn
 // frontend can render "No payment method on file - connect via Stripe".
 app.get('/billing/payment-method', auth, requirePermission('manage_billing'), async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const r = await pool.query(
       `SELECT stripe_customer_id FROM workspaces WHERE id = $1`,
       [wsId]
@@ -7754,7 +7766,7 @@ app.get('/billing/payment-method', auth, requirePermission('manage_billing'), as
   }
 })
 
-// ─── PDPA RECORDS ──────────────────────────────────────────────────────────
+// 鈹€鈹€鈹€ PDPA RECORDS 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 // Singapore PDPA compliance: every contact's consent state needs an audit
 // trail (when given, when withdrawn, by whom, through what channel). The
 // pdpa_records table is append-only history; latest row per contact is the
@@ -7779,7 +7791,7 @@ const DEFAULT_CONSENT_MONTHS = 24
 // to pick the newest record per contact_id and group from there.
 app.get('/pdpa/dashboard', auth, async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const r = await pool.query(`
       WITH latest AS (
         SELECT DISTINCT ON (contact_id)
@@ -7810,7 +7822,7 @@ app.get('/pdpa/dashboard', auth, async (req, res) => {
       FROM classified
     `, [wsId])
     const row = r.rows[0] || {}
-    // Postgres returns counts as strings (BIGINT) — coerce to number for the API
+    // Postgres returns counts as strings (BIGINT) 鈥?coerce to number for the API
     res.json({
       consented:      parseInt(row.consented      || 0),
       expiring:       parseInt(row.expiring       || 0),
@@ -7833,10 +7845,10 @@ app.get('/pdpa/dashboard', auth, async (req, res) => {
 })
 
 // List all contacts with their effective PDPA status.
-// Returns a row per contact (not per record) — this is the dashboard list.
+// Returns a row per contact (not per record) 鈥?this is the dashboard list.
 app.get('/pdpa/contacts', auth, async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const r = await pool.query(`
       SELECT
         c.id, c.name, c.phone, c.email, c.type, c.pipeline_stage,
@@ -7876,7 +7888,7 @@ app.get('/pdpa/contacts', auth, async (req, res) => {
 // Full consent history for one contact (newest first).
 app.get('/pdpa/contacts/:id/history', auth, async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const r = await pool.query(`
       SELECT r.*, u.name AS collected_by_name
       FROM pdpa_records r
@@ -7891,11 +7903,11 @@ app.get('/pdpa/contacts/:id/history', auth, async (req, res) => {
   }
 })
 
-// Record a new PDPA event. Append-only — never updates existing records.
+// Record a new PDPA event. Append-only 鈥?never updates existing records.
 // Director or anyone with manage_pdpa permission can record.
 app.post('/pdpa/records', auth, requirePermission('manage_pdpa'), async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const { contact_id, status, method, notes, expires_in_months } = req.body
 
     // Validation
@@ -7954,7 +7966,7 @@ app.post('/pdpa/records', auth, requirePermission('manage_pdpa'), async (req, re
 })
 
 // CSV export of all PDPA records for the workspace. Used for compliance
-// audits — Director can produce this on demand for PDPC inspection.
+// audits 鈥?Director can produce this on demand for PDPC inspection.
 // Returns text/csv with content-disposition so the browser downloads it
 // rather than rendering inline.
 //
@@ -7972,7 +7984,7 @@ function csvEscape(value) {
 
 app.get('/pdpa/export', auth, requirePermission('manage_pdpa'), async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const r = await pool.query(`
       SELECT
         c.id AS contact_id,
@@ -8049,9 +8061,9 @@ app.get('/pdpa/export', auth, requirePermission('manage_pdpa'), async (req, res)
   }
 })
 
-// ─── CALENDAR ──────────────────────────────────────────────────────────────
+// 鈹€鈹€鈹€ CALENDAR 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 
-// ─── REMINDER HELPERS (Phase 4) ─────────────────────────────────────────────
+// 鈹€鈹€鈹€ REMINDER HELPERS (Phase 4) 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 
 // Compute the reminder send time from event_date + event_time + offset_hours.
 // If event has no time, treats it as 09:00 SGT (start of business day).
@@ -8134,7 +8146,7 @@ async function renderReminderBody(client, eventId, templateId, contactName) {
 // Cancels an active reminder for an event by:
 // 1. Marking the scheduled_message as 'cancelled'
 // 2. Marking the event_reminders row as 'cancelled'
-// Idempotent — does nothing if no active reminder exists.
+// Idempotent 鈥?does nothing if no active reminder exists.
 async function cancelReminderForEvent(client, eventId) {
   const reminderRes = await client.query(
     `SELECT id, scheduled_message_id FROM event_reminders WHERE event_id = $1 AND status = 'active' LIMIT 1`,
@@ -8218,10 +8230,10 @@ async function requeueReminderForEvent(client, eventId, wsId) {
   return erRes.rows[0].id
 }
 
-// ─── CALENDAR ENDPOINTS ─────────────────────────────────────────────────────
+// 鈹€鈹€鈹€ CALENDAR ENDPOINTS 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 app.get('/calendar', auth, async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const { from, to } = req.query
     let query = `SELECT ce.*, c.name as contact_name, u.name as created_by_name,
                         et.name as event_type_name, et.color_bg as event_type_bg, et.color_fg as event_type_fg
@@ -8242,7 +8254,7 @@ app.get('/calendar', auth, async (req, res) => {
 
 app.post('/calendar', auth, requirePermission('manage_calendar'), async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const { conversation_id, contact_id, job_order_id, title, event_date, event_time, location, notes, event_type_id, type } = req.body
     if (!title || !event_date) return res.status(400).json({ error: 'Title and date are required' })
     const r = await pool.query(
@@ -8255,11 +8267,11 @@ app.post('/calendar', auth, requirePermission('manage_calendar'), async (req, re
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-// PATCH /calendar/:id — update an event
+// PATCH /calendar/:id 鈥?update an event
 app.patch('/calendar/:id', auth, requirePermission('manage_calendar'), async (req, res) => {
   const client = await pool.connect()
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const eventId = parseInt(req.params.id)
     const { conversation_id, contact_id, job_order_id, title, event_date, event_time, location, notes, event_type_id } = req.body
 
@@ -8319,10 +8331,10 @@ app.patch('/calendar/:id', auth, requirePermission('manage_calendar'), async (re
   }
 })
 
-// DELETE /calendar/:id — delete an event
+// DELETE /calendar/:id 鈥?delete an event
 app.delete('/calendar/:id', auth, requirePermission('manage_calendar'), async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const r = await pool.query(
       `DELETE FROM calendar_events WHERE id=$1 AND workspace_id=$2 RETURNING id`,
       [req.params.id, wsId]
@@ -8333,10 +8345,10 @@ app.delete('/calendar/:id', auth, requirePermission('manage_calendar'), async (r
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-// GET /calendar/:id — single event with linked reminder details if any
+// GET /calendar/:id 鈥?single event with linked reminder details if any
 app.get('/calendar/:id', auth, async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const r = await pool.query(
       `SELECT ce.*, c.name as contact_name, u.name as created_by_name,
               et.name as event_type_name, et.color_bg as event_type_bg, et.color_fg as event_type_fg
@@ -8366,11 +8378,11 @@ app.get('/calendar/:id', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-// POST /calendar/:id/reminder — schedule a reminder for an event
+// POST /calendar/:id/reminder 鈥?schedule a reminder for an event
 app.post('/calendar/:id/reminder', auth, requirePermission('manage_calendar'), async (req, res) => {
   const client = await pool.connect()
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const eventId = parseInt(req.params.id)
     const { template_id, offset_hours } = req.body
 
@@ -8461,11 +8473,11 @@ app.post('/calendar/:id/reminder', auth, requirePermission('manage_calendar'), a
   }
 })
 
-// DELETE /calendar/:id/reminder — cancel an active reminder
+// DELETE /calendar/:id/reminder 鈥?cancel an active reminder
 app.delete('/calendar/:id/reminder', auth, requirePermission('manage_calendar'), async (req, res) => {
   const client = await pool.connect()
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const eventId = parseInt(req.params.id)
 
     await client.query('BEGIN')
@@ -8496,10 +8508,10 @@ app.delete('/calendar/:id/reminder', auth, requirePermission('manage_calendar'),
   }
 })
 
-// GET /event-types — list event types for current workspace
+// GET /event-types 鈥?list event types for current workspace
 app.get('/event-types', auth, async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const r = await pool.query(
       `SELECT id, name, color_bg, color_fg, sort_order, is_default
        FROM event_types WHERE workspace_id=$1
@@ -8510,10 +8522,10 @@ app.get('/event-types', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-// ─── PROJECTS ──────────────────────────────────────────────────────────────────
+// 鈹€鈹€鈹€ PROJECTS 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 app.get('/projects', auth, async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const r = await pool.query(`
       SELECT p.*,
         u.name as created_by_name,
@@ -8534,7 +8546,7 @@ app.get('/projects', auth, async (req, res) => {
 
 app.post('/projects', auth, requirePermission('manage_projects'), async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const { client_name, start_month, start_year, colour } = req.body
     if (!client_name || !start_month || !start_year) return res.status(400).json({ error: 'Client name, month and year are required' })
     const r = await pool.query(`
@@ -8548,7 +8560,7 @@ app.post('/projects', auth, requirePermission('manage_projects'), async (req, re
 
 app.patch('/projects/:id', auth, requirePermission('manage_projects'), async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const { client_name, start_month, start_year, colour, status } = req.body
     const old = await pool.query('SELECT * FROM projects WHERE id=$1 AND workspace_id=$2', [req.params.id, wsId])
     if (!old.rows.length) return res.status(404).json({ error: 'Project not found' })
@@ -8570,7 +8582,7 @@ app.patch('/projects/:id', auth, requirePermission('manage_projects'), async (re
 
 app.delete('/projects/:id', auth, requirePermission('manage_projects'), async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     await pool.query('UPDATE conversations SET project_id=NULL WHERE project_id=$1 AND workspace_id=$2', [req.params.id, wsId])
     await pool.query('DELETE FROM projects WHERE id=$1 AND workspace_id=$2', [req.params.id, wsId])
     res.json({ success: true })
@@ -8579,7 +8591,7 @@ app.delete('/projects/:id', auth, requirePermission('manage_projects'), async (r
 
 app.get('/projects/:id/conversations', auth, async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const { type, agent_id, unread, page = 1, limit = 50 } = req.query
     const offset = (page - 1) * limit
     let query = `
@@ -8610,7 +8622,7 @@ app.get('/projects/:id/conversations', auth, async (req, res) => {
 
 app.patch('/projects/:id/assign-conversations', auth, requirePermission('manage_projects'), async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const { conversation_ids } = req.body
     if (!Array.isArray(conversation_ids) || conversation_ids.length === 0) return res.status(400).json({ error: 'conversation_ids array required' })
     await pool.query(`UPDATE conversations SET project_id=$1, updated_at=NOW() WHERE id=ANY($2) AND workspace_id=$3`, [req.params.id, conversation_ids, wsId])
@@ -8619,12 +8631,12 @@ app.patch('/projects/:id/assign-conversations', auth, requirePermission('manage_
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-// ─── PROJECT MEMBERS (Session D1 Chunk 4A) ─────────────────────────────────────
+// 鈹€鈹€鈹€ PROJECT MEMBERS (Session D1 Chunk 4A) 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 
-// GET /projects/:id/members �?list all members of a project
+// GET /projects/:id/members 锟?list all members of a project
 app.get('/projects/:id/members', auth, async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     // Confirm project belongs to this workspace (prevents cross-tenant peek)
     const proj = await pool.query('SELECT id FROM projects WHERE id=$1 AND workspace_id=$2', [req.params.id, wsId])
     if (!proj.rows.length) return res.status(404).json({ error: 'Project not found' })
@@ -8644,11 +8656,11 @@ app.get('/projects/:id/members', auth, async (req, res) => {
   }
 })
 
-// POST /projects/:id/members �?add a user to a project
+// POST /projects/:id/members 锟?add a user to a project
 // Body: { user_id, role_in_project? }  role default = 'member'
 app.post('/projects/:id/members', auth, requirePermission('manage_project_members'), async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const { user_id, role_in_project } = req.body
     if (!user_id) return res.status(400).json({ error: 'user_id is required' })
     const role = (role_in_project === 'lead') ? 'lead' : 'member'
@@ -8675,11 +8687,11 @@ app.post('/projects/:id/members', auth, requirePermission('manage_project_member
   }
 })
 
-// PATCH /projects/:id/members/:userId �?change a member's role
+// PATCH /projects/:id/members/:userId 锟?change a member's role
 // Body: { role_in_project: 'member' | 'lead' }
 app.patch('/projects/:id/members/:userId', auth, requirePermission('manage_project_members'), async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const { role_in_project } = req.body
     if (!['member', 'lead'].includes(role_in_project)) {
       return res.status(400).json({ error: "role_in_project must be 'member' or 'lead'" })
@@ -8702,10 +8714,10 @@ app.patch('/projects/:id/members/:userId', auth, requirePermission('manage_proje
   }
 })
 
-// DELETE /projects/:id/members/:userId �?remove from project
+// DELETE /projects/:id/members/:userId 锟?remove from project
 app.delete('/projects/:id/members/:userId', auth, requirePermission('manage_project_members'), async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const proj = await pool.query('SELECT id FROM projects WHERE id=$1 AND workspace_id=$2', [req.params.id, wsId])
     if (!proj.rows.length) return res.status(404).json({ error: 'Project not found' })
 
@@ -8722,11 +8734,11 @@ app.delete('/projects/:id/members/:userId', auth, requirePermission('manage_proj
   }
 })
 
-// GET /my-projects �?returns the current user's project memberships + project details
+// GET /my-projects 锟?returns the current user's project memberships + project details
 // Used later in Chunk 4B to scope consultant views
 app.get('/my-projects', auth, async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const r = await pool.query(`
       SELECT p.*, pm.role_in_project
       FROM project_members pm
@@ -8768,10 +8780,10 @@ app.patch('/conversations/:id/project', auth, requirePermission('manage_conversa
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-// ─── PIN MESSAGES ──────────────────────────────────────────────────────────────
+// 鈹€鈹€鈹€ PIN MESSAGES 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 app.patch('/messages/:id/pin', auth, requirePermission('manage_conversations'), async (req, res) => {
   try {
-    const wsId = await getWorkspaceId(req.user.id)
+    const wsId = await getWorkspaceId(req.user)
     const msgId = req.params.id
     const msg = await pool.query(`SELECT id, conversation_id, pinned_at FROM messages WHERE id=$1 AND workspace_id=$2`, [msgId, wsId])
     if (!msg.rows.length) return res.status(404).json({ error: 'Message not found' })
@@ -8792,7 +8804,7 @@ app.patch('/messages/:id/pin', auth, requirePermission('manage_conversations'), 
   }
 })
 
-// ─── GLOBAL MESSAGE SEARCH ─────────────────────────────────────────────────────
+// 鈹€鈹€鈹€ GLOBAL MESSAGE SEARCH 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 app.get('/search', auth, async (req, res) => {
   try {
     const access = await getAccessibleProjects(req)
@@ -8842,7 +8854,7 @@ app.post   ('/agents/invite',                          auth, requirePermission('
   app.get    ('/invitations',                            auth, requirePermission('manage_staff'), invitations.listInvitations)
 app.post   ('/invitations/:id/resend',                 auth, requirePermission('manage_staff'), invitations.resendInvitation)
 app.delete ('/invitations/:id',                        auth, requirePermission('manage_staff'), invitations.cancelInvitation)
-// Public — these MUST NOT have auth middleware. The token IS the auth.
+// Public 鈥?these MUST NOT have auth middleware. The token IS the auth.
 app.get    ('/invitations/lookup/:token',              invitations.lookupInvitation)
 app.post   ('/invitations/lookup/:token/accept',       invitations.acceptInvitation)
 
@@ -8852,20 +8864,20 @@ app.get    ('/me/profile',                  auth, profile.getMyProfile)
 app.patch  ('/me/profile',                  auth, profile.updateMyProfile)
 app.post   ('/me/change-password',          auth, profile.changeMyPassword)
 app.post   ('/me/change-email',             auth, profile.requestEmailChange)
-// Public — verification token IS the auth
+// Public 鈥?verification token IS the auth
 app.post   ('/me/verify-email/:token',      profile.verifyEmailChange)
 
-// ─── WHATSAPP WEBHOOK ──────────────────────────────────────────────────────────
+// 鈹€鈹€鈹€ WHATSAPP WEBHOOK 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 app.get('/webhook', (req, res) => {
   const mode = req.query['hub.mode']
   const token = req.query['hub.verify_token']
   const challenge = req.query['hub.challenge']
   const verifyToken = process.env.META_VERIFY_TOKEN
   if (mode === 'subscribe' && token === verifyToken) {
-    console.log('�?Webhook verified by Meta')
+    console.log('锟?Webhook verified by Meta')
     return res.status(200).send(challenge)
   }
-  console.warn('�?Webhook verification failed. Mode:', mode, 'Token match:', token === verifyToken)
+  console.warn('锟?Webhook verification failed. Mode:', mode, 'Token match:', token === verifyToken)
   return res.sendStatus(403)
 })
 
@@ -9038,7 +9050,7 @@ app.post('/webhook', async (req, res) => {
 
         // Multi-tenant routing: figure out which workspace owns the phone
         // number that received this message. Meta gives us two identifiers
-        // in value.metadata — phone_number_id (Meta's GUID) and
+        // in value.metadata 鈥?phone_number_id (Meta's GUID) and
         // display_phone_number (the E.164 number). We try the GUID first
         // (precise, won't drift), and fall back to the E.164 match for
         // workspaces that haven't populated whatsapp_phone_id yet.
@@ -9070,7 +9082,7 @@ app.post('/webhook', async (req, res) => {
           // Dev escape hatch: in local dev we don't have real Meta
           // phone_number_ids yet. Setting this env var routes orphan
           // webhooks to a known workspace so simulated tests can run.
-          // NEVER set this in production — it would let a malicious
+          // NEVER set this in production 鈥?it would let a malicious
           // sender spoof phone_number_id and inject messages into a
           // tenant's workspace.
           wsId = parseInt(process.env.TELCLOUD_DEV_FALLBACK_WORKSPACE)
@@ -9099,7 +9111,7 @@ app.post('/webhook', async (req, res) => {
           if (!contactId) {
             // Auto-create contact AND mark them as PDPA-consented from the
             // get-go. When a contact initiates WhatsApp contact with us,
-            // PDPA permits us to respond — they've effectively given implied
+            // PDPA permits us to respond 鈥?they've effectively given implied
             // consent to receive a reply. We sync the contacts.pdpa_consented
             // flag too so existing UI (broadcasts safety check, contact list
             // PDPA pill) reflects this.
@@ -9126,13 +9138,13 @@ app.post('/webhook', async (req, res) => {
               wsId, contactId, consentNow, consentExpires,
               `Auto-logged: contact initiated WhatsApp conversation on ${consentNow.toISOString().slice(0, 10)} (msg: "${text.slice(0, 80).replace(/"/g, "'")}"${text.length > 80 ? '...' : ''}")`,
             ])
-            console.log(`📝 Auto-logged PDPA consent for new contact ${fromPhone} (inbound WhatsApp)`)
+            console.log(`馃摑 Auto-logged PDPA consent for new contact ${fromPhone} (inbound WhatsApp)`)
           } else {
             // Existing contact: check if they have ANY pdpa_records yet.
             // Zero records = never logged either way, this inbound message
             // is the first signal of consent. We auto-log to fix that.
             // Records already exist (consented OR withdrawn) = consent state
-            // is already established, do nothing — including the case where
+            // is already established, do nothing 鈥?including the case where
             // they explicitly withdrew, we don't want to silently re-consent.
             const recordsCheck = await pool.query(
               `SELECT id FROM pdpa_records WHERE contact_id=$1 LIMIT 1`,
@@ -9154,7 +9166,7 @@ app.post('/webhook', async (req, res) => {
                 `UPDATE contacts SET pdpa_consented=true, pdpa_consented_at=$1 WHERE id=$2`,
                 [consentNow, contactId]
               )
-              console.log(`📝 Auto-logged PDPA consent for existing contact ${fromPhone} (first inbound WhatsApp)`)
+              console.log(`馃摑 Auto-logged PDPA consent for existing contact ${fromPhone} (first inbound WhatsApp)`)
             }
           }
           let convoRow = await pool.query(`SELECT id FROM conversations WHERE contact_id=$1 AND workspace_id=$2 AND status='open' LIMIT 1`, [contactId, wsId])
@@ -9171,7 +9183,7 @@ app.post('/webhook', async (req, res) => {
           const insertedMsg = await pool.query(`INSERT INTO messages (conversation_id, workspace_id, direction, text, type, status, whatsapp_message_id, sent_at) VALUES ($1, $2, 'in', $3, 'text', 'received', $4, NOW()) RETURNING *`, [convoId, wsId, text, waMessageId])
           await pool.query(`UPDATE conversations SET last_message_at=NOW(), last_inbound_at=NOW(), last_message_preview=$1, unread_count=COALESCE(unread_count,0)+1, updated_at=NOW() WHERE id=$2`, [text.slice(0, 100), convoId])
           io.emit('new_message', { ...insertedMsg.rows[0], conversation_id: convoId })
-          console.log(`📥 Inbound message from ${fromPhone} saved to convo ${convoId}`)
+          console.log(`馃摜 Inbound message from ${fromPhone} saved to convo ${convoId}`)
         }
         for (const statusUpdate of value.statuses || []) {
           const waId = statusUpdate.id
@@ -9191,7 +9203,7 @@ app.post('/webhook', async (req, res) => {
   }
 })
 
-// ─── AUTO-ROUTING ────────────────────────────────────────────────────────────
+// 鈹€鈹€鈹€ AUTO-ROUTING 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 // Decides who should own a newly-created conversation. Called from the webhook
 // handler immediately after creating a fresh conversation row. Returns the
 // routing decision; the caller updates the conversation row.
@@ -9203,7 +9215,7 @@ app.post('/webhook', async (req, res) => {
 // accountability, team has full visibility for backup.
 //
 // DECISION FLOW:
-//   1. Load workspace's routing_rules. If mode='manual' → fallback.
+//   1. Load workspace's routing_rules. If mode='manual' 鈫?fallback.
 //   2. STICKY (if enabled): look back 2 days for a conversation by this
 //      contact assigned to a still-active, still-employed agent. If found,
 //      route to same agent.
@@ -9218,7 +9230,7 @@ app.post('/webhook', async (req, res) => {
 //      Goes to the unassigned queue (visible to managers/directors).
 //
 // Returns: { assigned_to, team_id, routing_method }
-//   routing_method ∈ 'sticky' | 'round_robin' | 'team_only' | 'fallback'
+//   routing_method 鈭?'sticky' | 'round_robin' | 'team_only' | 'fallback'
 //
 // Side effects:
 //   - Updates conversations row with assigned_to, team_id, routing_method,
@@ -9236,7 +9248,7 @@ async function autoRouteConversation(client, wsId, convoId, contactId) {
   const fallback = { assigned_to: null, team_id: null, routing_method: 'fallback' }
 
   try {
-    // ─── 1. Load routing rules ──────────────────────────────────────────
+    // 鈹€鈹€鈹€ 1. Load routing rules 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
     const rulesRes = await client.query(
       `SELECT mode, sticky_assignment, round_robin, candidate_team_id, client_team_id
          FROM routing_rules
@@ -9246,19 +9258,19 @@ async function autoRouteConversation(client, wsId, convoId, contactId) {
     )
     const rules = rulesRes.rows[0]
 
-    // No routing rules row at all → leave unassigned
+    // No routing rules row at all 鈫?leave unassigned
     if (!rules) {
       console.log(`[auto-route] No routing_rules for workspace ${wsId}, falling back to unassigned`)
       return await applyRouting(client, convoId, fallback)
     }
 
-    // Manual mode → director wants everything unassigned by design
+    // Manual mode 鈫?director wants everything unassigned by design
     if (rules.mode === 'manual') {
       console.log(`[auto-route] Workspace ${wsId} routing mode is 'manual', not auto-assigning`)
       return await applyRouting(client, convoId, fallback)
     }
 
-    // ─── 2. Load contact for type + sticky lookup ───────────────────────
+    // 鈹€鈹€鈹€ 2. Load contact for type + sticky lookup 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
     const contactRes = await client.query(
       `SELECT id, type FROM contacts WHERE id = $1 LIMIT 1`,
       [contactId]
@@ -9269,7 +9281,7 @@ async function autoRouteConversation(client, wsId, convoId, contactId) {
       return await applyRouting(client, convoId, fallback)
     }
 
-    // ─── 3. Sticky assignment ────────────────────────────────────────────
+    // 鈹€鈹€鈹€ 3. Sticky assignment 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
     // Look for a recent conversation from this contact that was assigned
     // to a specific agent. If that agent is still active and on staff,
     // route this new conversation to them too.
@@ -9294,25 +9306,25 @@ async function autoRouteConversation(client, wsId, convoId, contactId) {
           team_id: sticky.team_id,
           routing_method: 'sticky',
         }
-        console.log(`[auto-route] Sticky match: contact ${contactId} → agent ${sticky.assigned_to}`)
+        console.log(`[auto-route] Sticky match: contact ${contactId} 鈫?agent ${sticky.assigned_to}`)
         return await applyRouting(client, convoId, decision)
       }
     }
 
-    // ─── 4. Contact-type team routing ────────────────────────────────────
+    // 鈹€鈹€鈹€ 4. Contact-type team routing 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
     // contact.type is 'candidate' or 'client' (or other). Map to the
     // workspace's configured team for that type.
     let teamId = null
     if (contact.type === 'candidate') teamId = rules.candidate_team_id
     else if (contact.type === 'client') teamId = rules.client_team_id
 
-    // No team configured for this contact type → fully unassigned
+    // No team configured for this contact type 鈫?fully unassigned
     if (!teamId) {
       console.log(`[auto-route] No team configured for ${contact.type} in workspace ${wsId}, falling back`)
       return await applyRouting(client, convoId, fallback)
     }
 
-    // ─── 5. Round-robin within team ──────────────────────────────────────
+    // 鈹€鈹€鈹€ 5. Round-robin within team 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
     // Find the active agent in the team with the OLDEST last-assigned-at.
     // Agents who have NEVER been assigned (LEFT JOIN returns NULL) come
     // first via NULLS FIRST - they get priority for fairness ("new joiners
@@ -9339,12 +9351,12 @@ async function autoRouteConversation(client, wsId, convoId, contactId) {
           team_id: winner.team_id,
           routing_method: 'round_robin',
         }
-        console.log(`[auto-route] Round-robin: team ${teamId} → agent ${winner.user_id} (last assigned: ${winner.last_assigned_at || 'never'})`)
+        console.log(`[auto-route] Round-robin: team ${teamId} 鈫?agent ${winner.user_id} (last assigned: ${winner.last_assigned_at || 'never'})`)
         return await applyRouting(client, convoId, decision)
       }
     }
 
-    // ─── 6. Team-only fallback ───────────────────────────────────────────
+    // 鈹€鈹€鈹€ 6. Team-only fallback 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
     // Round-robin disabled OR no active agents in the team. Set team_id
     // so members see it in their Team Inbox, but leave assigned_to NULL.
     const decision = {
@@ -9397,7 +9409,7 @@ async function applyRouting(client, convoId, decision) {
   return decision
 }
 
-// ─── STRIPE WEBHOOK ─────────────────────────────────────────────────────────────────
+// 鈹€鈹€鈹€ STRIPE WEBHOOK 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 // Receives events from Stripe (checkout completed, subscription changes,
 // refunds, etc.) and updates Tel-Cloud's billing state accordingly.
 //
@@ -9565,7 +9577,7 @@ async function handleCheckoutCompleted(event) {
   }
 }
 
-// ─── SOCKET.IO ─────────────────────────────────────────────────────────────────
+// 鈹€鈹€鈹€ SOCKET.IO 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 io.on('connection', socket => {
   socket.on('join_conversation', id => socket.join(`conversation_${id}`))
   socket.on('leave_conversation', id => socket.leave(`conversation_${id}`))
@@ -9577,10 +9589,10 @@ io.on('connection', socket => {
   })
 })
 
-// ─── HEALTH CHECK ───────────────────────────────────────────────────────────
+// 鈹€鈹€鈹€ HEALTH CHECK 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 app.get('/', (req, res) => res.json({ status: 'ok', platform: 'Tel-Cloud', version: '2.0.0', timestamp: new Date().toISOString() }))
 
-// ─── SCHEDULED MESSAGES WORKER ──────────────────────────────────────────────
+// 鈹€鈹€鈹€ SCHEDULED MESSAGES WORKER 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 // Polls every WORKER_INTERVAL_MS for pending scheduled_messages whose scheduled_at
 // has arrived. Sends each via the existing sendWhatsAppMessage helper. Updates
 // status to 'sent' on success or 'failed' on error. If the message is a reminder
@@ -9661,7 +9673,7 @@ async function processScheduledMessage(msg) {
 
     // Mark sent via queue abstraction. Side effects (insert into messages,
     // update conversation, mark reminder sent) stay as direct queries because
-    // they're not queue state — they're application state.
+    // they're not queue state 鈥?they're application state.
     await queue.markSent(pool, claimed.id, bodyToSend)
 
     // Also create the actual messages table row so it appears in the conversation thread
@@ -9744,9 +9756,9 @@ function startScheduledMessageWorker() {
 // staleness threshold, and runs checkPhoneConnection() on each.
 //
 // Layered design recap:
-//   Layer 1 — Manual button (Unit 2C UI: "Test Connection")
-//   Layer 2 — Lazy on tab mount (Unit 2C effect, when row > 6h stale)
-//   Layer 3 — Background worker (this function), the safety net for
+//   Layer 1 鈥?Manual button (Unit 2C UI: "Test Connection")
+//   Layer 2 鈥?Lazy on tab mount (Unit 2C effect, when row > 6h stale)
+//   Layer 3 鈥?Background worker (this function), the safety net for
 //             phones whose tabs are never opened (e.g. dormant tenants)
 //
 // 500ms gap between checks protects against Meta API rate limits at
@@ -9905,7 +9917,7 @@ async function processBroadcast(broadcast) {
   const client = await pool.connect()
   let claimed = null
   try {
-    // ─── ATOMIC CLAIM ──────────────────────────────────────
+    // 鈹€鈹€鈹€ ATOMIC CLAIM 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
     // Transition status from 'scheduled' to 'sending'. If another worker
     // beat us, the UPDATE returns no rows and we silently skip.
     await client.query('BEGIN')
@@ -9924,7 +9936,7 @@ async function processBroadcast(broadcast) {
     await client.query('COMMIT')
     console.log(`[broadcast worker] Claimed broadcast ${claimed.id} "${claimed.name}"`)
 
-    // ─── PROTECTION A: TIER LIMIT PRE-CHECK ────────────────
+    // 鈹€鈹€鈹€ PROTECTION A: TIER LIMIT PRE-CHECK 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
     const tierCheck = await checkTierLimit(client, claimed.phone_number_id)
     // Count pending recipients to know if this broadcast would blow the tier
     const pendingCount = await client.query(
@@ -9944,7 +9956,7 @@ async function processBroadcast(broadcast) {
       return { failed: true, reason: 'tier_limit', error: errorMsg }
     }
 
-    // ─── LOAD TEMPLATE + WORKSPACE TIMEZONE ────────────────
+    // 鈹€鈹€鈹€ LOAD TEMPLATE + WORKSPACE TIMEZONE 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
     const tplRes = await client.query(
       `SELECT body, buttons, variables FROM templates WHERE id = $1 AND workspace_id = $2`,
       [claimed.template_id, claimed.workspace_id]
@@ -9965,7 +9977,7 @@ async function processBroadcast(broadcast) {
     )
     const workspaceTz = wsRes.rows[0]?.timezone || 'Asia/Singapore'
 
-    // ─── ITERATE RECIPIENTS ────────────────────────────────
+    // 鈹€鈹€鈹€ ITERATE RECIPIENTS 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
     const recRes = await client.query(
       `SELECT id, contact_id, variables FROM broadcast_recipients
        WHERE broadcast_id = $1 AND status = 'pending'
@@ -9982,7 +9994,7 @@ async function processBroadcast(broadcast) {
     let circuitTripped = false
 
     for (const rec of recipients) {
-      // ─── PROTECTION D: QUIET HOURS ──────────────────────
+      // 鈹€鈹€鈹€ PROTECTION D: QUIET HOURS 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
       // Check at every iteration because broadcasts can span hours.
       // If quiet hours are enabled AND we're in the window AND force_send is off,
       // pause the entire broadcast until later.
@@ -10001,7 +10013,7 @@ async function processBroadcast(broadcast) {
         }
       }
 
-      // ─── PROTECTION B: LIVE PDPA RECHECK ────────────────
+      // 鈹€鈹€鈹€ PROTECTION B: LIVE PDPA RECHECK 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
       // Re-query the contact at send time. If they opted out between compose
       // and now, mark as skipped and don't send.
       const contactRes = await client.query(
@@ -10035,7 +10047,7 @@ async function processBroadcast(broadcast) {
         continue
       }
 
-      // ─── ATTEMPT SEND ───────────────────────────────────
+      // 鈹€鈹€鈹€ ATTEMPT SEND 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
       // Mark recipient as sending right before the API call so we can detect
       // worker crashes mid-broadcast. If recovery is needed in a future poll,
       // these stuck-in-sending rows can be reset (Chunk D will add a recovery query).
@@ -10066,19 +10078,19 @@ async function processBroadcast(broadcast) {
         consecutiveFails++
         console.error(`[broadcast worker] Recipient ${rec.id} failed: ${errorText}`)
 
-        // ─── PROTECTION E: CIRCUIT BREAKER ────────────────
+        // 鈹€鈹€鈹€ PROTECTION E: CIRCUIT BREAKER 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
         if (consecutiveFails >= claimed.consecutive_fail_limit) {
           circuitTripped = true
           break
         }
       }
 
-      // ─── PROTECTION C: RATE LIMIT WITH JITTER ──────────
+      // 鈹€鈹€鈹€ PROTECTION C: RATE LIMIT WITH JITTER 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
       const jitter = Math.floor((Math.random() - 0.5) * 2 * BROADCAST_RATE_JITTER_MS)
       await sleep(BROADCAST_RATE_LIMIT_MS + jitter)
     }
 
-    // ─── FINALIZE BROADCAST STATUS ─────────────────────────
+    // 鈹€鈹€鈹€ FINALIZE BROADCAST STATUS 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
     let finalStatus = 'completed'
     let errorSummary = null
     if (circuitTripped) {
@@ -10185,7 +10197,7 @@ async function pollPdpaExpiry() {
     `)
 
     if (expired.rows.length === 0) {
-      // Quiet log — only print when there's actual work.
+      // Quiet log 鈥?only print when there's actual work.
       return
     }
 
@@ -10234,11 +10246,11 @@ function startPdpaExpiryWorker() {
   setInterval(pollPdpaExpiry, PDPA_EXPIRY_WORKER_INTERVAL_MS)
 }
 
-// ─── START ──────────────────────────────────────────────────────────────────
+// 鈹€鈹€鈹€ START 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 const PORT = process.env.PORT || 4000
 setupDatabase().then(() => {
   httpServer.listen(PORT, () => {
-    console.log(`🚀 Tel-Cloud server running on port ${PORT}`)
+    console.log(`馃殌 Tel-Cloud server running on port ${PORT}`)
     startScheduledMessageWorker()
     startBroadcastWorker()
     startPdpaExpiryWorker()

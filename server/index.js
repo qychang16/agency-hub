@@ -5043,6 +5043,216 @@ app.post('/messages', auth, requirePermission('send_messages'), async (req, res)
     res.status(500).json({ error: err.message })
   }
 })
+// POST /conversations/quick-start
+// Start a new WhatsApp conversation from a phone number, auto-creating contact +
+// conversation if needed. Reuses POST /messages billing + send pipeline.
+//
+// Body:
+//   phone                    Required. Any format with country code. Server normalizes.
+//   name                     Optional. Defaults to phone if not provided.
+//   sender_phone_number_id   Required. Workspace's phone to send from.
+//   message_type             'text' or 'template'
+//   text                     Required if message_type = 'text'
+//   template_id              Required if message_type = 'template'
+//   template_variables       Optional. { varName: value } for template substitution
+// Returns:
+//   { conversation_id, contact_id, message_id, created_contact, created_conversation }
+app.post('/conversations/quick-start', auth, requirePermission('send_messages'), async (req, res) => {
+  const { phone, name, sender_phone_number_id, message_type, text, template_id, template_variables } = req.body
+  try {
+    const wsId = await getWorkspaceId(req.user.id)
+    // 1. Validate inputs
+    if (!phone || typeof phone !== 'string') {
+      return res.status(400).json({ error: 'phone is required', code: 'PHONE_REQUIRED' })
+    }
+    if (!sender_phone_number_id) {
+      return res.status(400).json({ error: 'sender_phone_number_id is required', code: 'SENDER_REQUIRED' })
+    }
+    if (!['text', 'template'].includes(message_type)) {
+      return res.status(400).json({ error: 'message_type must be "text" or "template"', code: 'INVALID_MESSAGE_TYPE' })
+    }
+    if (message_type === 'text' && (!text || !text.trim())) {
+      return res.status(400).json({ error: 'text is required for free-form messages', code: 'TEXT_REQUIRED' })
+    }
+    if (message_type === 'template' && !template_id) {
+      return res.status(400).json({ error: 'template_id is required for template messages', code: 'TEMPLATE_REQUIRED' })
+    }
+    // 2. Normalize phone (strip all non-digits, prepend +)
+    const cleanPhone = phone.replace(/\D/g, '')
+    if (cleanPhone.length < 8 || cleanPhone.length > 15) {
+      return res.status(400).json({ error: 'Phone number must include country code (8-15 digits after stripping non-digits)', code: 'PHONE_INVALID' })
+    }
+    const e164Phone = '+' + cleanPhone
+    // 3. Validate sender phone is connected and in workspace
+    const senderRes = await pool.query(
+      `SELECT id, number, connection_status, disconnect_reason FROM phone_numbers WHERE id = $1 AND workspace_id = $2`,
+      [sender_phone_number_id, wsId]
+    )
+    if (senderRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Sender phone number not found in your workspace', code: 'SENDER_NOT_FOUND' })
+    }
+    const sender = senderRes.rows[0]
+    if (sender.connection_status === 'DISCONNECTED') {
+      return res.status(400).json({
+        error: `Sender ${sender.number} is disconnected${sender.disconnect_reason ? ' (' + sender.disconnect_reason + ')' : ''}`,
+        code: 'SENDER_DISCONNECTED',
+      })
+    }
+    // 4. Resolve template (if applicable) and substitute variables
+    let messageBody = text
+    if (message_type === 'template') {
+      const tplRes = await pool.query(
+        `SELECT id, name, body, variables, status FROM templates WHERE id = $1 AND workspace_id = $2`,
+        [template_id, wsId]
+      )
+      if (tplRes.rows.length === 0) {
+        return res.status(404).json({ error: 'Template not found', code: 'TEMPLATE_NOT_FOUND' })
+      }
+      const templateRow = tplRes.rows[0]
+      messageBody = templateRow.body || ''
+      const vars = template_variables || {}
+      messageBody = messageBody.replace(/\{\{\s*(\w+)\s*\}\}/g, (match, key) => {
+        if (vars[key] !== undefined && vars[key] !== '') return vars[key]
+        return match
+      })
+    }
+    // 5. Resolve contact — find by normalized phone or create
+    const phoneDigitsOnly = cleanPhone
+    const contactRes = await pool.query(
+      `SELECT id, name, phone, pdpa_consented, opted_out, dnc FROM contacts
+       WHERE workspace_id = $1 AND (REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '', 'g') = $2 OR phone = $3)
+       LIMIT 1`,
+      [wsId, phoneDigitsOnly, e164Phone]
+    )
+    let contactId
+    let createdContact = false
+    if (contactRes.rows.length > 0) {
+      const existing = contactRes.rows[0]
+      if (existing.opted_out) return res.status(400).json({ error: 'This contact opted out of messages', code: 'OPTED_OUT' })
+      if (existing.dnc) return res.status(400).json({ error: 'This contact is on the DNC list', code: 'DNC_LISTED' })
+      contactId = existing.id
+    } else {
+      const newName = (name && name.trim()) || e164Phone
+      const newContactRes = await pool.query(
+        `INSERT INTO contacts (workspace_id, name, phone, type, source, tags)
+         VALUES ($1, $2, $3, 'candidate', 'quick_start', '["quick_start"]'::jsonb)
+         RETURNING id`,
+        [wsId, newName, e164Phone]
+      )
+      contactId = newContactRes.rows[0].id
+      createdContact = true
+    }
+    // 6. Resolve conversation — open one with this sender, or create new
+    let convoRes = await pool.query(
+      `SELECT id, last_inbound_at FROM conversations
+       WHERE workspace_id = $1 AND contact_id = $2 AND phone_number_id = $3 AND status = 'open'
+       ORDER BY id DESC LIMIT 1`,
+      [wsId, contactId, sender_phone_number_id]
+    )
+    let conversationId
+    let createdConversation = false
+    let lastInboundAt = null
+    if (convoRes.rows.length > 0) {
+      conversationId = convoRes.rows[0].id
+      lastInboundAt = convoRes.rows[0].last_inbound_at
+    } else {
+      const newConvoRes = await pool.query(
+        `INSERT INTO conversations (workspace_id, phone_number_id, contact_id, status, last_message_at)
+         VALUES ($1, $2, $3, 'open', NOW()) RETURNING id`,
+        [wsId, sender_phone_number_id, contactId]
+      )
+      conversationId = newConvoRes.rows[0].id
+      createdConversation = true
+      await autoRouteConversation(pool, wsId, conversationId, contactId)
+    }
+    // 7. 24-hour window check for free-form (template messages bypass)
+    if (message_type === 'text') {
+      const isWindowOpen = lastInboundAt && (Date.now() - new Date(lastInboundAt).getTime()) < 24 * 60 * 60 * 1000
+      if (!isWindowOpen) {
+        return res.status(400).json({
+          error: 'The 24-hour customer service window is closed (or never opened). Use a template message instead for cold outreach.',
+          code: 'WINDOW_CLOSED',
+          contact_id: contactId,
+          conversation_id: conversationId,
+          created_contact: createdContact,
+          created_conversation: createdConversation,
+        })
+      }
+    }
+    // 8. Insert pending message
+    const msgInsert = await pool.query(
+      `INSERT INTO messages (conversation_id, workspace_id, user_id, direction, text, type, template_id, status, sent_at)
+       VALUES ($1, $2, $3, 'out', $4, $5, $6, 'pending', NOW()) RETURNING *`,
+      [conversationId, wsId, req.user.id, messageBody, message_type === 'template' ? 'template' : 'text', template_id || null]
+    )
+    const msg = msgInsert.rows[0]
+    // 9. Billing pre-flight (mirrors POST /messages logic)
+    const country = 'SG'
+    const category = message_type === 'template' ? 'marketing' : 'service'
+    const costData = await calculateMessageCost(pool, wsId, country, category)
+    if (!costData.billingExempt && costData.totalCents > 0) {
+      const balCheck = await pool.query(`SELECT COALESCE(balance_cents, 0) AS balance_cents FROM wallets WHERE workspace_id = $1`, [wsId])
+      const balance = parseInt(balCheck.rows[0]?.balance_cents || 0)
+      if (balance < costData.totalCents) {
+        await pool.query(`UPDATE messages SET status='failed' WHERE id=$1`, [msg.id])
+        return res.status(402).json({
+          error: 'Insufficient wallet balance to send this message.',
+          code: 'INSUFFICIENT_BALANCE',
+          balance_cents: balance,
+          required_cents: costData.totalCents,
+          shortfall_cents: costData.totalCents - balance,
+          suggestion: 'Top up your wallet from Settings → Billing.',
+        })
+      }
+    }
+    // 10. Send to Meta
+    let waMessageId
+    try {
+      waMessageId = await sendWhatsAppMessage(e164Phone, messageBody)
+    } catch (sendErr) {
+      await pool.query(`UPDATE messages SET status='failed' WHERE id=$1`, [msg.id])
+      return res.status(502).json({
+        error: 'WhatsApp send failed: ' + sendErr.message,
+        code: 'META_SEND_FAILED',
+        conversation_id: conversationId,
+        contact_id: contactId,
+        created_contact: createdContact,
+        created_conversation: createdConversation,
+      })
+    }
+    // 11. Debit wallet + mark sent atomically
+    const billingClient = await pool.connect()
+    try {
+      await billingClient.query('BEGIN')
+      await billingClient.query(`UPDATE messages SET status='sent', whatsapp_message_id=$1 WHERE id=$2`, [waMessageId, msg.id])
+      await debitWalletForMessage(billingClient, wsId, msg.id, costData)
+      await billingClient.query('COMMIT')
+      console.log(`[quick-start] msg ${msg.id} sent + debited ${costData.totalCents} cents (ws ${wsId}, ${category}/${country})`)
+    } catch (billingErr) {
+      await billingClient.query('ROLLBACK')
+      console.error(`[quick-start] CRITICAL: Meta send succeeded but billing failed for msg ${msg.id}:`, billingErr)
+      await pool.query(`UPDATE messages SET status='sent', whatsapp_message_id=$1 WHERE id=$2`, [waMessageId, msg.id])
+    } finally {
+      billingClient.release()
+    }
+    // 12. Update conversation preview + emit socket event
+    await pool.query(
+      `UPDATE conversations SET last_message_at=NOW(), last_message_preview=$1, updated_at=NOW() WHERE id=$2`,
+      [messageBody.slice(0, 100), conversationId]
+    )
+    io.emit('new_message', { ...msg, status: 'sent', whatsapp_message_id: waMessageId, conversation_id: conversationId })
+    res.json({
+      conversation_id: conversationId,
+      contact_id: contactId,
+      message_id: msg.id,
+      created_contact: createdContact,
+      created_conversation: createdConversation,
+    })
+  } catch (err) {
+    console.error('[/conversations/quick-start] error:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
 
 // ─── CONTACTS ──────────────────────────────────────────────────────────────────
 app.get('/contacts', auth, async (req, res) => {

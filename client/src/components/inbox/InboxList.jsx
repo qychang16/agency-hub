@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { API } from '../../utils/constants'
 import { ink, accent, semantic, fonts, textSize, textWeight, space, radius, border, microLabel } from '../../utils/designTokens'
+import QuickStartModal from './QuickStartModal'
 
 // Pipeline stage visual system — each stage instantly recognisable
 const PIPELINE_STYLES = {
@@ -214,6 +215,7 @@ export default function InboxList({ activeConvoId, setActiveConvoId, isMobile, m
   const [typeFilter, setTypeFilter] = useState('all')
   const [phoneNumbers, setPhoneNumbers] = useState([])
   const [phoneFilter, setPhoneFilter] = useState('all')
+  const [quickStartOpen, setQuickStartOpen] = useState(false)
 
   useEffect(() => { if (!token) return; load() }, [token, statusFilter, phoneFilter])
   useEffect(() => { if (!token) return; loadProjects(); loadPhoneNumbers() }, [token])
@@ -286,19 +288,36 @@ export default function InboxList({ activeConvoId, setActiveConvoId, isMobile, m
               }}>{unreadCount} unread</span>
             )}
           </div>
-          <button onClick={load}
-            title="Refresh"
-            style={{
-              width: 24, height: 24, borderRadius: radius.md,
-              border: `0.5px solid ${ink[300]}`,
-              background: 'transparent', cursor: 'pointer',
-              color: ink[600], display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-            <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-              <path d="M13.5 3.5A6 6 0 1 0 14 8" strokeLinecap="round"/>
-              <path d="M10 3.5h3.5V0" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          </button>
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            <button onClick={() => setQuickStartOpen(true)}
+              title="Start new conversation"
+              style={{
+                height: 24, padding: '0 10px', borderRadius: radius.md,
+                border: 'none', background: accent.DEFAULT, cursor: 'pointer',
+                color: '#fff', display: 'flex', alignItems: 'center', gap: 4,
+                fontSize: 11, fontWeight: textWeight.semibold, fontFamily: fonts.body,
+                letterSpacing: '-0.1px',
+              }}>
+              <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <line x1="8" y1="2" x2="8" y2="14"/>
+                <line x1="2" y1="8" x2="14" y2="8"/>
+              </svg>
+              New
+            </button>
+            <button onClick={load}
+              title="Refresh"
+              style={{
+                width: 24, height: 24, borderRadius: radius.md,
+                border: `0.5px solid ${ink[300]}`,
+                background: 'transparent', cursor: 'pointer',
+                color: ink[600], display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+              <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <path d="M13.5 3.5A6 6 0 1 0 14 8" strokeLinecap="round"/>
+                <path d="M10 3.5h3.5V0" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
+          </div>
         </div>
 
         {/* Search */}
@@ -515,6 +534,18 @@ export default function InboxList({ activeConvoId, setActiveConvoId, isMobile, m
           ))
         )}
       </div>
+      {quickStartOpen && (
+        <QuickStartModal
+          onClose={() => setQuickStartOpen(false)}
+          onCreated={(conversationId) => {
+            // Reload the conversation list so the new conversation appears,
+            // then activate it. On mobile, switch to chat view.
+            load()
+            setActiveConvoId(conversationId)
+            if (isMobile) setMobileView('chat')
+          }}
+        />
+      )}
     </div>
   )
 }

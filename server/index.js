@@ -132,6 +132,34 @@ async function getWorkspaceId(userOrId) {
   return r.rows[0]?.workspace_id
 }
 
+// Derives ISO 3166-1 alpha-2 country code from an E.164 phone number.
+// Returns 'SG' as the fallback. Used by contact creation flows so that
+// per-contact billing reads the right meta_pricing row instead of a
+// hardcoded SG default.
+function countryFromPhone(phoneE164) {
+  if (!phoneE164 || typeof phoneE164 !== 'string') return 'SG'
+  // Longer prefixes must check first to avoid mis-matching shorter ones.
+  if (phoneE164.startsWith('+852')) return 'HK'
+  if (phoneE164.startsWith('+886')) return 'TW'
+  if (phoneE164.startsWith('+971')) return 'AE'
+  if (phoneE164.startsWith('+966')) return 'SA'
+  if (phoneE164.startsWith('+65'))  return 'SG'
+  if (phoneE164.startsWith('+60'))  return 'MY'
+  if (phoneE164.startsWith('+62'))  return 'ID'
+  if (phoneE164.startsWith('+63'))  return 'PH'
+  if (phoneE164.startsWith('+66'))  return 'TH'
+  if (phoneE164.startsWith('+84'))  return 'VN'
+  if (phoneE164.startsWith('+86'))  return 'CN'
+  if (phoneE164.startsWith('+81'))  return 'JP'
+  if (phoneE164.startsWith('+82'))  return 'KR'
+  if (phoneE164.startsWith('+91'))  return 'IN'
+  if (phoneE164.startsWith('+61'))  return 'AU'
+  if (phoneE164.startsWith('+64'))  return 'NZ'
+  if (phoneE164.startsWith('+44'))  return 'GB'
+  if (phoneE164.startsWith('+1'))   return 'US'
+  return 'SG'  // default for unrecognized prefixes
+}
+
 // 鈹€鈹€鈹€ CHUNK 4B: Access control helpers 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 // Role semantics:
 //   - director, manager: workspace-wide access
@@ -4961,10 +4989,11 @@ app.post('/messages', auth, requirePermission('send_messages'), async (req, res)
     if (direction === 'out' && !is_note) {
       try {
         const phoneRow = await pool.query(
-          `SELECT ct.phone FROM conversations c JOIN contacts ct ON ct.id = c.contact_id WHERE c.id = $1 AND c.workspace_id = $2`,
+          `SELECT ct.phone, ct.country_code FROM conversations c JOIN contacts ct ON ct.id = c.contact_id WHERE c.id = $1 AND c.workspace_id = $2`,
           [conversation_id, access.workspaceId]
         )
         const toPhone = phoneRow.rows[0]?.phone
+        const contactCountry = phoneRow.rows[0]?.country_code || countryFromPhone(toPhone)
         if (!toPhone) throw new Error('No recipient phone number on contact')
 
         // 鈹€鈹€鈹€ BILLING: pre-send cost calc + balance gate 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
@@ -4977,12 +5006,11 @@ app.post('/messages', auth, requirePermission('send_messages'), async (req, res)
         // Template messages would be 'marketing' or 'authentication' but Meta's
         // exact category lookup needs per-template metadata 鈥?defer to A2.
         //
-        // Country defaults to 'SG' if contact.country_code is null.
-        // TODO: contacts table has no country_code column yet 鈥?default all to SG.
-        // When we add per-contact country detection (phone prefix analysis or
-        // explicit field), use that instead. Doesn't matter much right now since
-        // meta_pricing only has SG rows seeded.
-        const country = 'SG'
+        // Per-contact country code, populated by migration_contacts_country_code_v1
+        // (June 2026). Falls back to countryFromPhone() if NULL (covers legacy
+        // contacts whose phone prefix didn't match any country in the backfill,
+        // or contacts created via paths that didn't set country_code).
+        const country = contactCountry
         const category = template_id ? 'marketing' : 'service'
         const costData = await calculateMessageCost(pool, access.workspaceId, country, category)
 
@@ -5145,11 +5173,12 @@ app.post('/conversations/quick-start', auth, requirePermission('send_messages'),
       contactId = existing.id
     } else {
       const newName = (name && name.trim()) || e164Phone
+      const newContactCountry = countryFromPhone(e164Phone)
       const newContactRes = await pool.query(
-        `INSERT INTO contacts (workspace_id, name, phone, type, source, tags)
-         VALUES ($1, $2, $3, 'candidate', 'quick_start', '["quick_start"]'::jsonb)
+        `INSERT INTO contacts (workspace_id, name, phone, country_code, type, source, tags)
+         VALUES ($1, $2, $3, $4, 'candidate', 'quick_start', '["quick_start"]'::jsonb)
          RETURNING id`,
-        [wsId, newName, e164Phone]
+        [wsId, newName, e164Phone, newContactCountry]
       )
       contactId = newContactRes.rows[0].id
       createdContact = true
@@ -5199,7 +5228,10 @@ app.post('/conversations/quick-start', auth, requirePermission('send_messages'),
     )
     const msg = msgInsert.rows[0]
     // 9. Billing pre-flight (mirrors POST /messages logic)
-    const country = 'SG'
+    // Country derived from the recipient's phone (matches what's stored on
+    // contact.country_code, but we use the canonical helper here so this
+    // endpoint doesn't need an extra DB roundtrip just for the country).
+    const country = countryFromPhone(e164Phone)
     const category = message_type === 'template' ? 'marketing' : 'service'
     const costData = await calculateMessageCost(pool, wsId, country, category)
     if (!costData.billingExempt && costData.totalCents > 0) {
@@ -5307,20 +5339,21 @@ app.post('/contacts', auth, requirePermission('manage_contacts'), async (req, re
       if (dup.rows.length > 0) return res.status(409).json({ error: `Duplicate: ${phone} already exists as ${dup.rows[0].name}`, existing_id: dup.rows[0].id })
     }
     const now = new Date()
+    const contactCountry = phone ? countryFromPhone(phone) : null
     const r = await pool.query(`
       INSERT INTO contacts (
-        workspace_id, name, phone, email, type, pipeline_stage,
+        workspace_id, name, phone, country_code, email, type, pipeline_stage,
         tags, notes, source, candidate_role, current_company,
         expected_salary, notice_period, linkedin_url,
         pdpa_consented, pdpa_consented_at, dnc, dnc_reason, opted_out
       ) VALUES (
-        $1, $2, $3, $4, $5, $6,
-        $7, $8, $9, $10, $11,
-        $12, $13, $14,
-        $15, $16, $17, $18, $19
+        $1, $2, $3, $4, $5, $6, $7,
+        $8, $9, $10, $11, $12,
+        $13, $14, $15,
+        $16, $17, $18, $19, $20
       ) RETURNING *`,
       [
-        wsId, name.trim(), phone || null, email || null,
+        wsId, name.trim(), phone || null, contactCountry, email || null,
         type || 'candidate', pipeline_stage || 'new',
         JSON.stringify(tags || []), notes || null, source || null,
         candidate_role || null, current_company || null,
@@ -5421,17 +5454,19 @@ app.post('/contacts/bulk', auth, requirePermission('manage_contacts'), async (re
         batchPhones.add(phone)
       }
       try {
+        const rowCountry = phone ? countryFromPhone(phone) : null
         const insertResult = await client.query(`
           INSERT INTO contacts (
-            workspace_id, name, phone, email, type, pipeline_stage,
+            workspace_id, name, phone, country_code, email, type, pipeline_stage,
             notes, source, candidate_role, current_company,
             pdpa_consented, pdpa_consented_at
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
           RETURNING id
         `, [
           wsId,
           row.name.trim(),
           phone,
+          rowCountry,
           row.email?.trim() || null,
           row.type?.trim() || 'candidate',
           row.pipeline_stage?.trim() || 'new',

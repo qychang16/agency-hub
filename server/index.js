@@ -5330,7 +5330,8 @@ app.post('/contacts', auth, requirePermission('manage_contacts'), async (req, re
       tags, notes, source, candidate_role, current_company,
       expected_salary, notice_period, linkedin_url,
       pdpa_consented, dnc, dnc_reason, opted_out,
-      // PDPA auto-log fields 鈥?optional, only used if pdpa_consented is true
+      bsuid,
+      // PDPA auto-log fields 閳?optional, only used if pdpa_consented is true
       pdpa_method, pdpa_notes, pdpa_expires_in_months,
     } = req.body
     if (!name || !name.trim()) return res.status(400).json({ error: 'Contact name is required' })
@@ -5342,18 +5343,18 @@ app.post('/contacts', auth, requirePermission('manage_contacts'), async (req, re
     const contactCountry = phone ? countryFromPhone(phone) : null
     const r = await pool.query(`
       INSERT INTO contacts (
-        workspace_id, name, phone, country_code, email, type, pipeline_stage,
+        workspace_id, name, phone, country_code, bsuid, email, type, pipeline_stage,
         tags, notes, source, candidate_role, current_company,
         expected_salary, notice_period, linkedin_url,
         pdpa_consented, pdpa_consented_at, dnc, dnc_reason, opted_out
       ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7,
-        $8, $9, $10, $11, $12,
-        $13, $14, $15,
-        $16, $17, $18, $19, $20
+        $1, $2, $3, $4, $5, $6, $7, $8,
+        $9, $10, $11, $12, $13,
+        $14, $15, $16,
+        $17, $18, $19, $20, $21
       ) RETURNING *`,
       [
-        wsId, name.trim(), phone || null, contactCountry, email || null,
+        wsId, name.trim(), phone || null, contactCountry, bsuid || null, email || null,
         type || 'candidate', pipeline_stage || 'new',
         JSON.stringify(tags || []), notes || null, source || null,
         candidate_role || null, current_company || null,
@@ -9138,27 +9139,61 @@ app.post('/webhook', async (req, res) => {
         }
         for (const msg of value.messages || []) {
           const fromPhone = '+' + msg.from
+          // BSUID (Business-Scoped User ID): Meta sends this in user_id field
+          // as part of the username rollout starting June 2026. Format:
+          // 'US.13491208655302741918' — country prefix + dot + numeric ID.
+          // Will arrive for users who have switched to username-based identity;
+          // for traditional phone-only users, user_id will be undefined.
+          const fromBsuid = msg.user_id || null
           const text = msg.text?.body || msg.button?.text || `[${msg.type} message]`
           const waMessageId = msg.id
-          let contactRow = await pool.query(`SELECT id, name FROM contacts WHERE phone=$1 AND workspace_id=$2 LIMIT 1`, [fromPhone, wsId])
+          // Contact resolution: match by phone OR bsuid. As Meta's username
+          // rollout progresses, a single person may appear under either
+          // identifier on different messages. OR-matching ensures we treat
+          // them as one contact regardless of which Meta sends.
+          let contactRow = await pool.query(
+            `SELECT id, name, phone, bsuid FROM contacts
+             WHERE workspace_id=$1 AND (phone=$2 OR (bsuid IS NOT NULL AND bsuid=$3))
+             LIMIT 1`,
+            [wsId, fromPhone, fromBsuid]
+          )
           let contactId = contactRow.rows[0]?.id
           let isNewContact = false
+          // If matched by phone but no bsuid stored yet, backfill bsuid on
+          // this contact so future messages from the BSUID also match.
+          if (contactId && fromBsuid && !contactRow.rows[0].bsuid) {
+            await pool.query(
+              `UPDATE contacts SET bsuid=$1 WHERE id=$2 AND workspace_id=$3 AND bsuid IS NULL`,
+              [fromBsuid, contactId, wsId]
+            )
+            console.log(`[webhook] Backfilled bsuid for existing contact ${contactId}`)
+          }
+          // Symmetric: if matched by bsuid but no phone stored yet, backfill phone.
+          // (Rare today; relevant if a BSUID-only contact later includes phone.)
+          if (contactId && fromPhone && !contactRow.rows[0].phone) {
+            await pool.query(
+              `UPDATE contacts SET phone=$1 WHERE id=$2 AND workspace_id=$3 AND phone IS NULL`,
+              [fromPhone, contactId, wsId]
+            )
+            console.log(`[webhook] Backfilled phone for existing contact ${contactId}`)
+          }
           if (!contactId) {
             // Auto-create contact AND mark them as PDPA-consented from the
             // get-go. When a contact initiates WhatsApp contact with us,
-            // PDPA permits us to respond 鈥?they've effectively given implied
+            // PDPA permits us to respond 閳?they've effectively given implied
             // consent to receive a reply. We sync the contacts.pdpa_consented
             // flag too so existing UI (broadcasts safety check, contact list
             // PDPA pill) reflects this.
             const consentNow = new Date()
             const consentExpires = new Date(consentNow)
             consentExpires.setMonth(consentExpires.getMonth() + 24)
+            const fromCountry = countryFromPhone(fromPhone)
             const newContact = await pool.query(`
               INSERT INTO contacts
-                (workspace_id, name, phone, type, pipeline_stage, source, pdpa_consented, pdpa_consented_at)
-              VALUES ($1, $2, $3, 'candidate', 'new', 'inbound_whatsapp', true, $4)
+                (workspace_id, name, phone, country_code, bsuid, type, pipeline_stage, source, pdpa_consented, pdpa_consented_at)
+              VALUES ($1, $2, $3, $4, $5, 'candidate', 'new', 'inbound_whatsapp', true, $6)
               RETURNING id, name
-            `, [wsId, fromPhone, fromPhone, consentNow])
+            `, [wsId, fromPhone, fromPhone, fromCountry, fromBsuid, consentNow])
             contactId = newContact.rows[0].id
             isNewContact = true
             // Audit-trail row in pdpa_records. Note we don't have a user-id
